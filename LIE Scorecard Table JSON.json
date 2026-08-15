@@ -1,0 +1,692 @@
+[
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "id",
+      "name",
+      "nickname",
+      "email",
+      "teeColor",
+      "hcpOfficial",
+      "hcpLIE",
+      "role"
+    ],
+    "tabName": "adm_Spieler",
+    "data": [
+      [
+        101,
+        "Thomas Stockhinger",
+        "stocki",
+        "tstockhinger@gmail.com",
+        "Gelb",
+        19.1,
+        26,
+        "Admin"
+      ],
+      [
+        102,
+        "Rainer Adamzyk",
+        "Rainer",
+        "rainer.adamzyk@ewetel.net",
+        "Gelb",
+        14.35,
+        26,
+        "Spielleiter"
+      ],
+      [
+        103,
+        "Thorsten Stich",
+        "Stichi",
+        "Ktstich@t-online.de",
+        "Gelb",
+        15.5,
+        26,
+        "Spieler"
+      ],
+      [
+        104,
+        "Hartmut Müller",
+        "Hartmut",
+        "hmcm92@arcor.de",
+        "Gelb",
+        16.3,
+        26,
+        "Spieler"
+      ],
+      [
+        105,
+        "Thorsten Helfers",
+        "Veto",
+        "thorsten-helfers@t-online.de",
+        "Gelb",
+        18.2,
+        26,
+        "Admin"
+      ],
+      [
+        106,
+        "Arno Seebeck",
+        "Arno",
+        "seebeck58@gmx.de",
+        "Gelb",
+        19.3,
+        26,
+        "Spieler"
+      ],
+      [
+        107,
+        "Ralf Bahmann",
+        "Ralfi",
+        "Ralf.Bahmann@t-online.de",
+        "Gelb",
+        21.3,
+        26,
+        "Admin"
+      ],
+      [
+        108,
+        "Karl-Heinz Wischhusen",
+        "Calle",
+        "karl-heinz.wischhusen@gmx.de",
+        "Gelb",
+        22.4,
+        26,
+        "Spieler"
+      ],
+      [
+        109,
+        "Thomas Forster",
+        "Forsti",
+        "thomas.forster65@web.de",
+        "Gelb",
+        23.4,
+        26,
+        "Admin"
+      ],
+      [
+        110,
+        "Peter Rauscher",
+        "Peter",
+        "peter.rauscher@t-online.de",
+        "Gelb",
+        24.6,
+        26,
+        "Spieler"
+      ]
+    ],
+    "sheetName": "LIEScoreCard_ADMIN",
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/12ABZ66C6Gg81YqRL4l1MyYTM-kqLdUFS5xH349qY7cM/edit?gid=0#gid=0"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "spielerId",
+      "pinHash",
+      "salt",
+      "updatedAt",
+      "mustChange",
+      "failedAttempts",
+      "pendingPinHash",
+      "pendingSalt"
+    ],
+    "tabName": "adm_Pin",
+    "data": [
+      [
+        101,
+        "IOLI0BQmJLJAnBvg0GIxZqglgmTOGKCc6oaA4ihdaVg=",
+        "51739ebe-2752-45cd-b260-53a172c1ea39",
+        "Wed Jul 22 2026 20:38:21 GMT+0200 (Mitteleuropäische Sommerzeit)",
+        false,
+        0,
+        null,
+        null
+      ],
+      [
+        107,
+        "UaBAILpJ1nNJib0n+tP1etUmhVlEB9HQ4NTurNJvQxk=",
+        "c80ccbd7-58c2-484d-ad0b-c0f574c844d9",
+        "Thu Jul 23 2026 12:00:38 GMT+0200 (Mitteleuropäische Sommerzeit)",
+        false,
+        0,
+        null,
+        null
+      ],
+      [
+        112,
+        "iM/uKrlMM+IHq+bMuZRwqPApMsKpG/gZ7oEmphwC6FU=",
+        "bfb2ceee-6991-41b9-b6ca-759ff085718e",
+        "Thu Jul 23 2026 12:05:10 GMT+0200 (Mitteleuropäische Sommerzeit)",
+        false,
+        0,
+        null,
+        null
+      ],
+      [
+        104,
+        "Sv8c5MU3P6STB3hgq3VlQZPcTX5uLh5W7woZMkckVag=",
+        "11ac635b-7d4f-45bb-b32c-e214dad46612",
+        "Sat Jul 25 2026 11:46:36 GMT+0200 (Mitteleuropäische Sommerzeit)",
+        false,
+        0,
+        null,
+        null
+      ],
+      [
+        102,
+        null,
+        null,
+        "Sat Jul 25 2026 11:48:19 GMT+0200 (Mitteleuropäische Sommerzeit)",
+        true,
+        0,
+        "72MdM8g4k1Uppu1E5F5Kn7l5YArwaLFJ0ifcpiQ+IsI=",
+        "257e32fb-a049-453c-b69c-5d4fbdb1edf1"
+      ],
+      [
+        105,
+        "KxkfvfFqA9uVoCBIWQ3hLFqJISx+zLT6X50UPHASwHI=",
+        "60499e88-6db7-462d-b0f0-615dcf94145c",
+        "Sat Jul 25 2026 19:53:11 GMT+0200 (Mitteleuropäische Sommerzeit)",
+        false,
+        0,
+        null,
+        null
+      ],
+      [
+        109,
+        null,
+        null,
+        "Thu Jul 30 2026 13:04:30 GMT+0200 (Mitteleuropäische Sommerzeit)",
+        true,
+        3,
+        "NyqMDYjsnqxSMJqasVm2PC1mLzHs2+ifHQZ+oXNajLA=",
+        "f13966fe-f37e-408b-8109-245c08efb8ee"
+      ]
+    ],
+    "sheetName": "LIEScoreCard_ADMIN",
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/12ABZ66C6Gg81YqRL4l1MyYTM-kqLdUFS5xH349qY7cM/edit?gid=0#gid=0"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "token",
+      "spielerId",
+      "issuedAt",
+      "expiresAt",
+      "revoked"
+    ],
+    "tabName": "adm_Token",
+    "sheetName": "LIEScoreCard_ADMIN",
+    "data": [],
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/12ABZ66C6Gg81YqRL4l1MyYTM-kqLdUFS5xH349qY7cM/edit?gid=0#gid=0"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "ts",
+      "actorId",
+      "action",
+      "metaJson"
+    ],
+    "tabName": "adm_Audit",
+    "sheetName": "LIEScoreCard_ADMIN",
+    "data": [],
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/12ABZ66C6Gg81YqRL4l1MyYTM-kqLdUFS5xH349qY7cM/edit?gid=0#gid=0"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "id",
+      "date",
+      "kursId",
+      "status",
+      "teilnehmerCsv",
+      "bruttoSieger",
+      "nettoSieger",
+      "istGeloescht"
+    ],
+    "tabName": "app_Spieltage",
+    "data": [
+      [
+        "ST-1785323021814",
+        "Wed Jul 29 2026 00:00:00 GMT+0200 (Mitteleuropäische Sommerzeit)",
+        "PL001-K1",
+        "Aktiv",
+        "101,102,104,105,106,107,109,111",
+        null,
+        null,
+        false
+      ]
+    ],
+    "sheetName": "LIEScoreCard_APPLICATION",
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/1o9zbW0BZcDRuTfKOF7aBFLzzdJmsqi32mnveVT2Ossk/edit?gid=1622430883#gid=1622430883"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "id",
+      "spieltagId",
+      "spielerIdsCsv"
+    ],
+    "tabName": "app_Flights",
+    "sheetName": "LIEScoreCard_APPLICATION",
+    "data": [
+      [
+        "FL-ST-1785323021814-1",
+        "ST-1785323021814",
+        "111,107,106,105"
+      ],
+      [
+        "FL-ST-1785323021814-2",
+        "ST-1785323021814",
+        "101,102,109,104"
+      ]
+    ],
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/1o9zbW0BZcDRuTfKOF7aBFLzzdJmsqi32mnveVT2Ossk/edit?gid=1622430883#gid=1622430883"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "id",
+      "spieltagId",
+      "flightSeq",
+      "spielerId",
+      "hole",
+      "strokes",
+      "strokesGiven",
+      "lady",
+      "puts",
+      "maxscore"
+    ],
+    "tabName": "app_ScoreCards",
+    "sheetName": "LIEScoreCard_APPLICATION",
+    "data": [
+      [
+        "SC-ST-1785323021814-101-1",
+        "ST-1785323021814",
+        2,
+        101,
+        1,
+        5,
+        1,
+        false,
+        2,
+        false
+      ],
+      [
+        "SC-ST-1785323021814-102-1",
+        "ST-1785323021814",
+        2,
+        102,
+        1,
+        5,
+        1,
+        false,
+        2,
+        false
+      ],
+      [
+        "SC-ST-1785323021814-109-1",
+        "ST-1785323021814",
+        2,
+        109,
+        1,
+        5,
+        1,
+        false,
+        2,
+        false
+      ],
+      [
+        "SC-ST-1785323021814-104-1",
+        "ST-1785323021814",
+        2,
+        104,
+        1,
+        5,
+        1,
+        false,
+        2,
+        false
+      ],
+      [
+        "SC-ST-1785323021814-101-2",
+        "ST-1785323021814",
+        2,
+        101,
+        2,
+        6,
+        2,
+        false,
+        2,
+        false
+      ],
+      [
+        "SC-ST-1785323021814-102-2",
+        "ST-1785323021814",
+        2,
+        102,
+        2,
+        6,
+        2,
+        false,
+        2,
+        false
+      ],
+      [
+        "SC-ST-1785323021814-109-2",
+        "ST-1785323021814",
+        2,
+        109,
+        2,
+        6,
+        2,
+        false,
+        2,
+        false
+      ],
+      [
+        "SC-ST-1785323021814-104-2",
+        "ST-1785323021814",
+        2,
+        104,
+        2,
+        6,
+        2,
+        false,
+        2,
+        false
+      ],
+      [
+        "SC-ST-1785323021814-101-3",
+        "ST-1785323021814",
+        2,
+        101,
+        3,
+        4,
+        1,
+        false,
+        2,
+        false
+      ],
+      [
+        "SC-ST-1785323021814-102-3",
+        "ST-1785323021814",
+        2,
+        102,
+        3,
+        4,
+        1,
+        false,
+        2,
+        false
+      ]
+    ],
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/1o9zbW0BZcDRuTfKOF7aBFLzzdJmsqi32mnveVT2Ossk/edit?gid=1622430883#gid=1622430883"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "id",
+      "name",
+      "location"
+    ],
+    "tabName": "ref_Golfplätze",
+    "sheetName": "LIE_ScoreCard_REFERENCES",
+    "data": [
+      [
+        "PL001",
+        "Bremer Schweiz",
+        "Schwanewede, NI"
+      ]
+    ],
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/1wYwHJ-c37lUMO2i2R06IdamLkSKDyctTpui_yqwRoQg/edit?gid=0#gid=0"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "id",
+      "platzId",
+      "name",
+      "bahnAnzahl"
+    ],
+    "tabName": "ref_GolfplatzKurse",
+    "sheetName": "LIE_ScoreCard_REFERENCES",
+    "data": [
+      [
+        "PL001-K1",
+        "PL001",
+        "9‑Loch Kurs (1-9)",
+        9
+      ],
+      [
+        "PL001-K2",
+        "PL001",
+        "9‑Loch Kurs (10-18)",
+        9
+      ],
+      [
+        "PL001-K3",
+        "PL001",
+        "18‑Loch (1-18)",
+        18
+      ]
+    ],
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/1wYwHJ-c37lUMO2i2R06IdamLkSKDyctTpui_yqwRoQg/edit?gid=0#gid=0"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "id",
+      "kursId",
+      "nr",
+      "par",
+      "si"
+    ],
+    "tabName": "ref_KursBahnen",
+    "data": [
+      [
+        "H01",
+        "PL001-K1",
+        1,
+        4,
+        10
+      ],
+      [
+        "H02",
+        "PL001-K1",
+        2,
+        5,
+        2
+      ],
+      [
+        "H03",
+        "PL001-K1",
+        3,
+        3,
+        18
+      ],
+      [
+        "H04",
+        "PL001-K1",
+        4,
+        4,
+        6
+      ],
+      [
+        "H05",
+        "PL001-K1",
+        5,
+        4,
+        14
+      ],
+      [
+        "H06",
+        "PL001-K1",
+        6,
+        5,
+        4
+      ],
+      [
+        "H07",
+        "PL001-K1",
+        7,
+        4,
+        12
+      ],
+      [
+        "H08",
+        "PL001-K1",
+        8,
+        4,
+        8
+      ],
+      [
+        "H09",
+        "PL001-K1",
+        9,
+        3,
+        16
+      ],
+      [
+        "H10",
+        "PL001-K1",
+        10,
+        4,
+        9
+      ]
+    ],
+    "sheetName": "LIE_ScoreCard_REFERENCES",
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/1wYwHJ-c37lUMO2i2R06IdamLkSKDyctTpui_yqwRoQg/edit?gid=0#gid=0"
+  },
+  {
+    "headerTypes": [
+      "string",
+      "string",
+      "string",
+      "string",
+      "string",
+      "string"
+    ],
+    "headers": [
+      "kursId",
+      "teeColor",
+      "slope",
+      "cr",
+      "parSum",
+      "method"
+    ],
+    "tabName": "ref_KursHandicap",
+    "sheetName": "LIE_ScoreCard_REFERENCES",
+    "data": [
+      [
+        "PL001-K1",
+        "Weiß",
+        130,
+        72.4,
+        68,
+        "table"
+      ],
+      [
+        "PL001-K1",
+        "Gelb",
+        125,
+        71,
+        68,
+        "table"
+      ],
+      [
+        "PL001-K1",
+        "Rot",
+        118,
+        70,
+        68,
+        "table"
+      ],
+      [
+        "PL001-K1",
+        "Orange",
+        115,
+        69,
+        68,
+        "table"
+      ],
+      [
+        "PL001-K1",
+        "Blau",
+        110,
+        68,
+        68,
+        "table"
+      ]
+    ],
+    "sheetUrl": "https://docs.google.com/spreadsheets/d/1wYwHJ-c37lUMO2i2R06IdamLkSKDyctTpui_yqwRoQg/edit?gid=0#gid=0"
+  }
+]

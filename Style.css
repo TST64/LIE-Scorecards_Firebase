@@ -1,0 +1,35 @@
+/* Individuelle UI/UX-Optimierungen über Tailwind hinaus */
+
+/* Stellt sicher, dass der Body und Hauptcontainer auf Handys volle Breite nutzen */
+html, body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+/* Verhindert unlesbare Skalierung auf Smartphones */
+#app-container {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Deaktiviert die unschöne graue Fläche beim Tippen auf Mobilgeräten */
+button, a, .nav-btn 
+{
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+}
+
+/* Weiche Übergänge für View-Wechsel */
+#app-container 
+{
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* One-Hand Safe Input States */
+.touch-target 
+{
+    min-height: 44px;
+    min-width: 44px;
+}
