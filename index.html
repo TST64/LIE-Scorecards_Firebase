@@ -4,29 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LIE Scorecard</title>
-    <!-- Tailwind CSS & FontAwesome über CDN -->
+
+    <!-- Tailwind CSS & FontAwesome via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <!-- Firebase Web SDK (v10 Compat Mode) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Deine CSS Datei -->
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="Style.css?v=2">
 
     <!-- Favicon / App-Icon -->
     <link rel="icon" type="image/jpeg" href="img/LIE_Logo II.jpeg">
-    <!-- Optional: Für iOS App-Icons beim Speichern auf dem Homescreen -->
     <link rel="apple-touch-icon" href="img/LIE_Logo II.jpeg">
 
     <!-- PWA Manifest & Mobile Styling -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#047857">
-    <!-- Neu / Standardkonform: -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="LIE Scorecard">
-    <link rel="apple-touch-icon" href="img/LIE_Logo II.jpeg">    
-
 </head>
 <body class="bg-stone-100 text-stone-900 font-sans antialiased">
 
@@ -91,7 +92,6 @@
                 <i class="fas fa-question-circle text-base"></i>
                 <span class="text-[10px] mt-0.5">Hilfe</span>
             </button>
-            <!-- NEU: Dezidierter Admin-Button (Standardmäßig versteckt) -->
             <button id="nav-admin" onclick="app.router.navigate('admin')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-amber-600 transition px-2 py-1 touch-target hidden">
                 <i class="fas fa-user-shield text-base"></i>
                 <span class="text-[10px] mt-0.5">Admin</span>
@@ -141,14 +141,16 @@
         </div>
     </div>    
 
-    <!-- Dynamisches Laden der Module mit explizitem Start-Trigger -->
+    <!-- Dynamisches Laden der Module -->
     <script>
-        (function() {
+        (function() 
+        {
             const cfgScript = document.createElement('script');
             cfgScript.src = 'config.js?t=' + Date.now();
             cfgScript.async = false;
 
-            cfgScript.onload = function() {
+            cfgScript.onload = function() 
+            {
                 const scripts = [
                     "App_Core.js",
                     "App_View_Help.js",
@@ -158,7 +160,6 @@
                     "App_Logic_Spieltage.js",
                     "App_Logic_Spieler.js",
                     "App_Logic_UI.js",
-                    "App_Start.js",
                     "Views_Login.js",
                     "Views_Dashboard.js",
                     "Views_Spieltage.js",
@@ -167,7 +168,8 @@
                     "Views_Leaderboard.js",
                     "Views_Admin.js",
                     "Views_AdminGruppe.js",
-                    "Views_SpielerEdit.js"
+                    "Views_SpielerEdit.js",
+                    "App_Start.js"
                 ];
 
                 const version = (typeof CONFIG !== 'undefined' && CONFIG.appVersion) 
@@ -176,17 +178,19 @@
 
                 let loadedCount = 0;
 
-                scripts.forEach(function(src) {
+                scripts.forEach(function(src) 
+                {
                     const script = document.createElement('script');
                     script.src = src + '?v=' + encodeURIComponent(version);
                     script.async = false;
                     
-                    // Zählen, wie viele Skripte geladen sind
-                    script.onload = function() {
+                    script.onload = function() 
+                    {
                         loadedCount++;
-                        // Wenn ALLE Skripte im Browser sind: App manuell starten!
-                        if (loadedCount === scripts.length) {
-                            if (window.app && typeof window.app.initStart === 'function') {
+                        if (loadedCount === scripts.length) 
+                        {
+                            if (window.app && typeof window.app.initStart === 'function') 
+                            {
                                 window.app.initStart();
                             }
                         }
@@ -196,7 +200,8 @@
                 });
             };
 
-            cfgScript.onerror = function() {
+            cfgScript.onerror = function() 
+            {
                 console.error("Fehler beim Laden der config.js!");
             };
 
@@ -208,13 +213,20 @@
     <script>
         if ('serviceWorker' in navigator) 
         {
-            window.addEventListener('load', () => {
+            window.addEventListener('load', function() 
+            {
                 navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('[PWA] Service Worker erfolgreich registriert:', reg.scope))
-                .catch(err => console.warn('[PWA] Service Worker Fehler:', err));
+                    .then(function(reg) 
+                    {
+                        console.log('[PWA] Service Worker erfolgreich registriert:', reg.scope);
+                    })
+                    .catch(function(err) 
+                    {
+                        console.warn('[PWA] Service Worker Fehler:', err);
+                    });
             });
         }
-  </script>
+    </script>
 
 </body>
 </html>

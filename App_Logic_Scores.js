@@ -205,10 +205,9 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     }
 };
 
-app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
+app.logic.syncScoresWithServer = async function(spieltagId, flightSeq)
 {
-    const keysToSync = Object.keys(app.state.liveScores).filter(function(k) { return k.startsWith(spieltagId + "_"); });
-    
+    const keysToSync = Object.keys(app.state.liveScores).filter(k => k.startsWith(spieltagId + "_"));
     if (keysToSync.length === 0)
     {
         app.logic.showToast("Keine ausstehenden Änderungen.", "info");
@@ -222,99 +221,119 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
         syncBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Sende...`;
     }
 
+    try
+    {
+        const batch = app.db.batch();
+        const verarbeiteteKeys = {};
+
+        keysToSync.forEach(key => {
+            const parts = key.split('_'); 
+            const spielerId = parts[1];
+            const holeNr = parseInt(parts[2]);
+            const uniqueHoleKey = `${spielerId}_${holeNr}`;
+            
+            if (verarbeiteteKeys[uniqueHoleKey]) return;
+            verarbeiteteKeys[uniqueHoleKey] = true;
+
+            const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
+            const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
+            const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
+            const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
+            
+            let strokes = app.state.liveScores[scoreKey];
+            if (strokes === undefined || strokes === null || strokes <= 0) return;
+
+            const docId = `SC-${spieltagId}-${spielerId}-${holeNr}`;
+            const docRef = app.db.collection("scorecards").doc(docId);
+
+            const payload = {
+                id: docId,
+                spieltagId: String(spieltagId),
+                flightSeq: parseInt(flightSeq) || 1,
+                spielerId: String(spielerId),
+                hole: holeNr,
+                strokes: parseInt(strokes),
+                lady: !!app.state.liveScores[ladyKey],
+                puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
+                maxscore: !!app.state.liveScores[maxScoreKey]
+            };
+
+            batch.set(docRef, payload, { merge: true });
+        });
+
+        await batch.commit();
+
+        keysToSync.forEach(k => delete app.state.liveScores[k]);
+        app.logic.showToast("Scores erfolgreich in Firebase gesichert!", "success");
+    }
+    catch (err)
+    {
+        console.error("Firebase Sync-Fehler:", err);
+        app.logic.showToast("Fehler beim Sichern der Daten", "error");
+    }
+    finally
+    {
+        if (syncBtn)
+        {
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`;
+        }
+    }
+};
+
+app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
+{
     app.logic.stopLivePolling();
 
-    const scoresPayload = [];
-    const verarbeiteteKeys = {};
+    if (!app.db) app.initFirebase();
 
-    keysToSync.forEach(function(key)
-    {
-        const parts = key.split('_'); 
-        const spielerId = parts[1];
-        const holeNr = parseInt(parts[2]);
-        
-        const uniqueHoleKey = `${spielerId}_${holeNr}`;
-        if (verarbeiteteKeys[uniqueHoleKey]) return;
-        verarbeiteteKeys[uniqueHoleKey] = true;
+    // Echtes Push-Event von Firestore abonnierten
+    app.state.unsubscribeLiveScores = app.db.collection("scorecards")
+        .where("spieltagId", "==", String(spieltagId))
+        .onSnapshot(function(snapshot)
+        {
+            const updatedScores = snapshot.docs.map(function(doc) { return doc.data(); });
 
-        const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
-        const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
-        const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
-        const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
-        
-        let strokes = app.state.liveScores[scoreKey];
-        if (strokes === undefined || strokes === null || strokes <= 0) return;
+            // Vorhandene Scores dieser Runde durch die frischen Firestore-Daten ersetzen
+            const otherRoundScores = app.state.scoreCards.filter(function(sc)
+            {
+                return String(sc.spieltagId).trim() !== String(spieltagId).trim();
+            });
+            app.state.scoreCards = otherRoundScores.concat(updatedScores);
 
-        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
-        const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-        const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId) === String(spieltag ? spieltag.kursId : ""); });
-        const bahn = kursBahnen.find(function(b) { return parseInt(b.nr) === holeNr; }) || { si: 10 };
+            const container = document.getElementById('app-container');
+            if (container)
+            {
+                if (app.state.currentView === 'leaderboard')
+                {
+                    const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
+                    container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
+                }
+                else if (app.state.currentView === 'score_eingabe' && holeNr)
+                {
+                    const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(function(k)
+                    {
+                        return k.startsWith(spieltagId + "_");
+                    }).length;
 
-        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si);
-
-        scoresPayload.push({
-            id: `SC-${spieltagId}-${spielerId}-${holeNr}`,
-            spieltagId: spieltagId,
-            flightSeq: parseInt(flightSeq) || 1,
-            spielerId: spielerId,
-            hole: holeNr,
-            strokes: parseInt(strokes),
-            strokesGiven: strokesGiven,
-            lady: !!app.state.liveScores[ladyKey],
-            puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
-            maxscore: !!app.state.liveScores[maxScoreKey]
+                    // Nur neu rendern, wenn der User gerade keine ungespeicherten Eingaben getippt hat
+                    if (ungesicherteAenderungen === 0)
+                    {
+                        container.innerHTML = app.views.score_eingabe(spieltagId, holeNr, flightSeq);
+                    }
+                }
+            }
+        }, function(err)
+        {
+            console.warn("[Firestore Listener Error]", err);
         });
-    });
+};
 
-    if (scoresPayload.length === 0)
+app.logic.stopLivePolling = function()
+{
+    if (typeof app.state.unsubscribeLiveScores === "function")
     {
-        if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
-        app.logic.startLivePolling(spieltagId, null, flightSeq);
-        return;
+        app.state.unsubscribeLiveScores();
+        app.state.unsubscribeLiveScores = null;
     }
-
-    app.logic.apiRequest('saveLiveScores', { payload: scoresPayload })
-        .then(function(response)
-        {
-            if (response && response.success)
-            {
-                keysToSync.forEach(function(key)
-                {
-                    delete app.state.liveScores[key];
-                });
-
-                scoresPayload.forEach(function(item)
-                {
-                    const idx = app.state.scoreCards.findIndex(function(sc) { return String(sc.id).trim() === String(item.id).trim(); });
-                    if (idx !== -1) 
-                    {
-                        app.state.scoreCards[idx] = item;
-                    }
-                    else 
-                    {
-                        app.state.scoreCards.push(item);
-                    }
-                });
-
-                app.logic.showToast("Scores erfolgreich gesichert!", "success");
-            }
-            else
-            {
-                app.logic.showToast("Sync-Fehler: " + (response ? response.error : "Unbekannt"), "error");
-            }
-
-            if (syncBtn)
-            {
-                syncBtn.disabled = false;
-                syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`;
-            }
-            app.logic.startLivePolling(spieltagId, null, flightSeq);
-        })
-        .catch(function(err)
-        {
-            console.error("Netzwerkfehler beim Sichern:", err);
-            app.logic.showToast("Fehler beim Sichern der Daten", "error");
-            if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
-            app.logic.startLivePolling(spieltagId, null, flightSeq);
-        });
 };

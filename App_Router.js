@@ -1,189 +1,151 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Router-Komponente mit Auto-Safe Guard
+// BMAssistent / LIE Scorecard - Router Module
 // App_Router.js
 // BSD (Allman) Style
 // =========================================================================
 
-app.router = 
+var app = app || {};
+app.router = app.router || {};
+
+app.router.currentView = null;
+
+app.router.navigate = function(viewName)
 {
-    navigate: function(viewName, params)
+    // 1. Splash Screen ausblenden
+    const loadingEl = document.getElementById('app-loading');
+    if (loadingEl)
     {
-        // === AUTO-SAFE GUARD ===
-        // Vor dem View-Wechsel prüfen wir auf ungesicherte temporäre Scores
-        if (app.state.liveScores && Object.keys(app.state.liveScores).length > 0)
-        {
-            console.log("[Router Guard] Ungesicherte Scores entdeckt. Starte Auto-Sync...");
-            
-            // Ermittle die Kontextdaten aus dem aktuellen Zustand
-            let activeSpieltagId = params ? params.id : null;
-            let activeFlightSeq = params ? params.flightSeq : 1;
-            
-            if (!activeSpieltagId && app.state.spieltage)
-            {
-                const aktRunde = app.state.spieltage.find(function(st) { return st.status === 'Aktiv'; });
-                if (aktRunde) activeSpieltagId = aktRunde.id;
-            }
-            
-            if (activeSpieltagId)
-            {
-                // Führt den Sync lautlos im Hintergrund aus
-                app.logic.syncScoresWithServer(activeSpieltagId, activeFlightSeq);
-            }
-        }
+        loadingEl.classList.add('hidden');
+    }
 
-        // Stoppt das Polling der alten View
-        app.logic.stopLivePolling();
+    // 2. Datenobjekte & Fallbacks sicherstellen
+    app.data = app.data || {};
+    app.state = app.state || {};
+    app.state.spieler = app.state.spieler || [];
+    app.state.spieltage = app.state.spieltage || [];
+    app.state.scoreCards = app.state.scoreCards || [];
+    app.state.liveScores = app.state.liveScores || {};
 
-        app.state.currentView = viewName;
-        const container = document.getElementById('app-container');
-        if (!container) 
-        {
-            return;
-        }
+    // 3. Routing-Ziel bestimmen
+    const targetView = viewName || 'login';
+    app.router.currentView = targetView;
 
-        // Navigations-Elemente aktualisieren
-        app.router.updateNavigationUI(viewName);
+    // 4. UI-Elemente anpassen (Bottom Nav, Header Actions)
+    app.router.updateNavigationUI(targetView);
 
-        switch (viewName)
-        {
-            case 'login':
-                container.innerHTML = app.views.login();
-                break;
-
-            case 'pin_aendern':
-                container.innerHTML = app.views.pin_aendern();
-                break;
-
-            case 'dashboard':
-                container.innerHTML = app.views.dashboard();
-                break;
-
-            case 'spieltage':
-                container.innerHTML = app.views.spieltage();
-                break;
-
-            case 'spieltag_neu':
-                container.innerHTML = app.views.spieltag_neu();
-                break;
-
-            case 'leaderboard':
-                if (params && params.id)
-                {
-                    container.innerHTML = app.views.leaderboard(params.id, params.mode);
-                    app.logic.startLivePolling(params.id);
-                }
-                break;
-
-            case 'score_eingabe':
-                if (params && params.id && params.hole)
-                {
-                    container.innerHTML = app.views.score_eingabe(params.id, params.hole, params.flightSeq);
-                    app.logic.startLivePolling(params.id, params.hole, params.flightSeq);
-                }
-                break;
-
-            case 'spieler':
-                container.innerHTML = app.views.spieler_liste();
-                break;
-
-            case 'spieler_edit':
-                container.innerHTML = app.views.spieler_edit(params ? params.id : null);
-                break;
-
-            case 'admin':
-                if (typeof app.views.admin === 'function')
-                {
-                    container.innerHTML = app.views.admin();
-                }
-                else
-                {
-                    container.innerHTML = '<p class="text-stone-400 p-4">Admin-Ansicht nicht verfügbar.</p>';
-                }
-                break;
-
-            case 'help':
-                container.innerHTML = app.views.help();
-                break;
-
-            default:
-                container.innerHTML = '<p class="text-stone-400 p-4">Ansicht nicht gefunden.</p>';
-        }
-
-        window.scrollTo(0, 0);
-    },
-
-    updateNavigationUI: function(viewName)
+    // 5. Container-Element abgreifen
+    const container = document.getElementById('app-container');
+    if (!container)
     {
-        if (typeof app.logic.updateHeaderRoleIcon === 'function')
+        console.error('[Router] Container #app-container im DOM nicht gefunden.');
+        return;
+    }
+
+    // 6. Ansicht rendern & HTML in den DOM-Container injizieren
+    if (app.views && typeof app.views[targetView] === 'function')
+    {
+        container.innerHTML = app.views[targetView]();
+    }
+    else if (app.views && typeof app.views.dashboard === 'function')
+    {
+        console.warn('[Router] View "' + targetView + '" nicht gefunden. Lade Dashboard-Fallback.');
+        app.router.currentView = 'dashboard';
+        container.innerHTML = app.views.dashboard();
+    }
+    else
+    {
+        console.error('[Router] Keine passende View zum Rendern gefunden.');
+    }
+};
+
+app.router.renderCurrentView = function()
+{
+    if (app.router.currentView)
+    {
+        app.router.navigate(app.router.currentView);
+    }
+    else
+    {
+        const defaultTarget = (app.state && app.state.currentUser) ? 'dashboard' : 'login';
+        app.router.navigate(defaultTarget);
+    }
+};
+
+app.router.updateNavigationUI = function(viewName)
+{
+    const bottomNav = document.getElementById('bottom-nav');
+    const headerLogoutBtn = document.getElementById('header-logout-btn');
+    const headerActionBtn = document.getElementById('header-action-btn');
+
+    // Login-Screen Sonderbehandlung
+    if (viewName === 'login')
+    {
+        if (bottomNav)
         {
-            app.logic.updateHeaderRoleIcon();
+            bottomNav.classList.add('hidden');
         }
 
-        const actionBtn = document.getElementById('header-action-btn');
-        const navBar = document.getElementById('bottom-nav');
-        const adminNavBtn = document.getElementById('nav-admin');
-
-        if (!actionBtn || !navBar) 
+        if (headerLogoutBtn)
         {
-            return;
+            headerLogoutBtn.classList.add('hidden');
         }
 
-        const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
-        const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
-
-        // Header-Aktions-Button (+ Plus zum Runden anlegen)
-        if (viewName === 'spieltage' && isLeiter)
+        if (headerActionBtn)
         {
-            actionBtn.classList.remove('hidden');
-        }
-        else
-        {
-            actionBtn.classList.add('hidden');
+            headerActionBtn.classList.add('hidden');
         }
 
-        // Steuerung des Admin-Buttons in der Bottom Navigation
-        if (adminNavBtn)
-        {
-            if (isAdmin)
-            {
-                adminNavBtn.classList.remove('hidden');
-            }
-            else
-            {
-                adminNavBtn.classList.add('hidden');
-            }
-        }
+        return;
+    }
 
-        // Sichtbarkeit der gesamten Footer-Leiste
-        if (viewName === 'login')
-        {
-            navBar.classList.add('hidden');
-        }
-        else
-        {
-            navBar.classList.remove('hidden');
-            
-            // Zurücksetzen aller Tab-Stylings
-            document.querySelectorAll('#bottom-nav button').forEach(function(btn)
-            {
-                btn.classList.remove('text-emerald-600', 'font-bold');
-                btn.classList.add('text-stone-400');
-            });
+    // Bottom Navigation für angemeldete Bereiche einblenden
+    if (bottomNav)
+    {
+        bottomNav.classList.remove('hidden');
+    }
 
-            // Aktiven Tab ermitteln
-            let activeTabId = "";
-            if (viewName === 'dashboard') activeTabId = 'nav-dash';
-            if (viewName === 'spieltage' || viewName === 'spieltag_neu' || viewName === 'leaderboard') activeTabId = 'nav-rounds';
-            if (viewName === 'spieler' || viewName === 'spieler_edit') activeTabId = 'nav-players';
-            if (viewName === 'admin') activeTabId = 'nav-admin';
-            if (viewName === 'help') activeTabId = 'nav-help';
+    if (headerLogoutBtn && app.state && app.state.currentUser)
+    {
+        headerLogoutBtn.classList.remove('hidden');
+    }
 
-            const activeBtn = document.getElementById(activeTabId);
-            if (activeBtn)
-            {
-                activeBtn.classList.remove('text-stone-400');
-                activeBtn.classList.add('text-emerald-600', 'font-bold');
-            }
+    // Aktiven Navigation-Tab optisch hervorheben
+    const navButtons = document.querySelectorAll('.nav-btn');
+    navButtons.forEach(function(btn)
+    {
+        btn.classList.remove('text-emerald-600');
+        btn.classList.add('text-stone-400');
+    });
+
+    let activeNavId = null;
+    if (viewName === 'dashboard')
+    {
+        activeNavId = 'nav-dash';
+    }
+    else if (viewName === 'spieltage' || viewName === 'spieltag_neu')
+    {
+        activeNavId = 'nav-rounds';
+    }
+    else if (viewName === 'spieler')
+    {
+        activeNavId = 'nav-players';
+    }
+    else if (viewName === 'help')
+    {
+        activeNavId = 'nav-help';
+    }
+    else if (viewName === 'admin' || viewName === 'admin_gruppe')
+    {
+        activeNavId = 'nav-admin';
+    }
+
+    if (activeNavId)
+    {
+        const activeBtn = document.getElementById(activeNavId);
+        if (activeBtn)
+        {
+            activeBtn.classList.remove('text-stone-400');
+            activeBtn.classList.add('text-emerald-600');
         }
     }
 };

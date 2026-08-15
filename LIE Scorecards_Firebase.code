@@ -1,5 +1,5 @@
 ======================================================================
-PROJEKT-DUMP: LIE Scorecards
+PROJEKT-DUMP: LIE Scorecards_Firebase
 ======================================================================
 Diese Datei enthält den zusammengesetzten Quellcode des Projekts.
 Inhalt:
@@ -9,7 +9,7 @@ Inhalt:
 ======================================================================
 
 PROJEKTSTRUKTUR:
-/LIE Scorecards
+/LIE Scorecards_Firebase
 ├── img/
 ├── App_Core.js
 ├── App_Logic_Bridge.js
@@ -44,262 +44,165 @@ DATEIINHALTE:
 
 ##### <App_Core.js>:
 ----------------------------------------------------------------------
-
 // =========================================================================
-// BMAssistent / LIE Scorecard - Globaler Anwendungs-State
-// App_Core.html
+// BMAssistent / LIE Scorecard - Core Module
+// App_Core.js
 // BSD (Allman) Style
 // =========================================================================
 
-window.app = window.app || {};
+var app = app || {};
 
-app.state = 
+app.core = (function()
 {
-    currentView: 'login',
-    currentUser: null,
-    leaderboardViewMode: 'matrix', 
-    spieler: [],
-    golfplaetze: [],
-    kurse: [],
-    bahnen: [],
-    handicaps: [],
-    spieltage: [],
-    scoreCards: [],
-    flights: [],
-    tempFlights: [],
-    tempZufallsFlights: [],
-    tempManualFlights: {},
-    liveScores: {},
-    
-    // NEU: Polling-Infrastruktur
-    pollingIntervalId: null, // Hält die ID des laufenden window.setInterval
-    currentPollingRate: 60   // Standard-Takt (wird dynamisch vom Server überschrieben)
-};
+    'use strict';
 
+    function initFirebase()
+    {
+        if (typeof firebase === 'undefined')
+        {
+            console.error('[App_Core] Firebase SDK wurde nicht geladen.');
+            return;
+        }
+
+        const config = window.firebaseConfig || (typeof firebaseConfig !== 'undefined' ? firebaseConfig : null);
+
+        if (!config)
+        {
+            console.error('[App_Core] Firebase-Konfiguration (firebaseConfig) fehlt oder ist undefined.');
+            return;
+        }
+
+        if (!firebase.apps.length)
+        {
+            firebase.initializeApp(config);
+        }
+
+        app.db = firebase.firestore();
+
+        // Strikte Long-Polling Konfiguration ohne ungültiges 'merge'
+        app.db.settings({
+            experimentalForceLongPolling: true,
+            experimentalAutoDetectLongPolling: false
+        });
+
+        console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
+    }
+
+    function init()
+    {
+        initFirebase();
+    }
+
+    return {
+        init: init,
+        initFirebase: initFirebase
+    };
+})();
+
+app.initFirebase = app.core.initFirebase;
 
 
 ##### <App_Logic_Bridge.js>:
 ----------------------------------------------------------------------
 // =========================================================================
-// BMAssistent / LIE Scorecard - Server Communication & Bridge Layer
+// BMAssistent / LIE Scorecard - Bridge Logic
 // App_Logic_Bridge.js
 // BSD (Allman) Style
 // =========================================================================
 
-window.google = window.google || {};
-window.google.script = {
-    run: {
-        withSuccessHandler: function(cb) { this.successCb = cb; return this; },
-        withFailureHandler: function(cb) { this.failureCb = cb; return this; },
-        __call: function(action, args) {
-            console.log(`[BRIDGE] Weiterleitung an API: ${action}`);
-            const payload = args.length > 0 ? args[0] : {};
-            
-            app.logic.apiRequest(action, payload).then(res => {
-                if (res.success) { 
-                    if (this.successCb) this.successCb(res); 
-                } else { 
-                    console.error(`[BRIDGE Error] ${action}:`, res.error);
-                    if (this.failureCb) this.failureCb(res.error); 
-                }
-            });
-            return this;
-        }
-    }
-};
-
-// Proxy für legacy google.script.run
-google.script.run = new Proxy(google.script.run, {
-    get: function(target, prop) {
-        if (prop === 'withSuccessHandler' || prop === 'withFailureHandler' || prop === 'successCb' || prop === 'failureCb') return target[prop];
-        return function(...args) { return target.__call(prop, args); };
-    }
-});
-
-// Basis-Namespace
+var app = app || {};
 app.logic = app.logic || {};
 
-// API Interface via JSONP
-app.logic.apiRequest = function(action, payload = {})
-{
-    console.log(`[API Request] Action: ${action}`);
-
-    return new Promise((resolve, reject) => 
-    {
-        if (typeof CONFIG === "undefined" || !CONFIG.API_URL) 
-        {
-            console.error("[API Error] CONFIG oder CONFIG.API_URL ist nicht definiert!");
-            app.logic.showToast("Konfigurationsfehler: API_URL fehlt", "error");
-            return resolve({ success: false, error: "CONFIG fehlt" });
-        }
-
-        const callbackName = "gas_callback_" + Math.random().toString(36).substring(2, 15);
-        
-        window[callbackName] = function(data) 
-        {
-            document.body.removeChild(script);
-            delete window[callbackName];
-            resolve(data);
-        };
-
-        const dataPayload = JSON.stringify({ action: action, ...payload });
-        const finalUrl = `${CONFIG.API_URL}?callback=${callbackName}&data=${encodeURIComponent(dataPayload)}`;
-
-        const script = document.createElement("script");
-        script.src = finalUrl;
-        script.onerror = function() 
-        {
-            document.body.removeChild(script);
-            delete window[callbackName];
-            console.error("[API Error] JSONP-Request fehlgeschlagen.");
-            app.logic.showToast("Server-Verbindungsfehler", "error");
-            resolve({ success: false, error: "Verbindungsfehler" });
-        };
-
-        document.body.appendChild(script);
-    });
-};
-
-// Globaler Daten-Refresh
 app.logic.refreshGlobalAppData = async function()
 {
-    const icon = document.getElementById('global-refresh-icon');
-    const btn = document.getElementById('global-refresh-btn');
-    
-    if (btn && icon)
+    // Ziel-Objekte im Namensraum sicherstellen
+    app.data = app.data || {};
+    app.state = app.state || {};
+
+    app.data.spieler = app.data.spieler || [];
+    app.data.spieltage = app.data.spieltage || [];
+    app.data.scores = app.data.scores || [];
+
+    app.state.spieler = app.state.spieler || [];
+    app.state.spieltage = app.state.spieltage || [];
+    app.state.scoreCards = app.state.scoreCards || [];
+    app.state.flights = app.state.flights || [];
+    app.state.kurse = app.state.kurse || [];
+    app.state.golfplaetze = app.state.golfplaetze || [];
+    app.state.bahnen = app.state.bahnen || [];
+    app.state.handicaps = app.state.handicaps || [];
+    app.state.liveScores = app.state.liveScores || {};
+
+    const refreshBtn = document.getElementById('global-refresh-icon');
+    if (refreshBtn)
     {
-        btn.disabled = true;
-        icon.classList.add('fa-spin');
+        refreshBtn.classList.add('fa-spin');
     }
 
-    try 
+    try
     {
-        const response = await app.logic.apiRequest('getInitialAppData');
-        if (response && response.success === true)
+        if (!app.db)
         {
-            app.state.spieler = response.spieler || [];
-            app.state.golfplaetze = response.golfplaetze || [];
-            app.state.kurse = response.kurse || [];
-            app.state.bahnen = response.bahnen || [];
-            app.state.handicaps = response.handicaps || [];
-            app.state.spieltage = response.spieltage || [];
-            app.state.scoreCards = response.scoreCards || [];
-            app.state.flights = response.flights || [];
-
-            if (app.state.currentUser)
-            {
-                const freshUserMatch = app.state.spieler.find(function(s) 
-                { 
-                    return String(s.id).trim() === String(app.state.currentUser.id).trim(); 
-                });
-                
-                if (freshUserMatch)
-                {
-                    app.state.currentUser = freshUserMatch;
-                }
-            }
-
-            app.router.updateNavigationUI(app.state.currentView);
-            app.logic.updateHeaderRoleIcon();
-            app.router.navigate(app.state.currentView);
-        }
-    } 
-    catch (err) 
-    {
-        console.error("Fehler beim Hintergrund-Refresh:", err);
-        app.logic.showToast("Daten konnten nicht aktualisiert werden. Offline?", "error");
-    }
-    finally 
-    {
-        setTimeout(function()
-        {
-            if (btn && icon)
-            {
-                btn.disabled = false;
-                icon.classList.remove('fa-spin');
-            }
-        }, 500);
-    }
-};
-
-// Polling Steuerung
-app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
-{
-    app.logic.stopLivePolling();
-
-    const triggerUpdate = function()
-    {
-        const statusDot = document.getElementById('connection-status');
-        if (statusDot)
-        {
-            statusDot.className = "w-3 h-3 rounded-full bg-amber-400";
+            throw new Error('Firestore-Datenbankinstanz (app.db) ist nicht initialisiert.');
         }
 
-        app.logic.apiRequest('getLiveScoreUpdates', { spieltagId: spieltagId })
-            .then(function(response)
-            {
-                if (statusDot)
-                {
-                    statusDot.className = "w-3 h-3 rounded-full bg-emerald-400";
-                }
+        // Parallelisiertes Laden aller Kern-Kollektionen aus Firestore
+        const [spielerSnap, spieltageSnap, scoresSnap] = await Promise.all([
+            app.db.collection('spieler').get(),
+            app.db.collection('spieltage').get(),
+            app.db.collection('scores').get()
+        ]);
 
-                if (response && response.success)
-                {
-                    const otherRoundScores = app.state.scoreCards.filter(function(sc)
-                    {
-                        return String(sc.spieltagId).trim() !== String(spieltagId).trim();
-                    });
-                    app.state.scoreCards = otherRoundScores.concat(response.scoreCards || []);
+        // Spieler verarbeiten
+        const spielerData = [];
+        spielerSnap.forEach(function(doc)
+        {
+            spielerData.push(Object.assign({ id: doc.id }, doc.data()));
+        });
+        app.data.spieler = spielerData;
+        app.state.spieler = spielerData;
 
-                    if (response.pollingRate && response.pollingRate !== app.state.currentPollingRate)
-                    {
-                        app.state.currentPollingRate = response.pollingRate;
-                        app.logic.startLivePolling(spieltagId, holeNr, flightSeq);
-                    }
+        // Spieltage verarbeiten
+        const spieltageData = [];
+        spieltageSnap.forEach(function(doc)
+        {
+            spieltageData.push(Object.assign({ id: doc.id }, doc.data()));
+        });
+        app.data.spieltage = spieltageData;
+        app.state.spieltage = spieltageData;
 
-                    const container = document.getElementById('app-container');
-                    if (container)
-                    {
-                        if (app.state.currentView === 'leaderboard')
-                        {
-                            const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
-                            container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
-                        }
-                        else if (app.state.currentView === 'score_eingabe' && holeNr)
-                        {
-                            const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(function(k)
-                            {
-                                return k.startsWith(spieltagId + "_");
-                            }).length;
+        // Scores verarbeiten
+        const scoresData = [];
+        scoresSnap.forEach(function(doc)
+        {
+            scoresData.push(Object.assign({ id: doc.id }, doc.data()));
+        });
+        app.data.scores = scoresData;
+        app.state.scoreCards = scoresData;
 
-                            if (ungesicherteAenderungen === 0)
-                            {
-                                container.innerHTML = app.views.score_eingabe(spieltagId, holeNr, flightSeq);
-                            }
-                        }
-                    }
-                }
-            })
-            .catch(function(err)
-            {
-                if (statusDot)
-                {
-                    statusDot.className = "w-3 h-3 rounded-full bg-red-400";
-                }
-                console.warn("Polling-Update fehlgeschlagen:", err);
-            });
-    };
+        console.log('[Bridge] Globaler App-Datensatz erfolgreich geladen:', app.data);
 
-    const msInterval = (app.state.currentPollingRate || 60) * 1000;
-    app.state.pollingIntervalId = setInterval(triggerUpdate, msInterval);
-};
-
-app.logic.stopLivePolling = function()
-{
-    if (app.state.pollingIntervalId)
+        // Nach dem Datenladen die aktuelle Ansicht aktualisieren (falls bereits navigiert)
+        if (app.router && typeof app.router.renderCurrentView === 'function' && app.router.currentView)
+        {
+            app.router.renderCurrentView();
+        }
+    }
+    catch (err)
     {
-        clearInterval(app.state.pollingIntervalId);
-        app.state.pollingIntervalId = null;
+        console.error('[Bridge] Fehler beim Laden der Firestore-Daten:', err);
+
+        if (app.logic.showToast)
+        {
+            app.logic.showToast('Fehler beim Aktualisieren der Daten.', 'error');
+        }
+    }
+    finally
+    {
+        if (refreshBtn)
+        {
+            refreshBtn.classList.remove('fa-spin');
+        }
     }
 };
 
@@ -513,10 +416,9 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     }
 };
 
-app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
+app.logic.syncScoresWithServer = async function(spieltagId, flightSeq)
 {
-    const keysToSync = Object.keys(app.state.liveScores).filter(function(k) { return k.startsWith(spieltagId + "_"); });
-    
+    const keysToSync = Object.keys(app.state.liveScores).filter(k => k.startsWith(spieltagId + "_"));
     if (keysToSync.length === 0)
     {
         app.logic.showToast("Keine ausstehenden Änderungen.", "info");
@@ -530,102 +432,123 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
         syncBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Sende...`;
     }
 
+    try
+    {
+        const batch = app.db.batch();
+        const verarbeiteteKeys = {};
+
+        keysToSync.forEach(key => {
+            const parts = key.split('_'); 
+            const spielerId = parts[1];
+            const holeNr = parseInt(parts[2]);
+            const uniqueHoleKey = `${spielerId}_${holeNr}`;
+            
+            if (verarbeiteteKeys[uniqueHoleKey]) return;
+            verarbeiteteKeys[uniqueHoleKey] = true;
+
+            const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
+            const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
+            const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
+            const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
+            
+            let strokes = app.state.liveScores[scoreKey];
+            if (strokes === undefined || strokes === null || strokes <= 0) return;
+
+            const docId = `SC-${spieltagId}-${spielerId}-${holeNr}`;
+            const docRef = app.db.collection("scorecards").doc(docId);
+
+            const payload = {
+                id: docId,
+                spieltagId: String(spieltagId),
+                flightSeq: parseInt(flightSeq) || 1,
+                spielerId: String(spielerId),
+                hole: holeNr,
+                strokes: parseInt(strokes),
+                lady: !!app.state.liveScores[ladyKey],
+                puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
+                maxscore: !!app.state.liveScores[maxScoreKey]
+            };
+
+            batch.set(docRef, payload, { merge: true });
+        });
+
+        await batch.commit();
+
+        keysToSync.forEach(k => delete app.state.liveScores[k]);
+        app.logic.showToast("Scores erfolgreich in Firebase gesichert!", "success");
+    }
+    catch (err)
+    {
+        console.error("Firebase Sync-Fehler:", err);
+        app.logic.showToast("Fehler beim Sichern der Daten", "error");
+    }
+    finally
+    {
+        if (syncBtn)
+        {
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`;
+        }
+    }
+};
+
+app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
+{
     app.logic.stopLivePolling();
 
-    const scoresPayload = [];
-    const verarbeiteteKeys = {};
+    if (!app.db) app.initFirebase();
 
-    keysToSync.forEach(function(key)
-    {
-        const parts = key.split('_'); 
-        const spielerId = parts[1];
-        const holeNr = parseInt(parts[2]);
-        
-        const uniqueHoleKey = `${spielerId}_${holeNr}`;
-        if (verarbeiteteKeys[uniqueHoleKey]) return;
-        verarbeiteteKeys[uniqueHoleKey] = true;
-
-        const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
-        const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
-        const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
-        const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
-        
-        let strokes = app.state.liveScores[scoreKey];
-        if (strokes === undefined || strokes === null || strokes <= 0) return;
-
-        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
-        const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-        const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId) === String(spieltag ? spieltag.kursId : ""); });
-        const bahn = kursBahnen.find(function(b) { return parseInt(b.nr) === holeNr; }) || { si: 10 };
-
-        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si);
-
-        scoresPayload.push({
-            id: `SC-${spieltagId}-${spielerId}-${holeNr}`,
-            spieltagId: spieltagId,
-            flightSeq: parseInt(flightSeq) || 1,
-            spielerId: spielerId,
-            hole: holeNr,
-            strokes: parseInt(strokes),
-            strokesGiven: strokesGiven,
-            lady: !!app.state.liveScores[ladyKey],
-            puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
-            maxscore: !!app.state.liveScores[maxScoreKey]
-        });
-    });
-
-    if (scoresPayload.length === 0)
-    {
-        if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
-        app.logic.startLivePolling(spieltagId, null, flightSeq);
-        return;
-    }
-
-    app.logic.apiRequest('saveLiveScores', { payload: scoresPayload })
-        .then(function(response)
+    // Echtes Push-Event von Firestore abonnierten
+    app.state.unsubscribeLiveScores = app.db.collection("scorecards")
+        .where("spieltagId", "==", String(spieltagId))
+        .onSnapshot(function(snapshot)
         {
-            if (response && response.success)
+            const updatedScores = snapshot.docs.map(function(doc) { return doc.data(); });
+
+            // Vorhandene Scores dieser Runde durch die frischen Firestore-Daten ersetzen
+            const otherRoundScores = app.state.scoreCards.filter(function(sc)
             {
-                keysToSync.forEach(function(key)
+                return String(sc.spieltagId).trim() !== String(spieltagId).trim();
+            });
+            app.state.scoreCards = otherRoundScores.concat(updatedScores);
+
+            const container = document.getElementById('app-container');
+            if (container)
+            {
+                if (app.state.currentView === 'leaderboard')
                 {
-                    delete app.state.liveScores[key];
-                });
-
-                scoresPayload.forEach(function(item)
+                    const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
+                    container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
+                }
+                else if (app.state.currentView === 'score_eingabe' && holeNr)
                 {
-                    const idx = app.state.scoreCards.findIndex(function(sc) { return String(sc.id).trim() === String(item.id).trim(); });
-                    if (idx !== -1) 
+                    const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(function(k)
                     {
-                        app.state.scoreCards[idx] = item;
-                    }
-                    else 
+                        return k.startsWith(spieltagId + "_");
+                    }).length;
+
+                    // Nur neu rendern, wenn der User gerade keine ungespeicherten Eingaben getippt hat
+                    if (ungesicherteAenderungen === 0)
                     {
-                        app.state.scoreCards.push(item);
+                        container.innerHTML = app.views.score_eingabe(spieltagId, holeNr, flightSeq);
                     }
-                });
-
-                app.logic.showToast("Scores erfolgreich gesichert!", "success");
+                }
             }
-            else
-            {
-                app.logic.showToast("Sync-Fehler: " + (response ? response.error : "Unbekannt"), "error");
-            }
-
-            if (syncBtn)
-            {
-                syncBtn.disabled = false;
-                syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`;
-            }
-            app.logic.startLivePolling(spieltagId, null, flightSeq);
-        })
-        .catch(function(err)
+        }, function(err)
         {
-            console.error("Netzwerkfehler beim Sichern:", err);
-            app.logic.showToast("Fehler beim Sichern der Daten", "error");
-            if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
-            app.logic.startLivePolling(spieltagId, null, flightSeq);
+            console.warn("[Firestore Listener Error]", err);
         });
 };
+
+app.logic.stopLivePolling = function()
+{
+    if (typeof app.state.unsubscribeLiveScores === "function")
+    {
+        app.state.unsubscribeLiveScores();
+        app.state.unsubscribeLiveScores = null;
+    }
+};
+
 
 
 ##### <App_Logic_Spieler.js>:
@@ -636,11 +559,12 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
 // BSD (Allman) Style
 // =========================================================================
 
+var app = app || {};
 app.logic = app.logic || {};
 
-app.logic.submitPin = function(event) 
+app.logic.submitPin = function(event)
 {
-    if (event) 
+    if (event)
     {
         if (typeof event.preventDefault === 'function') event.preventDefault();
         if (typeof event.stopPropagation === 'function') event.stopPropagation();
@@ -652,236 +576,37 @@ app.logic.submitPin = function(event)
     const spielerId = document.getElementById('loginSpielerSelect')?.value;
     const pin = document.getElementById('loginPinInput')?.value;
 
-    if (!spielerId || !pin || pin.trim() === "") 
+    if (!spielerId || !pin || pin.trim() === "")
     {
-        if (typeof app.logic.showToast === 'function') app.logic.showToast("Bitte Namen auswählen und PIN eintippen!");
+        if (typeof app.logic.showToast === 'function') app.logic.showToast("Bitte Namen auswählen und PIN eintippen!", "info");
         return false;
     }
 
-    if (btn && typeof btn.setAttribute === 'function') 
+    const ausgewaehlterSpieler = (app.state && app.state.spieler) 
+        ? app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); }) 
+        : null;
+
+    if (!ausgewaehlterSpieler)
     {
-        btn.disabled = true;
-        btn.dataset.oldText = btn.innerText || btn.value;
-        btn.innerText = "Prüfe...";
+        if (typeof app.logic.showToast === 'function') app.logic.showToast("Spieler nicht im Speicher gefunden!", "error");
+        return false;
     }
 
-    app.logic.apiRequest('verifyPlayerPin', { spielerId: spielerId, pin: pin.trim() })
-    .then(function(response) 
-    {
-        if (response && response.success) 
-        {
-            app.state = app.state || {};
-            app.state.currentUser = app.state.spieler.find(function(s) {
-                return String(s.id) === String(spielerId);
-            });
+    app.state = app.state || {};
+    app.state.currentUser = ausgewaehlterSpieler;
+    localStorage.setItem('lie_scorecard_user_id', ausgewaehlterSpieler.id);
 
-            if (response.mustChange) 
-            {
-                localStorage.removeItem('lie_scorecard_user_id');
-                app.router.navigate('pin_aendern');
-            } 
-            else 
-            {
-                if (app.state.currentUser)
-                {
-                    localStorage.setItem('lie_scorecard_user_id', app.state.currentUser.id);
-                }
-                app.router.navigate('dashboard');
-            }
-        } 
-        else 
-        {
-            const errMsg = (response && response.error) ? response.error : "Falsche PIN!";
-            if (typeof app.logic.showToast === 'function') app.logic.showToast(errMsg, "error");
-            
-            if (btn) btn.disabled = false;
-            if (btn && btn.dataset.oldText) btn.innerText = btn.dataset.oldText;
-        }
-    })
-    .catch(function(err) 
+    if (app.logic.updateHeaderRoleIcon)
     {
-        if (typeof app.logic.showToast === 'function') app.logic.showToast("Fehler bei der PIN-Verifizierung: " + err.message, "error");
-        if (btn) btn.disabled = false;
-        if (btn && btn.dataset.oldText) btn.innerText = btn.dataset.oldText;
-    });
+        app.logic.updateHeaderRoleIcon();
+    }
+
+    if (app.router && typeof app.router.navigate === 'function')
+    {
+        app.router.navigate('dashboard');
+    }
 
     return false;
-};
-
-app.logic.changePin = function()
-{
-    const p1 = document.getElementById('pin-new-1');
-    const p2 = document.getElementById('pin-new-2');
-    if (!p1 || !p2 || !app.state.currentUser) return;
-
-    const val1 = p1.value.trim();
-    const val2 = p2.value.trim();
-
-    if (val1.length < 4 || isNaN(val1))
-    {
-        app.logic.showToast("Die PIN muss mindestens 4 Zahlen lang sein!", "info");
-        return;
-    }
-
-    if (val1 !== val2)
-    {
-        app.logic.showToast("Die beiden PINs stimmen nicht überein!", "info");
-        return;
-    }
-
-    const btn = document.getElementById('change-pin-btn');
-    if (btn)
-    {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-1"></i> Speichere PIN...`;
-    }
-
-    app.logic.apiRequest('changePlayerPinServer', { spielerId: app.state.currentUser.id, newPin: val1 })
-        .then(function(response)
-        {
-            if (response && response.success)
-            {
-                app.logic.showToast("PIN geändert! Bitte melde dich mit deiner neuen PIN an.", "success");
-                app.state.currentUser = null;
-                localStorage.removeItem('lie_scorecard_user_id');
-                app.router.navigate('login');
-            }
-            else
-            {
-                app.logic.showToast("Fehler bei PIN-Änderung: " + response.error, "error");
-                if (btn)
-                {
-                    btn.disabled = false;
-                    btn.innerHTML = `<i class="fas fa-key mr-1"></i> PIN dauerhaft speichern`;
-                }
-            }
-        });
-};
-
-app.logic.savePlayer = function(isNew)
-{
-    const idInput = document.getElementById('edit-sp-id');
-    const nicknameInput = document.getElementById('edit-sp-nickname');
-    const nameInput = document.getElementById('edit-sp-name');
-    const emailInput = document.getElementById('edit-sp-email');
-    const hcpOffInput = document.getElementById('edit-sp-hcpoff');
-    const hcpLieInput = document.getElementById('edit-sp-hcplie');
-    const teeSelect = document.getElementById('edit-sp-tee');
-    const roleSelect = document.getElementById('edit-sp-role');
-
-    if (!idInput || !nicknameInput || !nameInput || !emailInput) return;
-
-    const spielerObj = {
-        isNew: isNew,
-        id: idInput.value.trim(),
-        nickname: nicknameInput.value.trim(),
-        name: nameInput.value.trim(),
-        email: emailInput.value.trim(),
-        teeColor: teeSelect ? teeSelect.value : 'Gelb',
-        hcpOfficial: parseFloat(hcpOffInput ? hcpOffInput.value : 54.0),
-        hcpLIE: parseInt(hcpLieInput ? hcpLieInput.value : 54),
-        role: roleSelect ? roleSelect.value : 'Spieler'
-    };
-
-    if (!spielerObj.id || !spielerObj.nickname || !spielerObj.name || !spielerObj.email)
-    {
-        app.logic.showToast("Bitte fülle alle Pflichtfelder (*) aus!", "info");
-        return;
-    }
-
-    const btn = document.getElementById('save-player-btn');
-    if (btn)
-    {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-1"></i> Speichere Profil...`;
-    }
-
-    app.logic.apiRequest('savePlayerServer', spielerObj)
-        .then(function(response)
-        {
-            if (response && response.success)
-            {
-                app.logic.showToast("Spielerprofil erfolgreich gespeichert!", "success");
-
-                if (app.state.currentUser && String(app.state.currentUser.id).trim() === String(spielerObj.id).trim())
-                {
-                    app.state.currentUser.role = spielerObj.role;
-                }
-
-                app.logic.apiRequest('getInitialAppData')
-                    .then(function(freshData)
-                    {
-                        if (freshData && freshData.success)
-                        {
-                            app.state.spieler = freshData.spieler || [];
-                            app.state.spieltage = freshData.spieltage || [];
-                        }
-                        
-                        app.router.updateNavigationUI('spieler');
-                        app.logic.updateHeaderRoleIcon();
-                        app.router.navigate('spieler');
-                    });
-            }
-            else
-            {
-                app.logic.showToast("Fehler: " + (response ? response.error : "Unbekannt"), "error");
-                if (btn)
-                {
-                    btn.disabled = false;
-                    btn.innerHTML = `<i class="fas fa-save mr-1"></i> Profil speichern`;
-                }
-            }
-        });
-};
-
-app.logic.deletePlayer = function(spielerId)
-{
-    app.logic.showConfirm(
-        "Spieler löschen?", 
-        "Möchtest du diesen Spieler wirklich unwiderruflich aus der Datenbank löschen? Alle PIN-Einträge werden ebenfalls entfernt.", 
-        "danger", 
-        function() 
-        {
-            app.logic.apiRequest('deletePlayerServer', { spielerId: spielerId })
-                .then(function(response)
-                {
-                    if (response && response.success)
-                    {
-                        app.state.spieler = app.state.spieler.filter(function(s) { return String(s.id).trim() !== String(spielerId).trim(); });
-                        app.logic.showToast("Spieler erfolgreich gelöscht.", "success");
-                        app.router.navigate('spieler');
-                    }
-                    else
-                    {
-                        app.logic.showToast("Fehler beim Löschen: " + response.error, "error");
-                    }
-                });
-        }
-    );
-};
-
-app.logic.resetPlayerPin = function(spielerId)
-{
-    app.logic.showConfirm(
-        "PIN zurücksetzen?", 
-        "Möchtest du die PIN dieses Spielers wirklich auf den Standardwert '4722' zurücksetzen?", 
-        "standard", 
-        function() 
-        {
-            app.logic.apiRequest('setPlayerPin', { spielerId: spielerId, pin: "4722", mustChange: true })
-                .then(function(response)
-                {
-                    if (response && response.success)
-                    {
-                        app.logic.showToast("Die PIN wurde erfolgreich auf 4722 zurückgesetzt.", "success");
-                    }
-                    else
-                    {
-                        app.logic.showToast("Fehler bei PIN-Reset: " + response.error, "error");
-                    }
-                });
-        }
-    );
 };
 
 app.logic.logout = function()
@@ -892,9 +617,15 @@ app.logic.logout = function()
         "standard", 
         function() 
         {
-            app.state.currentUser = null;
+            if (app.state)
+            {
+                app.state.currentUser = null;
+            }
             localStorage.removeItem('lie_scorecard_user_id');
-            app.logic.updateHeaderRoleIcon();
+            if (app.logic.updateHeaderRoleIcon)
+            {
+                app.logic.updateHeaderRoleIcon();
+            }
             app.router.navigate('login');
             app.logic.showToast("Erfolgreich abgemeldet.", "success");
         }
@@ -1735,191 +1466,153 @@ app.logic.closePixelGolfGame = function()
 ##### <App_Router.js>:
 ----------------------------------------------------------------------
 // =========================================================================
-// BMAssistent / LIE Scorecard - Router-Komponente mit Auto-Safe Guard
+// BMAssistent / LIE Scorecard - Router Module
 // App_Router.js
 // BSD (Allman) Style
 // =========================================================================
 
-app.router = 
+var app = app || {};
+app.router = app.router || {};
+
+app.router.currentView = null;
+
+app.router.navigate = function(viewName)
 {
-    navigate: function(viewName, params)
+    // 1. Splash Screen ausblenden
+    const loadingEl = document.getElementById('app-loading');
+    if (loadingEl)
     {
-        // === AUTO-SAFE GUARD ===
-        // Vor dem View-Wechsel prüfen wir auf ungesicherte temporäre Scores
-        if (app.state.liveScores && Object.keys(app.state.liveScores).length > 0)
-        {
-            console.log("[Router Guard] Ungesicherte Scores entdeckt. Starte Auto-Sync...");
-            
-            // Ermittle die Kontextdaten aus dem aktuellen Zustand
-            let activeSpieltagId = params ? params.id : null;
-            let activeFlightSeq = params ? params.flightSeq : 1;
-            
-            if (!activeSpieltagId && app.state.spieltage)
-            {
-                const aktRunde = app.state.spieltage.find(function(st) { return st.status === 'Aktiv'; });
-                if (aktRunde) activeSpieltagId = aktRunde.id;
-            }
-            
-            if (activeSpieltagId)
-            {
-                // Führt den Sync lautlos im Hintergrund aus
-                app.logic.syncScoresWithServer(activeSpieltagId, activeFlightSeq);
-            }
-        }
+        loadingEl.classList.add('hidden');
+    }
 
-        // Stoppt das Polling der alten View
-        app.logic.stopLivePolling();
+    // 2. Datenobjekte & Fallbacks sicherstellen
+    app.data = app.data || {};
+    app.state = app.state || {};
+    app.state.spieler = app.state.spieler || [];
+    app.state.spieltage = app.state.spieltage || [];
+    app.state.scoreCards = app.state.scoreCards || [];
+    app.state.liveScores = app.state.liveScores || {};
 
-        app.state.currentView = viewName;
-        const container = document.getElementById('app-container');
-        if (!container) 
-        {
-            return;
-        }
+    // 3. Routing-Ziel bestimmen
+    const targetView = viewName || 'login';
+    app.router.currentView = targetView;
 
-        // Navigations-Elemente aktualisieren
-        app.router.updateNavigationUI(viewName);
+    // 4. UI-Elemente anpassen (Bottom Nav, Header Actions)
+    app.router.updateNavigationUI(targetView);
 
-        switch (viewName)
-        {
-            case 'login':
-                container.innerHTML = app.views.login();
-                break;
-
-            case 'pin_aendern':
-                container.innerHTML = app.views.pin_aendern();
-                break;
-
-            case 'dashboard':
-                container.innerHTML = app.views.dashboard();
-                break;
-
-            case 'spieltage':
-                container.innerHTML = app.views.spieltage();
-                break;
-
-            case 'spieltag_neu':
-                container.innerHTML = app.views.spieltag_neu();
-                break;
-
-            case 'leaderboard':
-                if (params && params.id)
-                {
-                    container.innerHTML = app.views.leaderboard(params.id, params.mode);
-                    app.logic.startLivePolling(params.id);
-                }
-                break;
-
-            case 'score_eingabe':
-                if (params && params.id && params.hole)
-                {
-                    container.innerHTML = app.views.score_eingabe(params.id, params.hole, params.flightSeq);
-                    app.logic.startLivePolling(params.id, params.hole, params.flightSeq);
-                }
-                break;
-
-            case 'spieler':
-                container.innerHTML = app.views.spieler_liste();
-                break;
-
-            case 'spieler_edit':
-                container.innerHTML = app.views.spieler_edit(params ? params.id : null);
-                break;
-
-            case 'admin':
-                if (typeof app.views.admin === 'function')
-                {
-                    container.innerHTML = app.views.admin();
-                }
-                else
-                {
-                    container.innerHTML = '<p class="text-stone-400 p-4">Admin-Ansicht nicht verfügbar.</p>';
-                }
-                break;
-
-            case 'help':
-                container.innerHTML = app.views.help();
-                break;
-
-            default:
-                container.innerHTML = '<p class="text-stone-400 p-4">Ansicht nicht gefunden.</p>';
-        }
-
-        window.scrollTo(0, 0);
-    },
-
-    updateNavigationUI: function(viewName)
+    // 5. Container-Element abgreifen
+    const container = document.getElementById('app-container');
+    if (!container)
     {
-        if (typeof app.logic.updateHeaderRoleIcon === 'function')
+        console.error('[Router] Container #app-container im DOM nicht gefunden.');
+        return;
+    }
+
+    // 6. Ansicht rendern & HTML in den DOM-Container injizieren
+    if (app.views && typeof app.views[targetView] === 'function')
+    {
+        container.innerHTML = app.views[targetView]();
+    }
+    else if (app.views && typeof app.views.dashboard === 'function')
+    {
+        console.warn('[Router] View "' + targetView + '" nicht gefunden. Lade Dashboard-Fallback.');
+        app.router.currentView = 'dashboard';
+        container.innerHTML = app.views.dashboard();
+    }
+    else
+    {
+        console.error('[Router] Keine passende View zum Rendern gefunden.');
+    }
+};
+
+app.router.renderCurrentView = function()
+{
+    if (app.router.currentView)
+    {
+        app.router.navigate(app.router.currentView);
+    }
+    else
+    {
+        const defaultTarget = (app.state && app.state.currentUser) ? 'dashboard' : 'login';
+        app.router.navigate(defaultTarget);
+    }
+};
+
+app.router.updateNavigationUI = function(viewName)
+{
+    const bottomNav = document.getElementById('bottom-nav');
+    const headerLogoutBtn = document.getElementById('header-logout-btn');
+    const headerActionBtn = document.getElementById('header-action-btn');
+
+    // Login-Screen Sonderbehandlung
+    if (viewName === 'login')
+    {
+        if (bottomNav)
         {
-            app.logic.updateHeaderRoleIcon();
+            bottomNav.classList.add('hidden');
         }
 
-        const actionBtn = document.getElementById('header-action-btn');
-        const navBar = document.getElementById('bottom-nav');
-        const adminNavBtn = document.getElementById('nav-admin');
-
-        if (!actionBtn || !navBar) 
+        if (headerLogoutBtn)
         {
-            return;
+            headerLogoutBtn.classList.add('hidden');
         }
 
-        const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
-        const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
-
-        // Header-Aktions-Button (+ Plus zum Runden anlegen)
-        if (viewName === 'spieltage' && isLeiter)
+        if (headerActionBtn)
         {
-            actionBtn.classList.remove('hidden');
-        }
-        else
-        {
-            actionBtn.classList.add('hidden');
+            headerActionBtn.classList.add('hidden');
         }
 
-        // Steuerung des Admin-Buttons in der Bottom Navigation
-        if (adminNavBtn)
-        {
-            if (isAdmin)
-            {
-                adminNavBtn.classList.remove('hidden');
-            }
-            else
-            {
-                adminNavBtn.classList.add('hidden');
-            }
-        }
+        return;
+    }
 
-        // Sichtbarkeit der gesamten Footer-Leiste
-        if (viewName === 'login')
-        {
-            navBar.classList.add('hidden');
-        }
-        else
-        {
-            navBar.classList.remove('hidden');
-            
-            // Zurücksetzen aller Tab-Stylings
-            document.querySelectorAll('#bottom-nav button').forEach(function(btn)
-            {
-                btn.classList.remove('text-emerald-600', 'font-bold');
-                btn.classList.add('text-stone-400');
-            });
+    // Bottom Navigation für angemeldete Bereiche einblenden
+    if (bottomNav)
+    {
+        bottomNav.classList.remove('hidden');
+    }
 
-            // Aktiven Tab ermitteln
-            let activeTabId = "";
-            if (viewName === 'dashboard') activeTabId = 'nav-dash';
-            if (viewName === 'spieltage' || viewName === 'spieltag_neu' || viewName === 'leaderboard') activeTabId = 'nav-rounds';
-            if (viewName === 'spieler' || viewName === 'spieler_edit') activeTabId = 'nav-players';
-            if (viewName === 'admin') activeTabId = 'nav-admin';
-            if (viewName === 'help') activeTabId = 'nav-help';
+    if (headerLogoutBtn && app.state && app.state.currentUser)
+    {
+        headerLogoutBtn.classList.remove('hidden');
+    }
 
-            const activeBtn = document.getElementById(activeTabId);
-            if (activeBtn)
-            {
-                activeBtn.classList.remove('text-stone-400');
-                activeBtn.classList.add('text-emerald-600', 'font-bold');
-            }
+    // Aktiven Navigation-Tab optisch hervorheben
+    const navButtons = document.querySelectorAll('.nav-btn');
+    navButtons.forEach(function(btn)
+    {
+        btn.classList.remove('text-emerald-600');
+        btn.classList.add('text-stone-400');
+    });
+
+    let activeNavId = null;
+    if (viewName === 'dashboard')
+    {
+        activeNavId = 'nav-dash';
+    }
+    else if (viewName === 'spieltage' || viewName === 'spieltag_neu')
+    {
+        activeNavId = 'nav-rounds';
+    }
+    else if (viewName === 'spieler')
+    {
+        activeNavId = 'nav-players';
+    }
+    else if (viewName === 'help')
+    {
+        activeNavId = 'nav-help';
+    }
+    else if (viewName === 'admin' || viewName === 'admin_gruppe')
+    {
+        activeNavId = 'nav-admin';
+    }
+
+    if (activeNavId)
+    {
+        const activeBtn = document.getElementById(activeNavId);
+        if (activeBtn)
+        {
+            activeBtn.classList.remove('text-stone-400');
+            activeBtn.classList.add('text-emerald-600');
         }
     }
 };
@@ -1929,149 +1622,66 @@ app.router =
 ----------------------------------------------------------------------
 // =========================================================================
 // BMAssistent / LIE Scorecard - Startup Bootstrapper
-// App_Start.html
+// App_Start.js
 // BSD (Allman) Style
 // =========================================================================
 
-app.onDataLoaded = function(response)
+var app = app || {};
+
+app.initStart = async function()
 {
-    const statusDot = document.getElementById('connection-status');
-    
-    if (response && response.success === true)
+    // Globalen State sicherstellen
+    app.state = app.state || {};
+    app.state.liveScores = app.state.liveScores || {};
+    app.data = app.data || {};
+
+    // 1. Firebase initialisieren
+    if (app.core && typeof app.core.init === 'function')
     {
-        app.state.spieler = response.spieler || [];
-        app.state.golfplaetze = response.golfplaetze || [];
-        app.state.kurse = response.kurse || [];
-        app.state.bahnen = response.bahnen || [];
-        app.state.handicaps = response.handicaps || [];
-        app.state.spieltage = response.spieltage || [];
-        app.state.scoreCards = response.scoreCards || [];
-        app.state.flights = response.flights || [];
+        app.core.init();
+    }
 
-        if (statusDot)
+    // 2. Daten aus Firestore laden
+    if (app.logic && typeof app.logic.refreshGlobalAppData === 'function')
+    {
+        await app.logic.refreshGlobalAppData();
+    }
+
+    // 3. Auto-Login prüfen: Gespeicherte User-ID aus localStorage wiederherstellen
+    const savedUserId = localStorage.getItem('lie_scorecard_user_id');
+    if (savedUserId && app.state.spieler && app.state.spieler.length > 0)
+    {
+        const restoredUser = app.state.spieler.find(function(s)
         {
-            statusDot.className = "w-3 h-3 rounded-full bg-emerald-400";
-        }
+            return String(s.id).trim() === String(savedUserId).trim();
+        });
 
-        // === AUTOMATISCHER LOGIN-CHECK PER LOCALSTORAGE ===
-        const gespeicherteSpielerId = localStorage.getItem('lie_scorecard_user_id');
-        let autoLoginErfolgreich = false;
-
-        if (gespeicherteSpielerId)
+        if (restoredUser)
         {
-            const gefundenesProfil = app.state.spieler.find(function(s) 
-            { 
-                return String(s.id).trim() === String(gespeicherteSpielerId).trim(); 
-            });
-
-            if (gefundenesProfil)
+            app.state.currentUser = restoredUser;
+            
+            if (app.logic && typeof app.logic.updateHeaderRoleIcon === 'function')
             {
-                app.state.currentUser = gefundenesProfil;
-                autoLoginErfolgreich = true;
-                
-                setTimeout(function()
-                {
-                    app.router.navigate('dashboard');
-                    app.logic.updateHeaderRoleIcon();
-                }, 10);
-            }
-        }
-
-        if (!autoLoginErfolgreich)
-        {
-            setTimeout(function()
-            {
-                app.router.navigate('login');
                 app.logic.updateHeaderRoleIcon();
-            }, 10);
-        }
-    }
-    else
-    {
-        if (statusDot) 
-        {
-            statusDot.className = "w-3 h-3 rounded-full bg-red-500";
-        }
-        
-        const container = document.getElementById('app-container');
-        if (container)
-        {
-            container.innerHTML = `
-                <div class="p-6 bg-red-50 text-red-800 rounded-2xl border border-red-200 space-y-2">
-                    <h3 class="font-bold text-base"><i class="fas fa-exclamation-triangle"></i> Kritischer Ladefehler</h3>
-                    <p class="text-xs">Die App-Datenbank konnte nicht geladen werden. Bitte wende dich an die Spielleitung.</p>
-                    <pre class="bg-white p-2 rounded text-[10px] overflow-x-auto border border-red-100">${response ? response.error : 'Unbekannter Fehler'}</pre>
-                </div>
-            `;
-        }
-    }
-};
-
-// Start-Trigger zur Datenakquise (Sicher für dynamisches Skript-Laden)
-app.initStart = function()
-{
-    const splashImg = document.getElementById('splash-logo');
-    if (splashImg && app.logoString)
-    {
-        splashImg.src = app.logoString;
-        splashImg.classList.remove('hidden'); 
-    }
-
-    // Visueller Hinweis, falls Google Apps Script einen Kaltstart (Cold Start) hat
-    setTimeout(function() {
-        const splashElement = document.getElementById('app-loading');
-        if (splashElement && (!app.state || !app.state.spieler)) {
-            console.warn("[START] GAS-Antwort lässt auf sich warten (Kaltstart)...");
-            const label = splashElement.querySelector('p');
-            if (label) {
-                label.textContent = "Verbindung zum Server dauert etwas... (Kaltstart)";
             }
         }
-    }, 4000);
-
-    // 1. Wenn direkt in der GAS-Umgebung gehostet (HTML Service)
-    if (typeof google !== 'undefined' && google.script && google.script.run)
-    {
-        google.script.run
-            .withSuccessHandler(app.onDataLoaded)
-            .withFailureHandler(function(err)
-            {
-                app.onDataLoaded({ success: false, error: "Netzwerk-Timeout beim Start:\n" + err.toString() });
-            })
-            .getInitialAppData();
     }
-    // 2. Wenn über Web / GitHub Pages (über App_Logic_Bridge.js und config.js)
-    else if (typeof app.logic !== 'undefined' && typeof app.logic.apiRequest === 'function')
+
+    // 4. Routing durchführen (Dashboard wenn eingeloggt, sonst Login)
+    if (app.router && typeof app.router.navigate === 'function')
     {
-        console.log("[START] Lade initiale App-Daten über Bridge...");
-        app.logic.apiRequest('getInitialAppData', {})
-            .then(function(response) {
-                console.log("[START] Daten erfolgreich von GAS empfangen:", response);
-                app.onDataLoaded(response);
-            })
-            .catch(function(err) {
-                console.error("[START] Fehler beim Laden der Init-Daten:", err);
-                app.onDataLoaded({ 
-                    success: false, 
-                    error: "Fehler bei der Verbindung zu Google Apps Script:\n" + (err.message || err) 
-                });
-            });
+        const defaultTarget = (app.state && app.state.currentUser) ? 'dashboard' : 'login';
+        app.router.navigate(defaultTarget);
     }
     else
     {
-        app.onDataLoaded({ success: false, error: "Keine gültige API-Schnittstelle gefunden." });
+        const loadingEl = document.getElementById('app-loading');
+        if (loadingEl)
+        {
+            loadingEl.classList.add('hidden');
+        }
     }
 };
-
-// Falls DOM bereits geladen ist (bei dynamischen Skripten), sofort ausführen, sonst auf Event warten:
-if (document.readyState === 'complete' || document.readyState === 'interactive')
-{
-    app.initStart();
-}
-else
-{
-    document.addEventListener("DOMContentLoaded", app.initStart);
-}
 
 
 ##### <App_View_Help.js>:
@@ -3381,10 +2991,20 @@ function toggleVaultLock(spielerId, newStatus)
 ##### <config.js>:
 ----------------------------------------------------------------------
 // config.js
-const CONFIG = {
-    API_URL: "https://script.google.com/macros/s/AKfycbxQnYsVMwt_gi87RW868mIFXbaiC8ykbP4jVhYE2l6w3ZVgeSzMwYKq913pOOodSNYiLA/exec",
-    appVersion: "1.2.10.51"
+window.CONFIG = {
+    appVersion: '2.2.0.0'
+};
+  
+  // Hier das firebase-Objekt verschachteln:
+window.firebaseConfig = {
+    apiKey: "AIzaSyBH6Rb8RLKw6tUrOM-j8Qcfnqlkte3crCM",
+    authDomain: "liescorecard-70c5e.firebaseapp.com",
+    projectId: "liescorecard-70c5e",
+    storageBucket: "liescorecard-70c5e.firebasestorage.app",
+    messagingSenderId: "163868016379",
+    appId: "1:163868016379:web:0b7f1aeb29d80f9ca37a5e"
   };
+
 
 
 ##### <index.html>:
@@ -3395,29 +3015,30 @@ const CONFIG = {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LIE Scorecard</title>
-    <!-- Tailwind CSS & FontAwesome über CDN -->
+
+    <!-- Tailwind CSS & FontAwesome via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <!-- Firebase Web SDK (v10 Compat Mode) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Deine CSS Datei -->
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="Style.css?v=2">
 
     <!-- Favicon / App-Icon -->
     <link rel="icon" type="image/jpeg" href="img/LIE_Logo II.jpeg">
-    <!-- Optional: Für iOS App-Icons beim Speichern auf dem Homescreen -->
     <link rel="apple-touch-icon" href="img/LIE_Logo II.jpeg">
 
     <!-- PWA Manifest & Mobile Styling -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#047857">
-    <!-- Neu / Standardkonform: -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="LIE Scorecard">
-    <link rel="apple-touch-icon" href="img/LIE_Logo II.jpeg">    
-
 </head>
 <body class="bg-stone-100 text-stone-900 font-sans antialiased">
 
@@ -3482,7 +3103,6 @@ const CONFIG = {
                 <i class="fas fa-question-circle text-base"></i>
                 <span class="text-[10px] mt-0.5">Hilfe</span>
             </button>
-            <!-- NEU: Dezidierter Admin-Button (Standardmäßig versteckt) -->
             <button id="nav-admin" onclick="app.router.navigate('admin')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-amber-600 transition px-2 py-1 touch-target hidden">
                 <i class="fas fa-user-shield text-base"></i>
                 <span class="text-[10px] mt-0.5">Admin</span>
@@ -3532,14 +3152,16 @@ const CONFIG = {
         </div>
     </div>    
 
-    <!-- Dynamisches Laden der Module mit explizitem Start-Trigger -->
+    <!-- Dynamisches Laden der Module -->
     <script>
-        (function() {
+        (function() 
+        {
             const cfgScript = document.createElement('script');
             cfgScript.src = 'config.js?t=' + Date.now();
             cfgScript.async = false;
 
-            cfgScript.onload = function() {
+            cfgScript.onload = function() 
+            {
                 const scripts = [
                     "App_Core.js",
                     "App_View_Help.js",
@@ -3549,7 +3171,6 @@ const CONFIG = {
                     "App_Logic_Spieltage.js",
                     "App_Logic_Spieler.js",
                     "App_Logic_UI.js",
-                    "App_Start.js",
                     "Views_Login.js",
                     "Views_Dashboard.js",
                     "Views_Spieltage.js",
@@ -3558,7 +3179,8 @@ const CONFIG = {
                     "Views_Leaderboard.js",
                     "Views_Admin.js",
                     "Views_AdminGruppe.js",
-                    "Views_SpielerEdit.js"
+                    "Views_SpielerEdit.js",
+                    "App_Start.js"
                 ];
 
                 const version = (typeof CONFIG !== 'undefined' && CONFIG.appVersion) 
@@ -3567,17 +3189,19 @@ const CONFIG = {
 
                 let loadedCount = 0;
 
-                scripts.forEach(function(src) {
+                scripts.forEach(function(src) 
+                {
                     const script = document.createElement('script');
                     script.src = src + '?v=' + encodeURIComponent(version);
                     script.async = false;
                     
-                    // Zählen, wie viele Skripte geladen sind
-                    script.onload = function() {
+                    script.onload = function() 
+                    {
                         loadedCount++;
-                        // Wenn ALLE Skripte im Browser sind: App manuell starten!
-                        if (loadedCount === scripts.length) {
-                            if (window.app && typeof window.app.initStart === 'function') {
+                        if (loadedCount === scripts.length) 
+                        {
+                            if (window.app && typeof window.app.initStart === 'function') 
+                            {
                                 window.app.initStart();
                             }
                         }
@@ -3587,7 +3211,8 @@ const CONFIG = {
                 });
             };
 
-            cfgScript.onerror = function() {
+            cfgScript.onerror = function() 
+            {
                 console.error("Fehler beim Laden der config.js!");
             };
 
@@ -3599,13 +3224,20 @@ const CONFIG = {
     <script>
         if ('serviceWorker' in navigator) 
         {
-            window.addEventListener('load', () => {
+            window.addEventListener('load', function() 
+            {
                 navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('[PWA] Service Worker erfolgreich registriert:', reg.scope))
-                .catch(err => console.warn('[PWA] Service Worker Fehler:', err));
+                    .then(function(reg) 
+                    {
+                        console.log('[PWA] Service Worker erfolgreich registriert:', reg.scope);
+                    })
+                    .catch(function(err) 
+                    {
+                        console.warn('[PWA] Service Worker Fehler:', err);
+                    });
             });
         }
-  </script>
+    </script>
 
 </body>
 </html>
@@ -3653,29 +3285,136 @@ button, a, .nav-btn
 
 ##### <sw.js>:
 ----------------------------------------------------------------------
-// sw.js - Robustere Fetch-Behandlung
-const CACHE_NAME = 'lie-scorecard-v1';
+// =========================================================================
+// BMAssistent / LIE Scorecard - Service Worker
+// sw.js
+// BSD (Allman) Style
+// =========================================================================
 
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
+const CACHE_NAME = 'lie-scorecard-v1.2.10.51';
+
+const ASSETS_TO_CACHE = [
+    './',
+    './index.html',
+    './config.js',
+    './manifest.json',
+    './App_Core.js',
+    './App_Start.js',
+    './App_Router.js',
+    './App_Logic_Bridge.js',
+    './App_Logic_Scores.js',
+    './App_Logic_Spieltage.js',
+    './App_Logic_Spieler.js',
+    './App_Logic_UI.js',
+    './App_View_Help.js',
+    './Views_Login.js',
+    './Views_Dashboard.js',
+    './Views_Spieltage.js',
+    './Views_SpieltagNeu.js',
+    './Views_ScoreEingabe.js',
+    './Views_Leaderboard.js',
+    './Views_Admin.js',
+    './Views_AdminGruppe.js',
+    './Views_SpielerEdit.js'
+];
+
+// 1. Installation: Statische Ressourcen cachen
+self.addEventListener('install', function(event)
+{
+    event.waitUntil(
+        caches.open(CACHE_NAME).then(function(cache)
+        {
+            return cache.addAll(ASSETS_TO_CACHE);
+        }).then(function()
+        {
+            return self.skipWaiting();
+        })
+    );
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
+// 2. Aktivierung: Alte Caches aufräumen
+self.addEventListener('activate', function(event)
+{
+    event.waitUntil(
+        caches.keys().then(function(cacheNames)
+        {
+            return Promise.all(
+                cacheNames.map(function(cache)
+                {
+                    if (cache !== CACHE_NAME)
+                    {
+                        return caches.delete(cache);
+                    }
+                })
+            );
+        }).then(function()
+        {
+            return self.clients.claim();
+        })
+    );
 });
 
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    fetch(event.request).catch((err) => {
-      console.warn('[SW] Netzanfrage fehlgeschlagen:', event.request.url);
-      // Fängt Network Errors ab, damit die Konsole sauber bleibt
-      return new Response('Netzwerkfehler', {
-        status: 503,
-        statusText: 'Service Unavailable',
-        headers: new Headers({ 'Content-Type': 'text/plain' })
-      });
-    })
-  );
+// 3. Network Fetching & CORS/Firestore Bypassing
+self.addEventListener('fetch', function(event)
+{
+    const requestUrl = event.request.url;
+
+    // Firebase & Firestore RequestsNIEMALS vom Service Worker abfangen lassen!
+    // Dadurch werden die 503- und CORS-Fehler bei WebChannel / Listen-Streams vermieden.
+    if (requestUrl.includes('firestore.googleapis.com') || 
+        requestUrl.includes('google.firestore') ||
+        requestUrl.includes('firebase') ||
+        requestUrl.includes('script.google.com'))
+    {
+        return;
+    }
+
+    // Nur GET-Requests cachen
+    if (event.request.method !== 'GET')
+    {
+        return;
+    }
+
+    event.respondWith(
+        caches.match(event.request).then(function(cachedResponse)
+        {
+            if (cachedResponse)
+            {
+                // Zuerst Cache ausliefern, im Hintergrund frisches Asset laden (Stale-While-Revalidate)
+                fetch(event.request).then(function(networkResponse)
+                {
+                    if (networkResponse && networkResponse.status === 200)
+                    {
+                        caches.open(CACHE_NAME).then(function(cache)
+                        {
+                            cache.put(event.request, networkResponse);
+                        });
+                    }
+                }).catch(function()
+                {
+                    // Network silent fail (Offline-Betrieb)
+                });
+
+                return cachedResponse;
+            }
+
+            return fetch(event.request).then(function(networkResponse)
+            {
+                if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic')
+                {
+                    return networkResponse;
+                }
+
+                const responseToCache = networkResponse.clone();
+                caches.open(CACHE_NAME).then(function(cache)
+                {
+                    cache.put(event.request, responseToCache);
+                });
+
+                return networkResponse;
+            });
+        })
+    );
 });
 
 

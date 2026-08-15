@@ -1,31 +1,56 @@
-
 // =========================================================================
-// BMAssistent / LIE Scorecard - Globaler Anwendungs-State
-// App_Core.html
+// BMAssistent / LIE Scorecard - Core Module
+// App_Core.js
 // BSD (Allman) Style
 // =========================================================================
 
-window.app = window.app || {};
+var app = app || {};
 
-app.state = 
+app.core = (function()
 {
-    currentView: 'login',
-    currentUser: null,
-    leaderboardViewMode: 'matrix', 
-    spieler: [],
-    golfplaetze: [],
-    kurse: [],
-    bahnen: [],
-    handicaps: [],
-    spieltage: [],
-    scoreCards: [],
-    flights: [],
-    tempFlights: [],
-    tempZufallsFlights: [],
-    tempManualFlights: {},
-    liveScores: {},
-    
-    // NEU: Polling-Infrastruktur
-    pollingIntervalId: null, // Hält die ID des laufenden window.setInterval
-    currentPollingRate: 60   // Standard-Takt (wird dynamisch vom Server überschrieben)
-};
+    'use strict';
+
+    function initFirebase()
+    {
+        if (typeof firebase === 'undefined')
+        {
+            console.error('[App_Core] Firebase SDK wurde nicht geladen.');
+            return;
+        }
+
+        const config = window.firebaseConfig || (typeof firebaseConfig !== 'undefined' ? firebaseConfig : null);
+
+        if (!config)
+        {
+            console.error('[App_Core] Firebase-Konfiguration (firebaseConfig) fehlt oder ist undefined.');
+            return;
+        }
+
+        if (!firebase.apps.length)
+        {
+            firebase.initializeApp(config);
+        }
+
+        app.db = firebase.firestore();
+
+        // Strikte Long-Polling Konfiguration ohne ungültiges 'merge'
+        app.db.settings({
+            experimentalForceLongPolling: true,
+            experimentalAutoDetectLongPolling: false
+        });
+
+        console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
+    }
+
+    function init()
+    {
+        initFirebase();
+    }
+
+    return {
+        init: init,
+        initFirebase: initFirebase
+    };
+})();
+
+app.initFirebase = app.core.initFirebase;
