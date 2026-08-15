@@ -115,13 +115,8 @@ app.logic = app.logic || {};
 
 app.logic.refreshGlobalAppData = async function()
 {
-    // Ziel-Objekte im Namensraum sicherstellen
     app.data = app.data || {};
     app.state = app.state || {};
-
-    app.data.spieler = app.data.spieler || [];
-    app.data.spieltage = app.data.spieltage || [];
-    app.data.scores = app.data.scores || [];
 
     app.state.spieler = app.state.spieler || [];
     app.state.spieltage = app.state.spieltage || [];
@@ -130,7 +125,7 @@ app.logic.refreshGlobalAppData = async function()
     app.state.kurse = app.state.kurse || [];
     app.state.golfplaetze = app.state.golfplaetze || [];
     app.state.bahnen = app.state.bahnen || [];
-    app.state.handicaps = app.state.handicaps || [];
+    app.state.handicaps = app.state.handicaps || []; // <-- Hier sicherstellen
     app.state.liveScores = app.state.liveScores || {};
 
     const refreshBtn = document.getElementById('global-refresh-icon');
@@ -146,43 +141,68 @@ app.logic.refreshGlobalAppData = async function()
             throw new Error('Firestore-Datenbankinstanz (app.db) ist nicht initialisiert.');
         }
 
-        // Parallelisiertes Laden aller Kern-Kollektionen aus Firestore
-        const [spielerSnap, spieltageSnap, scoresSnap] = await Promise.all([
-            app.db.collection('spieler').get(),
-            app.db.collection('spieltage').get(),
-            app.db.collection('scores').get()
+        const [
+            spielerSnap, 
+            spieltageSnap, 
+            scorecardsSnap, 
+            scoresSnap, 
+            flightsSnap, 
+            kurseSnap, 
+            plaetzeSnap, 
+            bahnenSnap,
+            handicapsSnap
+        ] = await Promise.all([
+            app.db.collection('spieler').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('spieltage').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('scorecards').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('scores').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('flights').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('kurse').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('golfplaetze').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('bahnen').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('handicaps').get().catch(function() { return { forEach: function() {} }; })
         ]);
 
-        // Spieler verarbeiten
+        // Spieler
         const spielerData = [];
-        spielerSnap.forEach(function(doc)
-        {
-            spielerData.push(Object.assign({ id: doc.id }, doc.data()));
-        });
-        app.data.spieler = spielerData;
+        spielerSnap.forEach(function(doc) { spielerData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.spieler = spielerData;
 
-        // Spieltage verarbeiten
+        // Spieltage
         const spieltageData = [];
-        spieltageSnap.forEach(function(doc)
-        {
-            spieltageData.push(Object.assign({ id: doc.id }, doc.data()));
-        });
-        app.data.spieltage = spieltageData;
+        spieltageSnap.forEach(function(doc) { spieltageData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.spieltage = spieltageData;
 
-        // Scores verarbeiten
+        // Scorecards
         const scoresData = [];
-        scoresSnap.forEach(function(doc)
-        {
-            scoresData.push(Object.assign({ id: doc.id }, doc.data()));
-        });
-        app.data.scores = scoresData;
+        scorecardsSnap.forEach(function(doc) { scoresData.push(Object.assign({ id: doc.id }, doc.data())); });
+        scoresSnap.forEach(function(doc) { scoresData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.scoreCards = scoresData;
 
-        console.log('[Bridge] Globaler App-Datensatz erfolgreich geladen:', app.data);
+        // Flights
+        const flightsData = [];
+        flightsSnap.forEach(function(doc) { flightsData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.flights = flightsData;
 
-        // Nach dem Datenladen die aktuelle Ansicht aktualisieren (falls bereits navigiert)
+        // Kurse, Plätze, Bahnen & Handicaps
+        const kurseData = [];
+        kurseSnap.forEach(function(doc) { kurseData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.kurse = kurseData;
+
+        const plaetzeData = [];
+        plaetzeSnap.forEach(function(doc) { plaetzeData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.golfplaetze = plaetzeData;
+
+        const bahnenData = [];
+        bahnenSnap.forEach(function(doc) { bahnenData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.bahnen = bahnenData;
+
+        const handicapsData = [];
+        handicapsSnap.forEach(function(doc) { handicapsData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.handicaps = handicapsData;
+
+        console.log('[Bridge] Globaler App-Datensatz erfolgreich geladen:', app.state);
+
         if (app.router && typeof app.router.renderCurrentView === 'function' && app.router.currentView)
         {
             app.router.renderCurrentView();
@@ -191,11 +211,6 @@ app.logic.refreshGlobalAppData = async function()
     catch (err)
     {
         console.error('[Bridge] Fehler beim Laden der Firestore-Daten:', err);
-
-        if (app.logic.showToast)
-        {
-            app.logic.showToast('Fehler beim Aktualisieren der Daten.', 'error');
-        }
     }
     finally
     {
@@ -215,24 +230,41 @@ app.logic.refreshGlobalAppData = async function()
 // BSD (Allman) Style
 // =========================================================================
 
+// =========================================================================
+// BMAssistent / LIE Scorecard - Live-Scoring & Calculations
+// App_Logic_Scores.js
+// BSD (Allman) Style
+// =========================================================================
+
 app.logic = app.logic || {};
 
 app.logic.calculateHoleVorgabe = function(spieler, kursId, holeSi)
 {
     const hcp = parseFloat(spieler ? spieler.hcpLIE : 54.0) || 54.0;
-    const hcpsForKurs = app.state.handicaps.filter(function(h) { return String(h.kursId).trim() === String(kursId).trim(); });
     
-    let vorgabeMatch = hcpsForKurs.find(function(h) { return parseFloat(h.vorgabe) === hcp; });
+    // Handicaps-Array aus State sicherstellen
+    const handicapsList = (app.state && Array.isArray(app.state.handicaps)) ? app.state.handicaps : [];
+    const hcpsForKurs = handicapsList.filter(function(h) 
+    { 
+        return String(h.kursId).trim() === String(kursId).trim(); 
+    });
+    
+    let vorgabeMatch = hcpsForKurs.find(function(h) 
+    { 
+        return parseFloat(h.vorgabe) === hcp; 
+    });
+    
     let spielvorgabeTotal = vorgabeMatch ? parseInt(vorgabeMatch.spielvorgabe) : Math.round(hcp);
 
     let basisSchlaege = Math.floor(spielvorgabeTotal / 18);
     let restSchlaege = spielvorgabeTotal % 18;
     
     let holeVorgabe = basisSchlaege;
-    if (parseInt(holeSi) <= restSchlaege)
+    if (parseInt(holeSi || 18) <= restSchlaege)
     {
         holeVorgabe += 1;
     }
+    
     return holeVorgabe;
 };
 
@@ -1686,12 +1718,17 @@ app.initStart = async function()
 
 ##### <App_View_Help.js>:
 ----------------------------------------------------------------------
-<!-- Ansicht für das Handbuch und User Manual -->
-<!-- App_View_Help.html -->
+// =========================================================================
+// BMAssistent / LIE Scorecard - Help & Manual View
+// App_View_Help.js
+// BSD (Allman) Style
+// =========================================================================
+
+var app = app || {};
+app.views = app.views || {};
 
 app.views.help = function()
 {
-    // Lese die aktuelle Version aus der config.js aus (mit Fallback, falls config.js noch nicht greifbar ist)
     const currentVersion = (typeof CONFIG !== 'undefined' && CONFIG.appVersion) ? CONFIG.appVersion : 'Unbekannt';
 
     return `
@@ -1750,7 +1787,7 @@ app.views.help = function()
                     <div class="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-700 flex-shrink-0">1</div>
                     <div class="space-y-0.5">
                         <h4 class="font-bold text-stone-800">Login & PIN</h4>
-                        <p class="text-stone-600">Wähle deinen Namen aus und logge dich mit deiner PIN ein. Die Standard-PIN nach dem Reset lautet <strong>4722</strong> und muss beim ersten Login geändert werden.</p>
+                        <p class="text-stone-600">Wähle deinen Namen aus und logge dich ein. Deine Anmeldung bleibt lokal auf dem Gerät gespeichert.</p>
                     </div>
                 </div>
 
@@ -1759,7 +1796,7 @@ app.views.help = function()
                     <div class="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-700 flex-shrink-0">2</div>
                     <div class="space-y-0.5">
                         <h4 class="font-bold text-stone-800">Score-Eingabe</h4>
-                        <p class="text-stone-600">Während der Runde tippst du die Schläge pro Loch ein. Zusätzliche Werte wie Putts und das "Lady-Bier" (🍻) können direkt erfasst werden. Mit dem Button <strong>"Max Ø"</strong> kannst du ein Loch streichen (Strich), wenn nichts mehr geht.</p>
+                        <p class="text-stone-600">Während der Runde tippst du die Schläge pro Loch ein. Zusätzliche Werte wie Putts und das "Lady-Bier" (🍻) können direkt erfasst werden. Mit dem Button <strong>"Max Ø"</strong> kannst du ein Loch streichen (Strich).</p>
                     </div>
                 </div>
 
@@ -1768,7 +1805,7 @@ app.views.help = function()
                     <div class="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-700 flex-shrink-0">3</div>
                     <div class="space-y-0.5">
                         <h4 class="font-bold text-stone-800">Sichern & Cloud-Sync</h4>
-                        <p class="text-stone-600">Deine Eingaben werden lokal zwischengespeichert. Drücke auf <strong>"Sichern"</strong>, um die Scores in die Cloud hochzuladen. Beim Wechseln der Ansicht greift zudem ein automatischer Schutz-Sync.</p>
+                        <p class="text-stone-600">Deine Eingaben werden lokal zwischengespeichert. Drücke auf <strong>"Sichern"</strong>, um die Scores direkt in die Firebase-Cloud hochzuladen.</p>
                     </div>
                 </div>
 
@@ -1777,13 +1814,15 @@ app.views.help = function()
                     <div class="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-700 flex-shrink-0">4</div>
                     <div class="space-y-0.5">
                         <h4 class="font-bold text-stone-800">Live-Leaderboard</h4>
-                        <p class="text-stone-600">Über das Leaderboard siehst du in Echtzeit die Brutto- und Netto-Platzierungen aller Flights. Die Ansicht aktualisiert sich dank Live-Polling im Hintergrund von selbst.</p>
+                        <p class="text-stone-600">Über das Leaderboard siehst du in Echtzeit die Brutto- und Netto-Platzierungen aller Flights. Über den Button <strong>"Spicken"</strong> kannst du auch direkt aus der Scorekarte die Ergebnisse einsehen.</p>
                     </div>
                 </div>
             </div>
 
             <!-- Footer Note -->
-            <p class="text-center text-stone-400 text-[10px]">BMAssistent v${currentVersion} • Entwickelt für die Golf-Männerrunde</p>
+            <p class="text-center text-stone-400 text-[10px] flex items-center justify-center gap-1">
+                BMAssistent v${currentVersion} • Entwickelt für die Golf-Männerrunde • Powered by Firebase Firestore 🔥
+            </p>
         </div>
     `;
 };
@@ -3026,7 +3065,7 @@ window.firebaseConfig = {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="Style.css?v=2">
+    <link rel="stylesheet" href="Style.css?v=3">
 
     <!-- Favicon / App-Icon -->
     <link rel="icon" type="image/jpeg" href="img/LIE_Logo II.jpeg">
@@ -3034,13 +3073,13 @@ window.firebaseConfig = {
 
     <!-- PWA Manifest & Mobile Styling -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#047857">
+    <meta name="theme-color" content="#064e3b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="LIE Scorecard">
 </head>
-<body class="bg-stone-100 text-stone-900 font-sans antialiased">
+<body class="bg-zinc-100 text-zinc-900 font-sans antialiased">
 
     <!-- Globale Namespace Initialisierung -->
     <script>
@@ -3051,11 +3090,22 @@ window.firebaseConfig = {
     </script>
 
     <!-- App Shell Wrapper -->
-    <div class="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-xl">
+    <div class="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-2xl border-x border-zinc-200/60">
         
-        <!-- Header -->
-        <header class="bg-emerald-700 text-white px-4 py-3 sticky top-0 z-40 shadow-md flex justify-between items-center">
-            <h1 class="text-xl font-bold tracking-wide">LIE Scorecard</h1>
+        <!-- Header in Clean Tech Emerald -->
+        <header class="bg-emerald-900 text-white px-4 py-3 sticky top-0 z-40 shadow-md flex justify-between items-center border-b border-emerald-800/80">
+            <div class="flex items-center space-x-2.5">
+                <h1 class="text-lg font-black tracking-wider uppercase text-emerald-50">LIE Scorecard</h1>
+                
+                <!-- Firebase-Indicator Badge -->
+                <span class="flex items-center gap-1 bg-emerald-950/80 border border-emerald-600/50 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-300 shadow-xs" title="Firebase Backend aktiv">
+                    <svg class="w-3 h-3 fill-amber-400" viewBox="0 0 24 24">
+                        <path d="M3.89 15.672L6.255.461A.542.542 0 0 1 7.27.283l2.543 4.772-5.923 10.617zM13.5 11.235l-2.22-4.18-8.23 14.868 10.45-10.688zM20.11 21.923L14.49 13.1l-1.01 1.034 6.63 7.789a.544.544 0 0 0 .866-.027zM20.592 7.641l-1.874-3.551a.543.543 0 0 0-.962.008L3.218 21.848l8.608 4.887a1.63 1.63 0 0 0 1.572 0l8.608-4.887a.543.543 0 0 0 .237-.624l-1.651-13.583z"/>
+                    </svg>
+                    <span class="tracking-tight text-[9px] uppercase">Firestore</span>
+                </span>
+            </div>
+
             <div class="flex items-center space-x-3">
                 <button id="global-refresh-btn" onclick="app.logic.refreshGlobalAppData()" class="text-white p-1 touch-target text-base opacity-80 hover:opacity-100 transition focus:outline-none" title="Daten aktualisieren">
                     <i id="global-refresh-icon" class="fas fa-sync-alt"></i>
@@ -3067,45 +3117,45 @@ window.firebaseConfig = {
                 <button id="header-logout-btn" onclick="app.logic.logout()" class="hidden text-white opacity-80 hover:opacity-100 p-1 touch-target text-sm transition focus:outline-none" title="Abmelden">
                     <i class="fas fa-sign-out-alt"></i>
                 </button>
-                <div id="connection-status" class="w-3 h-3 rounded-full bg-emerald-400"></div>
+                <div id="connection-status" class="w-3 h-3 rounded-full bg-emerald-400 shadow-xs"></div>
             </div>
         </header>
 
         <!-- Main Content Area -->
         <main id="app-container" class="flex-1 p-4 pb-24">
             <!-- Splash Screen -->
-            <div id="app-loading" class="flex flex-col items-center justify-center pt-12 space-y-6">
-                <div class="w-48 h-48 bg-stone-50 border border-stone-200 rounded-3xl p-2 shadow-md flex items-center justify-center overflow-hidden">
+            <div id="app-loading" class="flex flex-col items-center justify-center pt-16 space-y-6">
+                <div class="w-44 h-44 bg-zinc-50 border border-zinc-200 rounded-3xl p-2 shadow-lg flex items-center justify-center overflow-hidden">
                     <img id="splash-logo" src="img/LIE_Logo II.jpeg" alt="LIE Logo" class="w-full h-full object-cover rounded-2xl" />
                 </div>
                 <div class="flex flex-col items-center space-y-2">
                     <i class="fas fa-circle-notch fa-spin text-2xl text-emerald-600"></i>
-                    <p class="text-stone-500 text-xs font-semibold uppercase tracking-wider">Lade Clubhaus-Daten...</p>
+                    <p class="text-zinc-500 text-xs font-bold uppercase tracking-widest">Lade Clubhaus-Daten...</p>
                 </div>
             </div>
         </main>
 
-        <!-- Mobile Navigation Footer (Bottom Nav Bar) -->
-        <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-stone-200 py-2 px-3 flex justify-around items-center z-40 shadow-lg hidden">
-            <button id="nav-dash" onclick="app.router.navigate('dashboard')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+        <!-- Mobile Navigation Footer -->
+        <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur-md border-t border-zinc-200/80 py-2 px-3 flex justify-around items-center z-40 shadow-xl hidden">
+            <button id="nav-dash" onclick="app.router.navigate('dashboard')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-home text-base"></i>
-                <span class="text-[10px] mt-0.5">Home</span>
+                <span class="text-[10px] font-semibold mt-0.5">Home</span>
             </button>
-            <button id="nav-rounds" onclick="app.router.navigate('spieltage')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+            <button id="nav-rounds" onclick="app.router.navigate('spieltage')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-calendar-alt text-base"></i>
-                <span class="text-[10px] mt-0.5">Runden</span>
+                <span class="text-[10px] font-semibold mt-0.5">Runden</span>
             </button>
-            <button id="nav-players" onclick="app.router.navigate('spieler')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+            <button id="nav-players" onclick="app.router.navigate('spieler')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-users text-base"></i>
-                <span class="text-[10px] mt-0.5">Gruppe</span>
+                <span class="text-[10px] font-semibold mt-0.5">Gruppe</span>
             </button>
-            <button id="nav-help" onclick="app.router.navigate('help')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+            <button id="nav-help" onclick="app.router.navigate('help')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-question-circle text-base"></i>
-                <span class="text-[10px] mt-0.5">Hilfe</span>
+                <span class="text-[10px] font-semibold mt-0.5">Hilfe</span>
             </button>
-            <button id="nav-admin" onclick="app.router.navigate('admin')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-amber-600 transition px-2 py-1 touch-target hidden">
+            <button id="nav-admin" onclick="app.router.navigate('admin')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-amber-600 transition px-2 py-1 touch-target hidden">
                 <i class="fas fa-user-shield text-base"></i>
-                <span class="text-[10px] mt-0.5">Admin</span>
+                <span class="text-[10px] font-semibold mt-0.5">Admin</span>
             </button>
         </nav>
 
@@ -3114,45 +3164,7 @@ window.firebaseConfig = {
     <!-- Globaler Toast Container -->
     <div id="global-toast-container" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none"></div>
 
-    <!-- Globales Confirmation Modal -->
-    <div id="global-confirm-modal" class="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
-        <div id="confirm-modal-box" class="bg-white rounded-2xl max-w-xs w-full p-5 space-y-4 shadow-2xl transition-all duration-200 opacity-0 scale-95 border border-stone-100">
-            <div class="flex items-start space-x-3">
-                <div id="confirm-modal-icon-container" class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 bg-emerald-100 text-emerald-700">
-                    <i id="confirm-modal-icon" class="fas fa-question-circle text-sm"></i>
-                </div>
-                <div class="space-y-1">
-                    <h3 id="confirm-modal-title" class="font-bold text-stone-800 text-sm">Titel</h3>
-                    <p id="confirm-modal-message" class="text-stone-500 text-xs leading-relaxed">Nachricht</p>
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-2 pt-2">
-                <button id="confirm-modal-cancel" class="bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold py-2.5 rounded-xl text-xs transition">Abbrechen</button>
-                <button id="confirm-modal-submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-xs">Bestätigen</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Pixel Golf Run Mini-Game Modal -->
-    <div id="pixel-golf-modal" class="fixed inset-0 z-50 bg-stone-900/90 backdrop-blur-xs hidden flex flex-col p-0 sm:p-4">
-        <div class="bg-white w-full h-full sm:max-w-4xl sm:h-[90vh] sm:rounded-2xl mx-auto my-auto flex flex-col shadow-2xl border border-stone-200 overflow-hidden">
-            <!-- Header -->
-            <div class="bg-emerald-800 text-white px-4 py-2.5 flex justify-between items-center shrink-0">
-                <h3 class="font-bold text-sm tracking-wide flex items-center gap-2">
-                    <i class="fas fa-gamepad text-amber-400"></i> Pixel Golf Run
-                </h3>
-                <button onclick="app.logic.closePixelGolfGame()" class="text-white opacity-80 hover:opacity-100 touch-target text-lg">
-                    <i class="fas fa-times-circle"></i>
-                </button>
-            </div>
-            <!-- Game Frame -->
-            <div class="flex-1 w-full h-full bg-black overflow-hidden">
-                <iframe id="pixel-golf-iframe" src="about:blank" class="w-full h-full border-0" allow="autoplay"></iframe>
-            </div>
-        </div>
-    </div>    
-
-    <!-- Dynamisches Laden der Module -->
+    <!-- Dynamisches Skript-Laden -->
     <script>
         (function() 
         {
@@ -3211,76 +3223,72 @@ window.firebaseConfig = {
                 });
             };
 
-            cfgScript.onerror = function() 
-            {
-                console.error("Fehler beim Laden der config.js!");
-            };
-
             document.head.appendChild(cfgScript);
         })();
     </script>
-
-    <!-- Service Worker Registrierung für PWA -->
-    <script>
-        if ('serviceWorker' in navigator) 
-        {
-            window.addEventListener('load', function() 
-            {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(function(reg) 
-                    {
-                        console.log('[PWA] Service Worker erfolgreich registriert:', reg.scope);
-                    })
-                    .catch(function(err) 
-                    {
-                        console.warn('[PWA] Service Worker Fehler:', err);
-                    });
-            });
-        }
-    </script>
-
 </body>
 </html>
 
 
 ##### <Style.css>:
 ----------------------------------------------------------------------
-/* Individuelle UI/UX-Optimierungen über Tailwind hinaus */
+/* =========================================================================
+   BMAssistent / LIE Scorecard - Clean Tech Emerald Theme
+   Style.css
+   BSD (Allman) Style
+   ========================================================================= */
 
-/* Stellt sicher, dass der Body und Hauptcontainer auf Handys volle Breite nutzen */
-html, body {
+:root
+{
+    --color-header-bg: #064e3b;       /* Deep Emerald */
+    --color-bg-body: #f4f4f5;         /* Neutral Zinc 100 */
+    --color-card-bg: #ffffff;
+    --color-emerald-accent: #059669;  /* Mint / Emerald 600 */
+    --color-amber-accent: #d97706;    /* Warm Amber 600 */
+}
+
+html, body
+{
     width: 100%;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+    background-color: var(--color-bg-body);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* Verhindert unlesbare Skalierung auf Smartphones */
-#app-container {
+/* App Shell Canvas */
+#app-container
+{
     width: 100%;
     box-sizing: border-box;
+    transition: opacity 0.15s ease-in-out;
 }
 
 /* Deaktiviert die unschöne graue Fläche beim Tippen auf Mobilgeräten */
-button, a, .nav-btn 
+button, a, .nav-btn
 {
     -webkit-tap-highlight-color: transparent;
     outline: none;
 }
 
-/* Weiche Übergänge für View-Wechsel */
-#app-container 
-{
-    transition: opacity 0.2s ease-in-out;
-}
-
 /* One-Hand Safe Input States */
-.touch-target 
+.touch-target
 {
     min-height: 44px;
     min-width: 44px;
 }
 
+/* Custom Scrollbar für Loch-Navigation */
+.scrollbar-none::-webkit-scrollbar
+{
+    display: none;
+}
+.scrollbar-none
+{
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
 
 
 ##### <sw.js>:
@@ -4017,13 +4025,10 @@ app.views.dashboard = function()
     const nickname = user ? user.nickname : "Golfer";
     const rolle = user ? user.role : "Spieler";
     
-    // Find active match excluding soft-deleted rounds
+    // Aktive Runde ermitteln (sofern nicht gelöscht)
     const aktiveRunde = app.state.spieltage ? app.state.spieltage.find(function(st) 
     { 
-        if (!st) 
-        {
-            return false;
-        }
+        if (!st) return false;
 
         const isDel = st.istGeloescht === true || 
                       String(st.istGeloescht).toUpperCase() === "TRUE" || 
@@ -4036,15 +4041,14 @@ app.views.dashboard = function()
     let activeRoundCardHtml = "";
     if (aktiveRunde)
     {
-        const kurs = app.state.kurse.find(function(k) { return String(k.id) === String(aktiveRunde.kursId); });
+        const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return String(k.id) === String(aktiveRunde.kursId); }) : null;
         const platz = kurs ? app.state.golfplaetze.find(function(p) { return String(p.id) === String(kurs.platzId); }) : null;
         
-        // Check flight assignment for active user
         const meinFlight = app.state.flights ? app.state.flights.find(function(f) 
         {
             if (f.spieltagId !== aktiveRunde.id) return false;
             const ids = String(f.spielerIdsCsv || "").split(',').map(function(id) { return id.trim(); });
-            return ids.includes(String(user.id).trim());
+            return ids.includes(String(user ? user.id : '').trim());
         }) : null;
 
         let flightSeq = 1;
@@ -4055,20 +4059,22 @@ app.views.dashboard = function()
         }
 
         activeRoundCardHtml = `
-            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl shadow-2xs space-y-3">
+            <div class="p-4 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl shadow-xs space-y-3">
                 <div class="flex justify-between items-center">
-                    <span class="text-[10px] font-bold uppercase bg-emerald-600 text-white px-2 py-0.5 rounded-full tracking-wider animate-pulse"><i class="fas fa-dot-circle"></i> Live-Turnier</span>
-                    <span class="text-xs font-semibold text-stone-400">${aktiveRunde.date}</span>
+                    <span class="text-[10px] font-extrabold uppercase bg-emerald-700 text-emerald-50 px-2.5 py-0.5 rounded-full tracking-wider animate-pulse shadow-xs">
+                        <i class="fas fa-dot-circle mr-1"></i> Live-Turnier
+                    </span>
+                    <span class="text-xs font-semibold text-zinc-500">${aktiveRunde.date}</span>
                 </div>
                 <div>
-                    <h3 class="font-black text-stone-800 text-base">${platz ? platz.name : 'LIE Golfrunde'}</h3>
-                    <p class="text-xs text-stone-500 font-medium">${kurs ? kurs.name : ''} &bull; Flight ${flightSeq}</p>
+                    <h3 class="font-black text-zinc-900 text-base">${platz ? platz.name : 'LIE Golfrunde'}</h3>
+                    <p class="text-xs text-zinc-500 font-semibold">${kurs ? kurs.name : ''} &bull; Flight ${flightSeq}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-2 pt-1">
-                    <button onclick="app.router.navigate('score_eingabe', { id: '${aktiveRunde.id}', hole: 1, flightSeq: ${flightSeq} })" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-xs transition shadow-3xs text-center">
+                    <button onclick="app.router.navigate('score_eingabe', { id: '${aktiveRunde.id}', hole: 1, flightSeq: ${flightSeq} })" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-xs text-center">
                         <i class="fas fa-edit mr-1"></i> Scores tippen
                     </button>
-                    <button onclick="app.router.navigate('leaderboard', { id: '${aktiveRunde.id}', mode: 'netto' })" class="bg-white hover:bg-stone-50 border border-emerald-200 text-emerald-800 font-bold py-2 rounded-xl text-xs transition text-center shadow-3xs">
+                    <button onclick="app.router.navigate('leaderboard', { id: '${aktiveRunde.id}', mode: 'netto' })" class="bg-white hover:bg-zinc-50 border border-emerald-200 text-emerald-900 font-bold py-2.5 rounded-xl text-xs transition text-center shadow-xs">
                         <i class="fas fa-list-ol mr-1"></i> Leaderboard
                     </button>
                 </div>
@@ -4078,15 +4084,15 @@ app.views.dashboard = function()
     else
     {
         activeRoundCardHtml = `
-            <div class="p-5 text-center bg-stone-50 border border-stone-200 border-dashed rounded-2xl">
-                <i class="fas fa-golf-ball text-stone-300 text-2xl mb-2"></i>
-                <p class="text-stone-500 text-xs font-semibold">Zurzeit läuft kein aktives Match.</p>
-                <p class="text-stone-400 text-[10px] mt-0.5">Sobald die Turnierleitung eine neue Runde auslost, erscheint hier deine Scorekarte!</p>
+            <div class="p-5 text-center bg-zinc-50/80 border border-zinc-200 border-dashed rounded-2xl">
+                <i class="fas fa-golf-ball text-zinc-300 text-2xl mb-2"></i>
+                <p class="text-zinc-600 text-xs font-bold">Zurzeit läuft kein aktives Match.</p>
+                <p class="text-zinc-400 text-[10px] mt-0.5">Sobald die Turnierleitung eine neue Runde auslost, erscheint hier deine Scorekarte!</p>
             </div>
         `;
     }
 
-    // Calculate personal stats from application state
+    // --- KARRIERE-STATISTIKEN BERECHNEN ---
     let gespielteRundenCount = 0;
     let besterNettoScore = 0;
     let besteBruttoRunde = "-";
@@ -4094,7 +4100,7 @@ app.views.dashboard = function()
 
     if (user && app.state.spieltage && app.state.scoreCards)
     {
-        // Filter finished rounds where user participated
+        // Beendete Runden filtern, an denen der Nutzer teilgenommen hat
         const beendeteTeilgenommen = app.state.spieltage.filter(function(st)
         {
             if (st.status !== 'Beendet') return false;
@@ -4110,7 +4116,7 @@ app.views.dashboard = function()
             return ids.includes(String(user.id).trim());
         });
 
-        // Sort chronologically
+        // Chronologisch sortieren
         beendeteTeilgenommen.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
         gespielteRundenCount = beendeteTeilgenommen.length;
 
@@ -4123,9 +4129,9 @@ app.views.dashboard = function()
                 return String(sc.spieltagId).trim() === String(st.id).trim() && String(sc.spielerId).trim() === String(user.id).trim();
             });
 
-            const kurs = app.state.kurse.find(function(k) { return String(k.id).trim() === String(st.kursId).trim(); });
+            const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return String(k.id).trim() === String(st.kursId).trim(); }) : null;
             const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
-            const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); });
+            const kursBahnen = app.state.bahnen ? app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); }) : [];
 
             let rundenNettoTotal = 0;
             let rundenSchlaegeTotal = 0;
@@ -4148,7 +4154,7 @@ app.views.dashboard = function()
                 }
             });
 
-            // Evaluate complete rounds only
+            // Nur vollständig gespielte Runden werten
             if (gespielteBahnenInRunde >= maxBahnen && maxBahnen > 0)
             {
                 if (rundenNettoTotal > besterNettoScore)
@@ -4168,15 +4174,15 @@ app.views.dashboard = function()
 
     const netRecDisplay = besterNettoScore > 0 ? `${besterNettoScore} Pkt` : "-";
 
-    // Hint banner for Admin and Spielleiter
+    // Admin-Hinweis
     let adminHintHtml = "";
     if (rolle === "Admin" || rolle === "Spielleiter")
     {
         adminHintHtml = `
-            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start space-x-2 text-[11px] text-amber-800">
-                <i class="fas fa-info-circle text-amber-500 mt-0.5"></i>
-                <div>
-                    <b>Hallo ${nickname}!</b> Du bist als <u>${rolle}</u> eingeloggt. Im Menüpunkt <b>Runden</b> kannst du über das Plus-Symbol oben rechts neue Spieltage starten oder Flights auslosen.
+            <div class="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl flex items-start space-x-2 text.xs text-amber-900 shadow-xs">
+                <i class="fas fa-info-circle text-amber-600 mt-0.5"></i>
+                <div class="text-[11px] leading-relaxed">
+                    <b>Hallo ${nickname}!</b> Du bist als <u>${rolle}</u> eingeloggt. Unter <b>Runden</b> kannst du neue Spieltage auslosen.
                 </div>
             </div>
         `;
@@ -4184,14 +4190,14 @@ app.views.dashboard = function()
 
     return `
         <div class="space-y-5">
-            <!-- Begrüßung -->
-            <div class="bg-gradient-to-br from-emerald-800 to-emerald-950 text-white p-5 rounded-2xl shadow-xs relative overflow-hidden">
-                <div class="absolute right-0 bottom-0 opacity-10 text-7xl translate-x-4 translate-y-4">
+            <!-- Header-Banner -->
+            <div class="bg-gradient-to-br from-emerald-900 via-emerald-950 to-zinc-950 text-white p-5 rounded-2xl shadow-md relative overflow-hidden border border-emerald-800/50">
+                <div class="absolute right-0 bottom-0 opacity-10 text-8xl translate-x-4 translate-y-4 pointer-events-none">
                     <i class="fas fa-flag"></i>
                 </div>
-                <p class="text-xs font-medium text-emerald-300 uppercase tracking-wider">Willkommen im Clubhaus</p>
-                <h2 class="text-xl font-black tracking-wide -mt-0.5">${nickname}</h2>
-                <div class="mt-2 text-[10px] bg-emerald-700/50 inline-block px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border border-emerald-600/30">
+                <p class="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">Willkommen im Clubhaus</p>
+                <h2 class="text-2xl font-black tracking-wide -mt-0.5 text-emerald-50">${nickname}</h2>
+                <div class="mt-2 text-[10px] bg-emerald-800/80 text-emerald-200 inline-block px-3 py-0.5 rounded-full font-extrabold uppercase tracking-wider border border-emerald-600/40 shadow-xs">
                     HCP ${user ? user.hcpLIE : '54'}
                 </div>
             </div>
@@ -4200,40 +4206,40 @@ app.views.dashboard = function()
 
             <!-- Aktive Runde Sektion -->
             <div class="space-y-2">
-                <h4 class="text-xs font-bold text-stone-400 uppercase tracking-wider px-1">Aktueller Spieltag</h4>
+                <h4 class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">Aktueller Spieltag</h4>
                 ${activeRoundCardHtml}
             </div>
 
-            <!-- Persönliche Statistiken Grid -->
+            <!-- KARRIERE-STATISTIKEN GRID -->
             <div class="space-y-2">
-                <h4 class="text-xs font-bold text-stone-400 uppercase tracking-wider px-1">Deine LIE-Karriere</h4>
+                <h4 class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">Deine LIE-Karriere</h4>
                 <div class="grid grid-cols-2 gap-3">
-                    <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center space-x-3 shadow-3xs">
-                        <div class="w-8 h-8 rounded-lg bg-stone-200/60 text-stone-600 flex items-center justify-center text-sm"><i class="fas fa-trophy"></i></div>
+                    <div class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center text-base shrink-0"><i class="fas fa-trophy"></i></div>
                         <div>
-                            <span class="block text-[10px] font-bold text-stone-400 uppercase tracking-wide leading-none">Netto-Rekord</span>
-                            <span class="text-sm font-black text-stone-800">${netRecDisplay}</span>
+                            <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Netto-Rekord</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${netRecDisplay}</span>
                         </div>
                     </div>
-                    <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center space-x-3 shadow-3xs">
-                        <div class="w-8 h-8 rounded-lg bg-stone-200/60 text-stone-600 flex items-center justify-center text-sm"><i class="fas fa-medal"></i></div>
+                    <div class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center text-base shrink-0"><i class="fas fa-medal"></i></div>
                         <div>
-                            <span class="block text-[10px] font-bold text-stone-400 uppercase tracking-wide leading-none">Bestes Brutto</span>
-                            <span class="text-sm font-black text-stone-800">${besteBruttoRunde}</span>
+                            <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Bestes Brutto</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${besteBruttoRunde}</span>
                         </div>
                     </div>
-                    <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center space-x-3 shadow-3xs">
-                        <div class="w-8 h-8 rounded-lg bg-stone-200/60 text-stone-600 flex items-center justify-center text-sm"><i class="fas fa-history"></i></div>
+                    <div class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs">
+                        <div class="w-9 h-9 rounded-xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0"><i class="fas fa-history"></i></div>
                         <div>
-                            <span class="block text-[10px] font-bold text-stone-400 uppercase tracking-wide leading-none">Letzte Runde</span>
-                            <span class="text-sm font-black text-stone-800">${letzterNettoScore}</span>
+                            <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Letzte Runde</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${letzterNettoScore}</span>
                         </div>
                     </div>
-                    <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center space-x-3 shadow-3xs">
-                        <div class="w-8 h-8 rounded-lg bg-stone-200/60 text-stone-600 flex items-center justify-center text-sm"><i class="fas fa-calendar-check"></i></div>
+                    <div class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs">
+                        <div class="w-9 h-9 rounded-xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0"><i class="fas fa-calendar-check"></i></div>
                         <div>
-                            <span class="block text-[10px] font-bold text-stone-400 uppercase tracking-wide leading-none">Turniere</span>
-                            <span class="text-sm font-black text-stone-800">${gespielteRundenCount} Runden</span>
+                            <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${gespielteRundenCount} Runden</span>
                         </div>
                     </div>
                 </div>
@@ -4241,30 +4247,29 @@ app.views.dashboard = function()
 
             <!-- Schnellstart-Kacheln -->
             <div class="grid grid-cols-2 gap-3">
-                <button onclick="app.router.navigate('spieltage')" class="p-4 bg-white border border-stone-200 rounded-2xl text-left hover:bg-stone-50 transition shadow-2xs group flex flex-col justify-between min-h-[95px] touch-target">
-                    <i class="fas fa-calendar-alt text-xl text-stone-400 group-hover:text-emerald-700 transition"></i>
+                <button onclick="app.router.navigate('spieltage')" class="p-4 bg-white border border-zinc-200 rounded-2xl text-left hover:bg-zinc-50 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target">
+                    <i class="fas fa-calendar-alt text-xl text-zinc-400 group-hover:text-emerald-700 transition"></i>
                     <div>
-                        <span class="block font-bold text-stone-800 text-sm">Turniere</span>
-                        <span class="block text-[10px] text-stone-400 -mt-0.5 font-medium">Alle Runden & Ergebnisse</span>
+                        <span class="block font-bold text-zinc-800 text-sm">Turniere</span>
+                        <span class="block text-[10px] text-zinc-400 -mt-0.5 font-medium">Alle Runden & Ergebnisse</span>
                     </div>
                 </button>
 
-                <button onclick="app.router.navigate('spieler')" class="p-4 bg-white border border-stone-200 rounded-2xl text-left hover:bg-stone-50 transition shadow-2xs group flex flex-col justify-between min-h-[95px] touch-target">
-                    <i class="fas fa-users text-xl text-stone-400 group-hover:text-emerald-700 transition"></i>
+                <button onclick="app.router.navigate('spieler')" class="p-4 bg-white border border-zinc-200 rounded-2xl text-left hover:bg-zinc-50 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target">
+                    <i class="fas fa-users text-xl text-zinc-400 group-hover:text-emerald-700 transition"></i>
                     <div>
-                        <span class="block font-bold text-stone-800 text-sm">LIE-Gruppe</span>
-                        <span class="block text-[10px] text-stone-400 -mt-0.5 font-medium">Handicaps & Ranglisten</span>
+                        <span class="block font-bold text-zinc-800 text-sm">LIE-Gruppe</span>
+                        <span class="block text-[10px] text-zinc-400 -mt-0.5 font-medium">Handicaps & Ranglisten</span>
                     </div>
                 </button>
 
-                <button onclick="app.logic.openPixelGolfGame()" class="p-4 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl text-left hover:border-amber-300 transition shadow-2xs group flex flex-col justify-between min-h-[95px] touch-target">
+                <button onclick="app.logic.openPixelGolfGame()" class="p-4 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl text-left hover:border-amber-300 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target col-span-2 sm:col-span-1">
                     <i class="fas fa-gamepad text-xl text-amber-600 group-hover:scale-110 transition-transform"></i>
                     <div>
                         <span class="block font-bold text-amber-950 text-sm">Pixel Golf Run</span>
-                        <span class="block text-[10px] text-amber-700/80 -mt-0.5 font-semibold">Mini-Game starten ⛳</span>
+                        <span class="block text-[10px] text-amber-700/90 -mt-0.5 font-semibold">Mini-Game starten ⛳</span>
                     </div>
                 </button>
-                
             </div>
         </div>
     `;
@@ -4284,34 +4289,80 @@ app.views.leaderboard = function(spieltagId, activeTab)
     if (!app.state.leaderboardViewMode) app.state.leaderboardViewMode = 'matrix';
     
     const mode = activeTab || 'netto';
-    const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-    const kurs = app.state.kurse.find(function(k) { return String(k.id).trim() === String(spieltag ? spieltag.kursId : "").trim(); });
-    const platz = kurs ? app.state.golfplaetze.find(function(p) { return String(p.id).trim() === String(kurs.platzId).trim(); }) : null;
+    const spieltag = (app.state.spieltage || []).find(function(st) 
+    { 
+        return String(st.id).trim() === String(spieltagId).trim(); 
+    });
 
-    const teilnehmerString = String(spieltag ? spieltag.teilnehmerCsv || "" : "");
-    const teilnehmerIds = teilnehmerString ? teilnehmerString.split(',').map(function(id) { return String(id).trim(); }) : [];
+    const kurs = (app.state.kurse || []).find(function(k) 
+    { 
+        return String(k.id).trim() === String(spieltag ? spieltag.kursId : "").trim(); 
+    });
     
-    // Eindeutige Bahnenanzahl bestimmen
+    const platz = kurs ? (app.state.golfplaetze || []).find(function(p) 
+    { 
+        return String(p.id).trim() === String(kurs.platzId).trim(); 
+    }) : null;
+
+    // 1. STRIKTE TEILNEHMER-ERMITTLUNG (Kein globaler Fallback mehr)
+    let teilnehmerIds = [];
+    if (spieltag)
+    {
+        if (Array.isArray(spieltag.teilnehmerCsv))
+        {
+            teilnehmerIds = spieltag.teilnehmerCsv.map(function(id) { return String(id).trim(); });
+        }
+        else if (typeof spieltag.teilnehmerCsv === 'string' && spieltag.teilnehmerCsv.trim() !== "")
+        {
+            teilnehmerIds = spieltag.teilnehmerCsv.split(',').map(function(id) { return String(id).trim(); });
+        }
+        
+        // Falls teilnehmerCsv im Spieltag leer ist, versuche die Teilnehmer über die Flights dieses Spieltags zu ermitteln
+        if (teilnehmerIds.length === 0 && app.state.flights)
+        {
+            const tagesFlights = app.state.flights.filter(function(f) { return String(f.spieltagId).trim() === String(spieltagId).trim(); });
+            tagesFlights.forEach(function(f)
+            {
+                const ids = String(f.spielerIdsCsv || "").split(',').map(function(id) { return String(id).trim(); });
+                ids.forEach(function(id) { if (id && !teilnehmerIds.includes(id)) teilnehmerIds.push(id); });
+            });
+        }
+    }
+
+    // Bahnen festlegen (Standard 18 Loch)
     const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
-    const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(spieltag ? spieltag.kursId : "").trim(); });
+    const kursBahnen = (app.state.bahnen || []).filter(function(b) 
+    { 
+        return String(b.kursId).trim() === String(spieltag ? spieltag.kursId : "").trim(); 
+    });
     kursBahnen.sort(function(a, b) { return parseInt(a.nr) - parseInt(b.nr); });
 
     const anzuzeigendeBahnen = [];
     for (let i = 0; i < maxBahnen; i++)
     {
-        if (kursBahnen[i]) anzuzeigendeBahnen.push(kursBahnen[i]);
-        else anzuzeigendeBahnen.push({ nr: i + 1, par: 4, si: 10 });
+        if (kursBahnen[i]) 
+        {
+            anzuzeigendeBahnen.push(kursBahnen[i]);
+        }
+        else 
+        {
+            anzuzeigendeBahnen.push({ nr: i + 1, par: 4, si: i + 1 });
+        }
     }
 
-    // 1. Daten-Aggregation für alle Teilnehmer
+    // 2. Daten-Aggregation NUR für gefundene Teilnehmer
     const leaderboardData = teilnehmerIds.map(function(spielerId)
     {
-        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === spielerId; });
+        const spieler = (app.state.spieler || []).find(function(s) 
+        { 
+            return String(s.id).trim() === String(spielerId).trim(); 
+        });
+
         if (!spieler) return null;
 
-        const dbScores = app.state.scoreCards.filter(function(sc) 
+        const dbScores = (app.state.scoreCards || []).filter(function(sc) 
         {
-            return String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === spielerId;
+            return String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === String(spielerId).trim();
         });
 
         let totalStrokes = 0;
@@ -4323,7 +4374,7 @@ app.views.leaderboard = function(spieltagId, activeTab)
         {
             const hNr = parseInt(bahn.nr);
             const liveKey = `${spieltagId}_${spielerId}_${hNr}`;
-            let strokes = app.state.liveScores[liveKey];
+            let strokes = (app.state.liveScores || {})[liveKey];
 
             if (strokes === undefined)
             {
@@ -4336,12 +4387,15 @@ app.views.leaderboard = function(spieltagId, activeTab)
                 holesPlayed++;
                 totalStrokes += strokes;
 
-                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si);
-                if (maxBahnen !== 18) holeVorgabe = Math.round(holeVorgabe * (maxBahnen / 18));
+                let holeVorgabe = app.logic && typeof app.logic.calculateHoleVorgabe === 'function' 
+                    ? app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si)
+                    : 1;
 
-                const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
+                const nettoPkt = app.logic && typeof app.logic.calculateNettoStableford === 'function'
+                    ? app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe)
+                    : 2;
+
                 totalNettoStableford += nettoPkt;
-                
                 holeScoresMap[hNr] = strokes;
             }
             else
@@ -4359,13 +4413,6 @@ app.views.leaderboard = function(spieltagId, activeTab)
         };
     }).filter(Boolean);
 
-    // Sortierung ermitteln
-    const nettoRanked = [...leaderboardData].sort(function(a, b) { return b.netto - a.netto; });
-    const bruttoRanked = [...leaderboardData].filter(function(x) { return x.played > 0; }).sort(function(a, b) { return a.strokes - b.strokes; });
-
-    const berechneterNettoSieger = nettoRanked.length > 0 ? nettoRanked[0].spielerObj.nickname : "Niemand";
-    const berechneterBruttoSieger = bruttoRanked.length > 0 ? bruttoRanked[0].spielerObj.nickname : "Niemand";
-
     if (mode === 'brutto')
     {
         leaderboardData.sort(function(a, b) 
@@ -4380,160 +4427,124 @@ app.views.leaderboard = function(spieltagId, activeTab)
         leaderboardData.sort(function(a, b) { return b.netto - a.netto; });
     }
 
-    // --- RENDERING VARIANTE A: KLASSISCHE LISTE ---
+    // RENDERING LISTE
     let rowsListHtml = leaderboardData.map(function(row, index)
     {
         const isBrutto = mode === 'brutto';
-        const scoreDisplay = isBrutto ? `${row.strokes} <span class="text-[10px] text-stone-400 font-normal">Schl.</span>` : `${row.netto} <span class="text-[10px] text-stone-400 font-normal">Pkt.</span>`;
+        const scoreDisplay = isBrutto ? `${row.strokes} <span class="text-[10px] text-zinc-400 font-normal">Schl.</span>` : `${row.netto} <span class="text-[10px] text-zinc-400 font-normal">Pkt.</span>`;
         const subDisplay = isBrutto ? `${row.netto} Netto-Pkt` : `${row.strokes} Schläge total`;
         
-        let rankBadge = `bg-stone-100 text-stone-700`;
+        let rankBadge = `bg-zinc-100 text-zinc-700`;
         if (index === 0) rankBadge = `bg-amber-400 text-amber-950 font-black`;
         if (index === 1) rankBadge = `bg-slate-300 text-slate-900 font-black`;
         if (index === 2) rankBadge = `bg-amber-600 text-amber-50 font-black`;
 
         return `
-            <div class="flex items-center justify-between p-3 bg-white border border-stone-200 rounded-xl shadow-2xs">
+            <div class="flex items-center justify-between p-3 bg-white border border-zinc-200 rounded-xl shadow-xs">
                 <div class="flex items-center space-x-3">
                     <div class="w-6 h-6 rounded-md ${rankBadge} text-xs flex items-center justify-center">${index + 1}</div>
                     <div>
-                        <h4 class="font-bold text-stone-800 text-sm">${row.spielerObj.nickname}</h4>
-                        <p class="text-[10px] text-stone-400 font-medium">Löcher: ${row.played}/${maxBahnen} &bull; ${subDisplay}</p>
+                        <h4 class="font-bold text-zinc-800 text-sm">${row.spielerObj.nickname || row.spielerObj.name}</h4>
+                        <p class="text-[10px] text-zinc-400 font-medium">Löcher: ${row.played}/${maxBahnen} &bull; ${subDisplay}</p>
                     </div>
                 </div>
                 <div class="text-right font-black text-emerald-700 text-base">
-                    ${row.played > 0 ? scoreDisplay : '<span class="text-xs text-stone-300 font-medium italic">No Score</span>'}
+                    ${row.played > 0 ? scoreDisplay : '<span class="text-xs text-zinc-300 font-medium italic">No Score</span>'}
                 </div>
             </div>
         `;
     }).join('');
 
-    // --- RENDERING VARIANTE B: MATRIX TABELLE (MIT BREITEN-FIX) ---
-    let tableHeaderHoles = anzuzeigendeBahnen.map(function(b) { return `<th class="p-1 text-center border-stone-200 font-bold text-stone-700 min-w-[32px] text-xs">${b.nr}</th>`; }).join('');
-    let tableHeaderPars = anzuzeigendeBahnen.map(function(b) { return `<td class="p-1 text-center border-stone-100 text-stone-400 text-[10px] font-medium bg-stone-50">${b.par}</td>`; }).join('');
+    // RENDERING MATRIX TABELLE
+    let tableHeaderHoles = anzuzeigendeBahnen.map(function(b) { return `<th class="p-1 text-center border-zinc-200 font-bold text-zinc-700 min-w-[32px] text-xs">${b.nr}</th>`; }).join('');
+    let tableHeaderPars = anzuzeigendeBahnen.map(function(b) { return `<td class="p-1 text-center border-zinc-100 text-zinc-400 text-[10px] font-medium bg-zinc-50">${b.par}</td>`; }).join('');
 
     let tableRowsHtml = leaderboardData.map(function(row)
     {
         let scoreCells = anzuzeigendeBahnen.map(function(b)
         {
             const val = row.scoresMap[b.nr];
-            let cellStyle = "text-stone-800";
+            let cellStyle = "text-zinc-800";
             
             if (val !== "-")
             {
                 if (parseInt(val) < parseInt(b.par)) 
                 {
-                    cellStyle = "text-red-600 font-bold bg-red-50 rounded-sm";
+                    cellStyle = "text-red-600 font-bold bg-red-50 rounded-xs";
                 }
                 else if (parseInt(val) === parseInt(b.par)) 
                 {
-                    cellStyle = "text-blue-600 font-bold bg-blue-50 rounded-sm";
+                    cellStyle = "text-blue-600 font-bold bg-blue-50 rounded-xs";
                 }
                 else 
                 {
-                    cellStyle = "text-stone-900 font-medium";
+                    cellStyle = "text-zinc-900 font-medium";
                 }
             }
-            return `<td class="p-1 text-center border-stone-100 text-xs ${cellStyle}">${val}</td>`;
+            return `<td class="p-1 text-center border-zinc-100 text-xs ${cellStyle}">${val}</td>`;
         }).join('');
 
         const totalResult = mode === 'brutto' ? row.strokes : row.netto;
 
         return `
-            <tr class="border-b border-stone-100 hover:bg-stone-50/60">
-                <td class="p-2 border-r border-stone-200 sticky left-0 z-10 bg-white font-bold text-stone-800 text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] min-w-[95px] whitespace-nowrap" title="${row.spielerObj.nickname}">
-                    ${row.spielerObj.nickname}
+            <tr class="border-b border-zinc-100 hover:bg-zinc-50/60">
+                <td class="p-2 border-r border-zinc-200 sticky left-0 z-10 bg-white font-bold text-zinc-800 text-xs min-w-[95px] whitespace-nowrap">
+                    ${row.spielerObj.nickname || row.spielerObj.name}
                 </td>
                 ${scoreCells}
-                <td class="p-2 bg-emerald-50 text-center font-black text-emerald-800 text-sm border-l border-stone-200 min-w-[45px]">${row.played > 0 ? totalResult : '-'}</td>
+                <td class="p-2 bg-emerald-50 text-center font-black text-emerald-800 text-sm border-l border-zinc-200 min-w-[45px]">${row.played > 0 ? totalResult : '-'}</td>
             </tr>
         `;
     }).join('');
 
     let matrixHtml = `
-        <div class="w-full overflow-x-auto border border-stone-200 bg-white rounded-xl shadow-2xs pb-1">
+        <div class="w-full overflow-x-auto border border-zinc-200 bg-white rounded-xl shadow-xs pb-1">
             <table class="w-full border-collapse text-left">
                 <thead>
-                    <tr class="bg-stone-100/80 border-b border-stone-200">
-                        <th class="p-2 border-r border-stone-200 sticky left-0 z-10 bg-stone-100 font-bold text-stone-500 text-[10px] uppercase tracking-wider min-w-[95px]">Spieler</th>
+                    <tr class="bg-zinc-100/80 border-b border-zinc-200">
+                        <th class="p-2 border-r border-zinc-200 sticky left-0 z-10 bg-zinc-100 font-bold text-zinc-500 text-[10px] uppercase tracking-wider min-w-[95px]">Spieler</th>
                         ${tableHeaderHoles}
-                        <th class="p-2 text-center bg-emerald-100/70 font-bold text-emerald-900 text-[10px] uppercase tracking-wider min-w-[45px] border-l border-stone-200">${mode === 'brutto' ? 'Schl' : 'Pkt'}</th>
+                        <th class="p-2 text-center bg-emerald-100/70 font-bold text-emerald-900 text-[10px] uppercase tracking-wider min-w-[45px] border-l border-zinc-200">${mode === 'brutto' ? 'Schl' : 'Pkt'}</th>
                     </tr>
-                    <tr class="border-b border-stone-100">
-                        <td class="p-2 border-r border-stone-200 sticky left-0 z-10 bg-stone-50 text-[10px] text-stone-400 font-semibold italic min-w-[95px]">PAR</td>
+                    <tr class="border-b border-zinc-100">
+                        <td class="p-2 border-r border-zinc-200 sticky left-0 z-10 bg-zinc-50 text-[10px] text-zinc-400 font-semibold italic min-w-[95px]">PAR</td>
                         ${tableHeaderPars}
-                        <td class="bg-emerald-50/50 border-l border-stone-200"></td>
+                        <td class="bg-emerald-50/50 border-l border-zinc-200"></td>
                     </tr>
                 </thead>
                 <tbody>
-                    ${tableRowsHtml}
+                    ${tableRowsHtml || '<tr><td colspan="20" class="p-4 text-center text-xs text-zinc-400 italic">Keine zugewiesenen Spieler für diesen Spieltag gefunden.</td></tr>'}
                 </tbody>
             </table>
         </div>
     `;
 
-    // --- SEKTIONS-SCHALTUNG ---
-    let siegerHeaderHtml = "";
-    if (spieltag && spieltag.status === 'Beendet')
-    {
-        siegerHeaderHtml = `
-            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl grid grid-cols-2 gap-2 text-center text-xs font-bold text-amber-900">
-                <div class="bg-white p-2 rounded-lg border border-amber-100"><i class="fas fa-trophy text-amber-500 mb-0.5"></i><br>Brutto: ${spieltag.bruttoSieger}</div>
-                <div class="bg-white p-2 rounded-lg border border-amber-100"><i class="fas fa-star text-amber-500 mb-0.5"></i><br>Netto: ${spieltag.nettoSieger}</div>
-            </div>
-        `;
-    }
-
-    const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
-    let adminActionHtml = "";
-    if (isLeiter && spieltag && spieltag.status === 'Aktiv')
-    {
-        adminActionHtml = `
-            <div class="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3 mt-4 shadow-3xs">
-                <h4 class="text-xs font-bold text-amber-800 uppercase tracking-wider"><i class="fas fa-user-shield"></i> Spielleitung: Runden-Abschluss</h4>
-                <p class="text-[11px] text-amber-700">Das Beenden friert die Scores im Sheet ein. Errechnete Sieger: <b>${berechneterBruttoSieger}</b> (Brutto) & <b>${berechneterNettoSieger}</b> (Netto).</p>
-                
-                <div class="flex flex-col space-y-2">
-                    <button onclick="app.logic.closeActiveSpieltag('${spieltagId}', '${berechneterBruttoSieger}', '${berechneterNettoSieger}')" id="close-round-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-xs">
-                        <i class="fas fa-flag-checkered mr-1"></i> Spieltag offiziell beenden
-                    </button>
-                    
-                    <button onclick="app.logic.cancelActiveSpieltag('${spieltagId}')" id="cancel-round-btn" class="w-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold py-2 rounded-xl text-xs transition shadow-3xs">
-                        <i class="fas fa-times-circle mr-1"></i> Spieltag abbrechen (ausblenden)
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
     return `
         <div class="space-y-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2">
-                    <button onclick="app.router.navigate('dashboard')" class="text-stone-500 touch-target"><i class="fas fa-arrow-left"></i></button>
+                    <button onclick="app.router.navigate('dashboard')" class="text-zinc-500 touch-target"><i class="fas fa-arrow-left"></i></button>
                     <div>
-                        <h2 class="text-base font-bold text-stone-800">Live-Leaderboard</h2>
-                        <p class="text-xs text-stone-400 -mt-1">${platz ? platz.name : ''}</p>
+                        <h2 class="text-base font-bold text-zinc-800">Live-Leaderboard</h2>
+                        <p class="text-xs text-zinc-400 -mt-1">${platz ? platz.name : (spieltag ? spieltag.date : 'Turnier')}</p>
                     </div>
                 </div>
                 
-                <div class="flex bg-stone-100 border border-stone-200 rounded-lg p-0.5">
-                    <button onclick="app.state.leaderboardViewMode='matrix'; app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'matrix' ? 'bg-white text-emerald-800 font-bold shadow-3xs' : 'text-stone-400'}">
+                <div class="flex bg-zinc-100 border border-zinc-200 rounded-lg p-0.5">
+                    <button onclick="app.state.leaderboardViewMode='matrix'; app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'matrix' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
                         <i class="fas fa-table"></i>
                     </button>
-                    <button onclick="app.state.leaderboardViewMode='list'; app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'list' ? 'bg-white text-emerald-800 font-bold shadow-3xs' : 'text-stone-400'}">
+                    <button onclick="app.state.leaderboardViewMode='list'; app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'list' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
                         <i class="fas fa-list"></i>
                     </button>
                 </div>
             </div>
 
-            ${siegerHeaderHtml}
-
-            <div class="grid grid-cols-2 p-1 bg-stone-100 rounded-xl border border-stone-200">
-                <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-2xs' : 'text-stone-500'}">
+            <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200">
+                <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
                     <i class="fas fa-star mr-1"></i> Netto (Stableford)
                 </button>
-                <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'brutto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'brutto' ? 'bg-white text-emerald-800 shadow-2xs' : 'text-stone-500'}">
+                <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'brutto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'brutto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
                     <i class="fas fa-trophy mr-1"></i> Brutto (Zählspiel)
                 </button>
             </div>
@@ -4542,9 +4553,7 @@ app.views.leaderboard = function(spieltagId, activeTab)
                 ${app.state.leaderboardViewMode === 'matrix' ? matrixHtml : rowsListHtml}
             </div>
 
-            ${adminActionHtml}
-
-            <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="w-full bg-stone-100 border border-stone-200 hover:bg-stone-200 text-stone-700 font-bold py-2.5 rounded-xl text-xs transition">
+            <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="w-full bg-zinc-100 border border-zinc-200 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-xs transition">
                 <i class="fas fa-sync-alt mr-1"></i> Rangliste aktualisieren
             </button>
         </div>

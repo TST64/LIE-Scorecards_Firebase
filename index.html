@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="Style.css?v=2">
+    <link rel="stylesheet" href="Style.css?v=3">
 
     <!-- Favicon / App-Icon -->
     <link rel="icon" type="image/jpeg" href="img/LIE_Logo II.jpeg">
@@ -23,13 +23,13 @@
 
     <!-- PWA Manifest & Mobile Styling -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#047857">
+    <meta name="theme-color" content="#064e3b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="LIE Scorecard">
 </head>
-<body class="bg-stone-100 text-stone-900 font-sans antialiased">
+<body class="bg-zinc-100 text-zinc-900 font-sans antialiased">
 
     <!-- Globale Namespace Initialisierung -->
     <script>
@@ -40,11 +40,22 @@
     </script>
 
     <!-- App Shell Wrapper -->
-    <div class="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-xl">
+    <div class="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-2xl border-x border-zinc-200/60">
         
-        <!-- Header -->
-        <header class="bg-emerald-700 text-white px-4 py-3 sticky top-0 z-40 shadow-md flex justify-between items-center">
-            <h1 class="text-xl font-bold tracking-wide">LIE Scorecard</h1>
+        <!-- Header in Clean Tech Emerald -->
+        <header class="bg-emerald-900 text-white px-4 py-3 sticky top-0 z-40 shadow-md flex justify-between items-center border-b border-emerald-800/80">
+            <div class="flex items-center space-x-2.5">
+                <h1 class="text-lg font-black tracking-wider uppercase text-emerald-50">LIE Scorecard</h1>
+                
+                <!-- Firebase-Indicator Badge -->
+                <span class="flex items-center gap-1 bg-emerald-950/80 border border-emerald-600/50 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-300 shadow-xs" title="Firebase Backend aktiv">
+                    <svg class="w-3 h-3 fill-amber-400" viewBox="0 0 24 24">
+                        <path d="M3.89 15.672L6.255.461A.542.542 0 0 1 7.27.283l2.543 4.772-5.923 10.617zM13.5 11.235l-2.22-4.18-8.23 14.868 10.45-10.688zM20.11 21.923L14.49 13.1l-1.01 1.034 6.63 7.789a.544.544 0 0 0 .866-.027zM20.592 7.641l-1.874-3.551a.543.543 0 0 0-.962.008L3.218 21.848l8.608 4.887a1.63 1.63 0 0 0 1.572 0l8.608-4.887a.543.543 0 0 0 .237-.624l-1.651-13.583z"/>
+                    </svg>
+                    <span class="tracking-tight text-[9px] uppercase">Firestore</span>
+                </span>
+            </div>
+
             <div class="flex items-center space-x-3">
                 <button id="global-refresh-btn" onclick="app.logic.refreshGlobalAppData()" class="text-white p-1 touch-target text-base opacity-80 hover:opacity-100 transition focus:outline-none" title="Daten aktualisieren">
                     <i id="global-refresh-icon" class="fas fa-sync-alt"></i>
@@ -56,45 +67,45 @@
                 <button id="header-logout-btn" onclick="app.logic.logout()" class="hidden text-white opacity-80 hover:opacity-100 p-1 touch-target text-sm transition focus:outline-none" title="Abmelden">
                     <i class="fas fa-sign-out-alt"></i>
                 </button>
-                <div id="connection-status" class="w-3 h-3 rounded-full bg-emerald-400"></div>
+                <div id="connection-status" class="w-3 h-3 rounded-full bg-emerald-400 shadow-xs"></div>
             </div>
         </header>
 
         <!-- Main Content Area -->
         <main id="app-container" class="flex-1 p-4 pb-24">
             <!-- Splash Screen -->
-            <div id="app-loading" class="flex flex-col items-center justify-center pt-12 space-y-6">
-                <div class="w-48 h-48 bg-stone-50 border border-stone-200 rounded-3xl p-2 shadow-md flex items-center justify-center overflow-hidden">
+            <div id="app-loading" class="flex flex-col items-center justify-center pt-16 space-y-6">
+                <div class="w-44 h-44 bg-zinc-50 border border-zinc-200 rounded-3xl p-2 shadow-lg flex items-center justify-center overflow-hidden">
                     <img id="splash-logo" src="img/LIE_Logo II.jpeg" alt="LIE Logo" class="w-full h-full object-cover rounded-2xl" />
                 </div>
                 <div class="flex flex-col items-center space-y-2">
                     <i class="fas fa-circle-notch fa-spin text-2xl text-emerald-600"></i>
-                    <p class="text-stone-500 text-xs font-semibold uppercase tracking-wider">Lade Clubhaus-Daten...</p>
+                    <p class="text-zinc-500 text-xs font-bold uppercase tracking-widest">Lade Clubhaus-Daten...</p>
                 </div>
             </div>
         </main>
 
-        <!-- Mobile Navigation Footer (Bottom Nav Bar) -->
-        <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-stone-200 py-2 px-3 flex justify-around items-center z-40 shadow-lg hidden">
-            <button id="nav-dash" onclick="app.router.navigate('dashboard')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+        <!-- Mobile Navigation Footer -->
+        <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur-md border-t border-zinc-200/80 py-2 px-3 flex justify-around items-center z-40 shadow-xl hidden">
+            <button id="nav-dash" onclick="app.router.navigate('dashboard')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-home text-base"></i>
-                <span class="text-[10px] mt-0.5">Home</span>
+                <span class="text-[10px] font-semibold mt-0.5">Home</span>
             </button>
-            <button id="nav-rounds" onclick="app.router.navigate('spieltage')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+            <button id="nav-rounds" onclick="app.router.navigate('spieltage')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-calendar-alt text-base"></i>
-                <span class="text-[10px] mt-0.5">Runden</span>
+                <span class="text-[10px] font-semibold mt-0.5">Runden</span>
             </button>
-            <button id="nav-players" onclick="app.router.navigate('spieler')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+            <button id="nav-players" onclick="app.router.navigate('spieler')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-users text-base"></i>
-                <span class="text-[10px] mt-0.5">Gruppe</span>
+                <span class="text-[10px] font-semibold mt-0.5">Gruppe</span>
             </button>
-            <button id="nav-help" onclick="app.router.navigate('help')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+            <button id="nav-help" onclick="app.router.navigate('help')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-question-circle text-base"></i>
-                <span class="text-[10px] mt-0.5">Hilfe</span>
+                <span class="text-[10px] font-semibold mt-0.5">Hilfe</span>
             </button>
-            <button id="nav-admin" onclick="app.router.navigate('admin')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-amber-600 transition px-2 py-1 touch-target hidden">
+            <button id="nav-admin" onclick="app.router.navigate('admin')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-amber-600 transition px-2 py-1 touch-target hidden">
                 <i class="fas fa-user-shield text-base"></i>
-                <span class="text-[10px] mt-0.5">Admin</span>
+                <span class="text-[10px] font-semibold mt-0.5">Admin</span>
             </button>
         </nav>
 
@@ -103,45 +114,7 @@
     <!-- Globaler Toast Container -->
     <div id="global-toast-container" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none"></div>
 
-    <!-- Globales Confirmation Modal -->
-    <div id="global-confirm-modal" class="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
-        <div id="confirm-modal-box" class="bg-white rounded-2xl max-w-xs w-full p-5 space-y-4 shadow-2xl transition-all duration-200 opacity-0 scale-95 border border-stone-100">
-            <div class="flex items-start space-x-3">
-                <div id="confirm-modal-icon-container" class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 bg-emerald-100 text-emerald-700">
-                    <i id="confirm-modal-icon" class="fas fa-question-circle text-sm"></i>
-                </div>
-                <div class="space-y-1">
-                    <h3 id="confirm-modal-title" class="font-bold text-stone-800 text-sm">Titel</h3>
-                    <p id="confirm-modal-message" class="text-stone-500 text-xs leading-relaxed">Nachricht</p>
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-2 pt-2">
-                <button id="confirm-modal-cancel" class="bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold py-2.5 rounded-xl text-xs transition">Abbrechen</button>
-                <button id="confirm-modal-submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-xs">Bestätigen</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Pixel Golf Run Mini-Game Modal -->
-    <div id="pixel-golf-modal" class="fixed inset-0 z-50 bg-stone-900/90 backdrop-blur-xs hidden flex flex-col p-0 sm:p-4">
-        <div class="bg-white w-full h-full sm:max-w-4xl sm:h-[90vh] sm:rounded-2xl mx-auto my-auto flex flex-col shadow-2xl border border-stone-200 overflow-hidden">
-            <!-- Header -->
-            <div class="bg-emerald-800 text-white px-4 py-2.5 flex justify-between items-center shrink-0">
-                <h3 class="font-bold text-sm tracking-wide flex items-center gap-2">
-                    <i class="fas fa-gamepad text-amber-400"></i> Pixel Golf Run
-                </h3>
-                <button onclick="app.logic.closePixelGolfGame()" class="text-white opacity-80 hover:opacity-100 touch-target text-lg">
-                    <i class="fas fa-times-circle"></i>
-                </button>
-            </div>
-            <!-- Game Frame -->
-            <div class="flex-1 w-full h-full bg-black overflow-hidden">
-                <iframe id="pixel-golf-iframe" src="about:blank" class="w-full h-full border-0" allow="autoplay"></iframe>
-            </div>
-        </div>
-    </div>    
-
-    <!-- Dynamisches Laden der Module -->
+    <!-- Dynamisches Skript-Laden -->
     <script>
         (function() 
         {
@@ -200,33 +173,8 @@
                 });
             };
 
-            cfgScript.onerror = function() 
-            {
-                console.error("Fehler beim Laden der config.js!");
-            };
-
             document.head.appendChild(cfgScript);
         })();
     </script>
-
-    <!-- Service Worker Registrierung für PWA -->
-    <script>
-        if ('serviceWorker' in navigator) 
-        {
-            window.addEventListener('load', function() 
-            {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(function(reg) 
-                    {
-                        console.log('[PWA] Service Worker erfolgreich registriert:', reg.scope);
-                    })
-                    .catch(function(err) 
-                    {
-                        console.warn('[PWA] Service Worker Fehler:', err);
-                    });
-            });
-        }
-    </script>
-
 </body>
 </html>

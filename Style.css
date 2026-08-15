@@ -1,35 +1,57 @@
-/* Individuelle UI/UX-Optimierungen über Tailwind hinaus */
+/* =========================================================================
+   BMAssistent / LIE Scorecard - Clean Tech Emerald Theme
+   Style.css
+   BSD (Allman) Style
+   ========================================================================= */
 
-/* Stellt sicher, dass der Body und Hauptcontainer auf Handys volle Breite nutzen */
-html, body {
+:root
+{
+    --color-header-bg: #064e3b;       /* Deep Emerald */
+    --color-bg-body: #f4f4f5;         /* Neutral Zinc 100 */
+    --color-card-bg: #ffffff;
+    --color-emerald-accent: #059669;  /* Mint / Emerald 600 */
+    --color-amber-accent: #d97706;    /* Warm Amber 600 */
+}
+
+html, body
+{
     width: 100%;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+    background-color: var(--color-bg-body);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* Verhindert unlesbare Skalierung auf Smartphones */
-#app-container {
+/* App Shell Canvas */
+#app-container
+{
     width: 100%;
     box-sizing: border-box;
+    transition: opacity 0.15s ease-in-out;
 }
 
 /* Deaktiviert die unschöne graue Fläche beim Tippen auf Mobilgeräten */
-button, a, .nav-btn 
+button, a, .nav-btn
 {
     -webkit-tap-highlight-color: transparent;
     outline: none;
 }
 
-/* Weiche Übergänge für View-Wechsel */
-#app-container 
-{
-    transition: opacity 0.2s ease-in-out;
-}
-
 /* One-Hand Safe Input States */
-.touch-target 
+.touch-target
 {
     min-height: 44px;
     min-width: 44px;
+}
+
+/* Custom Scrollbar für Loch-Navigation */
+.scrollbar-none::-webkit-scrollbar
+{
+    display: none;
+}
+.scrollbar-none
+{
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }

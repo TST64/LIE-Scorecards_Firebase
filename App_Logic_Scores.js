@@ -4,24 +4,41 @@
 // BSD (Allman) Style
 // =========================================================================
 
+// =========================================================================
+// BMAssistent / LIE Scorecard - Live-Scoring & Calculations
+// App_Logic_Scores.js
+// BSD (Allman) Style
+// =========================================================================
+
 app.logic = app.logic || {};
 
 app.logic.calculateHoleVorgabe = function(spieler, kursId, holeSi)
 {
     const hcp = parseFloat(spieler ? spieler.hcpLIE : 54.0) || 54.0;
-    const hcpsForKurs = app.state.handicaps.filter(function(h) { return String(h.kursId).trim() === String(kursId).trim(); });
     
-    let vorgabeMatch = hcpsForKurs.find(function(h) { return parseFloat(h.vorgabe) === hcp; });
+    // Handicaps-Array aus State sicherstellen
+    const handicapsList = (app.state && Array.isArray(app.state.handicaps)) ? app.state.handicaps : [];
+    const hcpsForKurs = handicapsList.filter(function(h) 
+    { 
+        return String(h.kursId).trim() === String(kursId).trim(); 
+    });
+    
+    let vorgabeMatch = hcpsForKurs.find(function(h) 
+    { 
+        return parseFloat(h.vorgabe) === hcp; 
+    });
+    
     let spielvorgabeTotal = vorgabeMatch ? parseInt(vorgabeMatch.spielvorgabe) : Math.round(hcp);
 
     let basisSchlaege = Math.floor(spielvorgabeTotal / 18);
     let restSchlaege = spielvorgabeTotal % 18;
     
     let holeVorgabe = basisSchlaege;
-    if (parseInt(holeSi) <= restSchlaege)
+    if (parseInt(holeSi || 18) <= restSchlaege)
     {
         holeVorgabe += 1;
     }
+    
     return holeVorgabe;
 };
 

@@ -1,9 +1,14 @@
-<!-- Ansicht für das Handbuch und User Manual -->
-<!-- App_View_Help.html -->
+// =========================================================================
+// BMAssistent / LIE Scorecard - Help & Manual View
+// App_View_Help.js
+// BSD (Allman) Style
+// =========================================================================
+
+var app = app || {};
+app.views = app.views || {};
 
 app.views.help = function()
 {
-    // Lese die aktuelle Version aus der config.js aus (mit Fallback, falls config.js noch nicht greifbar ist)
     const currentVersion = (typeof CONFIG !== 'undefined' && CONFIG.appVersion) ? CONFIG.appVersion : 'Unbekannt';
 
     return `
@@ -62,7 +67,7 @@ app.views.help = function()
                     <div class="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-700 flex-shrink-0">1</div>
                     <div class="space-y-0.5">
                         <h4 class="font-bold text-stone-800">Login & PIN</h4>
-                        <p class="text-stone-600">Wähle deinen Namen aus und logge dich mit deiner PIN ein. Die Standard-PIN nach dem Reset lautet <strong>4722</strong> und muss beim ersten Login geändert werden.</p>
+                        <p class="text-stone-600">Wähle deinen Namen aus und logge dich ein. Deine Anmeldung bleibt lokal auf dem Gerät gespeichert.</p>
                     </div>
                 </div>
 
@@ -71,7 +76,7 @@ app.views.help = function()
                     <div class="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-700 flex-shrink-0">2</div>
                     <div class="space-y-0.5">
                         <h4 class="font-bold text-stone-800">Score-Eingabe</h4>
-                        <p class="text-stone-600">Während der Runde tippst du die Schläge pro Loch ein. Zusätzliche Werte wie Putts und das "Lady-Bier" (🍻) können direkt erfasst werden. Mit dem Button <strong>"Max Ø"</strong> kannst du ein Loch streichen (Strich), wenn nichts mehr geht.</p>
+                        <p class="text-stone-600">Während der Runde tippst du die Schläge pro Loch ein. Zusätzliche Werte wie Putts und das "Lady-Bier" (🍻) können direkt erfasst werden. Mit dem Button <strong>"Max Ø"</strong> kannst du ein Loch streichen (Strich).</p>
                     </div>
                 </div>
 
@@ -80,7 +85,7 @@ app.views.help = function()
                     <div class="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-700 flex-shrink-0">3</div>
                     <div class="space-y-0.5">
                         <h4 class="font-bold text-stone-800">Sichern & Cloud-Sync</h4>
-                        <p class="text-stone-600">Deine Eingaben werden lokal zwischengespeichert. Drücke auf <strong>"Sichern"</strong>, um die Scores in die Cloud hochzuladen. Beim Wechseln der Ansicht greift zudem ein automatischer Schutz-Sync.</p>
+                        <p class="text-stone-600">Deine Eingaben werden lokal zwischengespeichert. Drücke auf <strong>"Sichern"</strong>, um die Scores direkt in die Firebase-Cloud hochzuladen.</p>
                     </div>
                 </div>
 
@@ -89,13 +94,15 @@ app.views.help = function()
                     <div class="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-700 flex-shrink-0">4</div>
                     <div class="space-y-0.5">
                         <h4 class="font-bold text-stone-800">Live-Leaderboard</h4>
-                        <p class="text-stone-600">Über das Leaderboard siehst du in Echtzeit die Brutto- und Netto-Platzierungen aller Flights. Die Ansicht aktualisiert sich dank Live-Polling im Hintergrund von selbst.</p>
+                        <p class="text-stone-600">Über das Leaderboard siehst du in Echtzeit die Brutto- und Netto-Platzierungen aller Flights. Über den Button <strong>"Spicken"</strong> kannst du auch direkt aus der Scorekarte die Ergebnisse einsehen.</p>
                     </div>
                 </div>
             </div>
 
             <!-- Footer Note -->
-            <p class="text-center text-stone-400 text-[10px]">BMAssistent v${currentVersion} • Entwickelt für die Golf-Männerrunde</p>
+            <p class="text-center text-stone-400 text-[10px] flex items-center justify-center gap-1">
+                BMAssistent v${currentVersion} • Entwickelt für die Golf-Männerrunde • Powered by Firebase Firestore 🔥
+            </p>
         </div>
     `;
 };

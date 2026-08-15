@@ -8,8 +8,9 @@ var app = app || {};
 app.router = app.router || {};
 
 app.router.currentView = null;
+app.router.currentParams = null;
 
-app.router.navigate = function(viewName)
+app.router.navigate = function(viewName, params)
 {
     // 1. Splash Screen ausblenden
     const loadingEl = document.getElementById('app-loading');
@@ -18,7 +19,7 @@ app.router.navigate = function(viewName)
         loadingEl.classList.add('hidden');
     }
 
-    // 2. Datenobjekte & Fallbacks sicherstellen
+    // 2. State & Fallbacks sicherstellen
     app.data = app.data || {};
     app.state = app.state || {};
     app.state.spieler = app.state.spieler || [];
@@ -26,14 +27,15 @@ app.router.navigate = function(viewName)
     app.state.scoreCards = app.state.scoreCards || [];
     app.state.liveScores = app.state.liveScores || {};
 
-    // 3. Routing-Ziel bestimmen
+    // 3. Routing-Ziel & Parameter sichern
     const targetView = viewName || 'login';
     app.router.currentView = targetView;
+    app.router.currentParams = params || null;
 
     // 4. UI-Elemente anpassen (Bottom Nav, Header Actions)
     app.router.updateNavigationUI(targetView);
 
-    // 5. Container-Element abgreifen
+    // 5. Container im DOM abgreifen
     const container = document.getElementById('app-container');
     if (!container)
     {
@@ -41,10 +43,22 @@ app.router.navigate = function(viewName)
         return;
     }
 
-    // 6. Ansicht rendern & HTML in den DOM-Container injizieren
+    // 6. Parameter entpacken
+    let p1 = params;
+    let p2 = undefined;
+    let p3 = undefined;
+
+    if (params && typeof params === 'object')
+    {
+        p1 = params.id !== undefined ? params.id : params.hole;
+        p2 = params.mode !== undefined ? params.mode : params.hole;
+        p3 = params.flightSeq !== undefined ? params.flightSeq : undefined;
+    }
+
+    // 7. Ansicht mit Parametern rendern
     if (app.views && typeof app.views[targetView] === 'function')
     {
-        container.innerHTML = app.views[targetView]();
+        container.innerHTML = app.views[targetView](p1, p2, p3);
     }
     else if (app.views && typeof app.views.dashboard === 'function')
     {
@@ -62,7 +76,7 @@ app.router.renderCurrentView = function()
 {
     if (app.router.currentView)
     {
-        app.router.navigate(app.router.currentView);
+        app.router.navigate(app.router.currentView, app.router.currentParams);
     }
     else
     {
@@ -77,39 +91,17 @@ app.router.updateNavigationUI = function(viewName)
     const headerLogoutBtn = document.getElementById('header-logout-btn');
     const headerActionBtn = document.getElementById('header-action-btn');
 
-    // Login-Screen Sonderbehandlung
     if (viewName === 'login')
     {
-        if (bottomNav)
-        {
-            bottomNav.classList.add('hidden');
-        }
-
-        if (headerLogoutBtn)
-        {
-            headerLogoutBtn.classList.add('hidden');
-        }
-
-        if (headerActionBtn)
-        {
-            headerActionBtn.classList.add('hidden');
-        }
-
+        if (bottomNav) bottomNav.classList.add('hidden');
+        if (headerLogoutBtn) headerLogoutBtn.classList.add('hidden');
+        if (headerActionBtn) headerActionBtn.classList.add('hidden');
         return;
     }
 
-    // Bottom Navigation für angemeldete Bereiche einblenden
-    if (bottomNav)
-    {
-        bottomNav.classList.remove('hidden');
-    }
+    if (bottomNav) bottomNav.classList.remove('hidden');
+    if (headerLogoutBtn && app.state && app.state.currentUser) headerLogoutBtn.classList.remove('hidden');
 
-    if (headerLogoutBtn && app.state && app.state.currentUser)
-    {
-        headerLogoutBtn.classList.remove('hidden');
-    }
-
-    // Aktiven Navigation-Tab optisch hervorheben
     const navButtons = document.querySelectorAll('.nav-btn');
     navButtons.forEach(function(btn)
     {
@@ -118,26 +110,11 @@ app.router.updateNavigationUI = function(viewName)
     });
 
     let activeNavId = null;
-    if (viewName === 'dashboard')
-    {
-        activeNavId = 'nav-dash';
-    }
-    else if (viewName === 'spieltage' || viewName === 'spieltag_neu')
-    {
-        activeNavId = 'nav-rounds';
-    }
-    else if (viewName === 'spieler')
-    {
-        activeNavId = 'nav-players';
-    }
-    else if (viewName === 'help')
-    {
-        activeNavId = 'nav-help';
-    }
-    else if (viewName === 'admin' || viewName === 'admin_gruppe')
-    {
-        activeNavId = 'nav-admin';
-    }
+    if (viewName === 'dashboard') activeNavId = 'nav-dash';
+    else if (viewName === 'spieltage' || viewName === 'spieltag_neu') activeNavId = 'nav-rounds';
+    else if (viewName === 'spieler') activeNavId = 'nav-players';
+    else if (viewName === 'help') activeNavId = 'nav-help';
+    else if (viewName === 'admin' || viewName === 'admin_gruppe') activeNavId = 'nav-admin';
 
     if (activeNavId)
     {

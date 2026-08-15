@@ -9,13 +9,8 @@ app.logic = app.logic || {};
 
 app.logic.refreshGlobalAppData = async function()
 {
-    // Ziel-Objekte im Namensraum sicherstellen
     app.data = app.data || {};
     app.state = app.state || {};
-
-    app.data.spieler = app.data.spieler || [];
-    app.data.spieltage = app.data.spieltage || [];
-    app.data.scores = app.data.scores || [];
 
     app.state.spieler = app.state.spieler || [];
     app.state.spieltage = app.state.spieltage || [];
@@ -40,43 +35,74 @@ app.logic.refreshGlobalAppData = async function()
             throw new Error('Firestore-Datenbankinstanz (app.db) ist nicht initialisiert.');
         }
 
-        // Parallelisiertes Laden aller Kern-Kollektionen aus Firestore
-        const [spielerSnap, spieltageSnap, scoresSnap] = await Promise.all([
-            app.db.collection('spieler').get(),
-            app.db.collection('spieltage').get(),
-            app.db.collection('scores').get()
+        const [
+            spielerSnap, 
+            spieltageSnap, 
+            scorecardsSnap, 
+            scoresSnap, 
+            flightsSnap, 
+            kurseSnap, 
+            plaetzeSnap, 
+            bahnenSnap,
+            handicapsSnap
+        ] = await Promise.all([
+            app.db.collection('spieler').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('spieltage').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('scorecards').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('scores').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('flights').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('kurse').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('golfplaetze').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('bahnen').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('handicaps').get().catch(function() { return { forEach: function() {} }; })
         ]);
 
-        // Spieler verarbeiten
+        // Spieler
         const spielerData = [];
-        spielerSnap.forEach(function(doc)
-        {
-            spielerData.push(Object.assign({ id: doc.id }, doc.data()));
-        });
-        app.data.spieler = spielerData;
+        spielerSnap.forEach(function(doc) { spielerData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.spieler = spielerData;
 
-        // Spieltage verarbeiten
+        // Spieltage
         const spieltageData = [];
-        spieltageSnap.forEach(function(doc)
-        {
-            spieltageData.push(Object.assign({ id: doc.id }, doc.data()));
-        });
-        app.data.spieltage = spieltageData;
+        spieltageSnap.forEach(function(doc) { spieltageData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.spieltage = spieltageData;
 
-        // Scores verarbeiten
-        const scoresData = [];
-        scoresSnap.forEach(function(doc)
-        {
-            scoresData.push(Object.assign({ id: doc.id }, doc.data()));
+        // Scorecards aus beiden Kollektionen zusammenführen
+        const scoresMap = {};
+        scorecardsSnap.forEach(function(doc) { 
+            const data = Object.assign({ id: doc.id }, doc.data());
+            if (data.id) scoresMap[data.id] = data;
         });
-        app.data.scores = scoresData;
-        app.state.scoreCards = scoresData;
+        scoresSnap.forEach(function(doc) { 
+            const data = Object.assign({ id: doc.id }, doc.data());
+            if (data.id) scoresMap[data.id] = data;
+        });
+        app.state.scoreCards = Object.values(scoresMap);
 
-        console.log('[Bridge] Globaler App-Datensatz erfolgreich geladen:', app.data);
+        // Flights
+        const flightsData = [];
+        flightsSnap.forEach(function(doc) { flightsData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.flights = flightsData;
 
-        // Nach dem Datenladen die aktuelle Ansicht aktualisieren (falls bereits navigiert)
+        // Kurse, Plätze, Bahnen & Handicaps
+        const kurseData = [];
+        kurseSnap.forEach(function(doc) { kurseData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.kurse = kurseData;
+
+        const plaetzeData = [];
+        plaetzeSnap.forEach(function(doc) { plaetzeData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.golfplaetze = plaetzeData;
+
+        const bahnenData = [];
+        bahnenSnap.forEach(function(doc) { bahnenData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.bahnen = bahnenData;
+
+        const handicapsData = [];
+        handicapsSnap.forEach(function(doc) { handicapsData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.handicaps = handicapsData;
+
+        console.log('[Bridge] Globaler App-Datensatz erfolgreich geladen:', app.state);
+
         if (app.router && typeof app.router.renderCurrentView === 'function' && app.router.currentView)
         {
             app.router.renderCurrentView();
@@ -85,11 +111,6 @@ app.logic.refreshGlobalAppData = async function()
     catch (err)
     {
         console.error('[Bridge] Fehler beim Laden der Firestore-Daten:', err);
-
-        if (app.logic.showToast)
-        {
-            app.logic.showToast('Fehler beim Aktualisieren der Daten.', 'error');
-        }
     }
     finally
     {
