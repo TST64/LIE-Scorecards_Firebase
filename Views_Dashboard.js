@@ -6,9 +6,10 @@
 
 app.views.dashboard = function()
 {
+    // Ermittle den Namen des aktuellen Users für das Minispiel
     const user = app.state.currentUser;
-    const nickname = user ? user.nickname : "Golfer";
-    const rolle = user ? user.role : "Spieler";
+    const playerName = user ? (user.nickname || "Golfer") : "";
+    const gameUrl = playerName ? `https://game.lochihnein.de/?player=${encodeURIComponent(playerName)}` : `https://game.lochihnein.de/`;
     
     // Aktive Runde ermitteln (sofern nicht gelöscht)
     const aktiveRunde = app.state.spieltage ? app.state.spieltage.find(function(st) 
@@ -248,7 +249,7 @@ app.views.dashboard = function()
                     </div>
                 </button>
 
-                <button onclick="window.open('https://game.lochihnein.de', '_blank')" class="p-4 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl text-left hover:border-amber-300 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target col-span-2 sm:col-span-1">
+                <button onclick="window.open('${gameUrl}', '_blank')" class="p-4 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl text-left hover:border-amber-300 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target col-span-2 sm:col-span-1">
                     <i class="fas fa-gamepad text-xl text-amber-600 group-hover:scale-110 transition-transform"></i>
                     <div>
                         <span class="block font-bold text-amber-950 text-sm">Pixel Golf Run</span>
