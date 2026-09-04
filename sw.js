@@ -4,7 +4,7 @@
 // BSD (Allman) Style
 // =========================================================================
 
-const CACHE_NAME = 'lie-scorecard-v1.2.10.51';
+const CACHE_NAME = 'lie-scorecard-v1.2.10.52';
 
 const ASSETS_TO_CACHE = [
     './',
@@ -67,17 +67,19 @@ self.addEventListener('activate', function(event)
     );
 });
 
-// 3. Network Fetching & CORS/Firestore Bypassing
+// 3. Network Fetching & CORS/CDN Bypassing
 self.addEventListener('fetch', function(event)
 {
     const requestUrl = event.request.url;
 
-    // Firebase & Firestore RequestsNIEMALS vom Service Worker abfangen lassen!
-    // Dadurch werden die 503- und CORS-Fehler bei WebChannel / Listen-Streams vermieden.
-    if (requestUrl.includes('firestore.googleapis.com') || 
+    // Firebase, Google APIs und externe CDNs (FontAwesome etc.) NIEMALS vom Service Worker abfangen!
+    if (requestUrl.includes('firestore.googleapis.com') ||  
         requestUrl.includes('google.firestore') ||
         requestUrl.includes('firebase') ||
-        requestUrl.includes('script.google.com'))
+        requestUrl.includes('script.google.com') ||
+        requestUrl.includes('cdnjs.cloudflare.com') ||
+        requestUrl.includes('gstatic.com') ||
+        requestUrl.includes('googleapis.com'))
     {
         return;
     }
