@@ -1,15 +1,15 @@
 /* =========================================================================
-   BMAssistent / LIE Scorecard - Clean Tech Emerald Theme
+   BMAssistent / LIE Scorecard - Modern Apple / Glassmorphism Theme
    Style.css
    BSD (Allman) Style
    ========================================================================= */
 
 :root
 {
-    --color-header-bg: #064e3b;       /* Deep Emerald */
-    --color-bg-body: #f4f4f5;         /* Neutral Zinc 100 */
-    --color-card-bg: #ffffff;
-    --color-emerald-accent: #059669;  /* Mint / Emerald 600 */
+    --color-header-bg: #042f2e;       /* Deep Midnight Emerald */
+    --color-bg-body: #f8fafc;         /* Ultra-clean Slate 50 */
+    --color-card-bg: rgba(255, 255, 255, 0.85);
+    --color-emerald-accent: #059669;  /* Modern Emerald 600 */
     --color-amber-accent: #d97706;    /* Warm Amber 600 */
 }
 
@@ -21,31 +21,32 @@ html, body
     overflow-x: hidden;
     background-color: var(--color-bg-body);
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* App Shell Canvas */
+/* App Shell Canvas mit modernem Glassmorphism-Schatten */
 #app-container
 {
     width: 100%;
     box-sizing: border-box;
-    transition: opacity 0.15s ease-in-out;
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Deaktiviert die unschöne graue Fläche beim Tippen auf Mobilgeräten */
+/* Deaktiviert die unschöne graue Tap-Fläche auf Mobilgeräten */
 button, a, .nav-btn
 {
     -webkit-tap-highlight-color: transparent;
     outline: none;
 }
 
-/* One-Hand Safe Input States */
+/* One-Hand Safe Input Targets */
 .touch-target
 {
     min-height: 44px;
     min-width: 44px;
 }
 
-/* Custom Scrollbar für Loch-Navigation */
+/* Custom Scrollbar für Loch-Navigation & Listen */
 .scrollbar-none::-webkit-scrollbar
 {
     display: none;
@@ -55,3 +56,296 @@ button, a, .nav-btn
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
+
+/* Sanfte Animationen */
+@keyframes fadeIn 
+{
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in 
+{
+    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+```[cite: 4]
+
+---
+
+### 2. `Views_Dashboard.js` (Dashboard im modernen Look)
+##### <Views_Dashboard.js>:
+```javascript
+// =========================================================================
+// BMAssistent / LIE Scorecard - Dashboard Ansicht (Modern Apple Style)
+// Views_Dashboard.js
+// BSD (Allman) Style
+// =========================================================================
+
+app.views.dashboard = function()
+{
+    const user = app.state.currentUser;
+    const nickname = user ? user.nickname : "Golfer";
+    const rolle = user ? user.role : "Spieler";
+    
+    // Aktive Runde ermitteln (sofern nicht gelöscht)
+    const aktiveRunde = app.state.spieltage ? app.state.spieltage.find(function(st) 
+    { 
+        if (!st) return false;
+
+        const isDel = st.istGeloescht === true || 
+                      String(st.istGeloescht).toUpperCase() === "TRUE" || 
+                      st.istGelöscht === true || 
+                      String(st.istGelöscht).toUpperCase() === "TRUE";
+
+        return st.status === 'Aktiv' && !isDel; 
+    }) : null;
+    
+    let activeRoundCardHtml = "";
+    if (aktiveRunde)
+    {
+        const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return String(k.id) === String(aktiveRunde.kursId); }) : null;
+        const platz = kurs ? app.state.golfplaetze.find(function(p) { return String(p.id) === String(kurs.platzId); }) : null;
+        
+        const meinFlight = app.state.flights ? app.state.flights.find(function(f) 
+        {
+            if (f.spieltagId !== aktiveRunde.id) return false;
+            const ids = String(f.spielerIdsCsv || "").split(',').map(function(id) { return id.trim(); });
+            return ids.includes(String(user ? user.id : '').trim());
+        }) : null;
+
+        let flightSeq = 1;
+        if (meinFlight)
+        {
+            const parts = meinFlight.id.split('-');
+            flightSeq = parseInt(parts[parts.length - 1]) || 1;
+        }
+
+        activeRoundCardHtml = `
+            <div class="p-5 bg-gradient-to-br from-emerald-950 via-emerald-900 to-zinc-900 text-white rounded-3xl shadow-xl shadow-emerald-950/10 space-y-4 border border-emerald-800/40 relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 opacity-10 text-9xl pointer-events-none">
+                    <i class="fas fa-golf-ball-tee"></i>
+                </div>
+                <div class="flex justify-between items-center relative z-10">
+                    <span class="text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full tracking-wider animate-pulse flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Live-Turnier aktiv
+                    </span>
+                    <span class="text-xs font-medium text-emerald-200/80">${aktiveRunde.date}</span>
+                </div>
+                <div class="relative z-10">
+                    <h3 class="font-black text-white text-lg tracking-tight">${platz ? platz.name : 'LIE Golfrunde'}</h3>
+                    <p class="text-xs text-emerald-200/90 font-medium mt-0.5">${kurs ? kurs.name : ''} &bull; Flight ${flightSeq}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-2.5 pt-2 relative z-10">
+                    <button onclick="app.router.navigate('score_eingabe', { id: '${aktiveRunde.id}', hole: 1, flightSeq: ${flightSeq} })" class="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-extrabold py-3 rounded-2xl text-xs transition shadow-md shadow-emerald-500/20 text-center flex items-center justify-center gap-1.5 touch-target">
+                        <i class="fas fa-pen-to-square"></i> Scores tippen
+                    </button>
+                    <button onclick="app.router.navigate('leaderboard', { id: '${aktiveRunde.id}', mode: 'netto' })" class="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-bold py-3 rounded-2xl text-xs transition text-center shadow-xs flex items-center justify-center gap-1.5 touch-target">
+                        <i class="fas fa-list-ol text-emerald-400"></i> Leaderboard
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    else
+    {
+        activeRoundCardHtml = `
+            <div class="p-6 text-center bg-white/60 backdrop-blur-md border border-zinc-200/80 rounded-3xl shadow-xs">
+                <div class="w-12 h-12 bg-zinc-100 text-zinc-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-lg">
+                    <i class="fas fa-golf-ball"></i>
+                </div>
+                <p class="text-zinc-800 text-xs font-bold">Zurzeit läuft kein aktives Match.</p>
+                <p class="text-zinc-400 text-[11px] mt-1 max-w-xs mx-auto">Sobald eine neue Runde ausgelost wird, erscheint hier deine Scorekarte automatisch.</p>
+            </div>
+        `;
+    }
+
+    // --- KARRIERE-STATISTIKEN BERECHNEN ---
+    let gespielteRundenCount = 0;
+    let besterNettoScore = 0;
+    let besteBruttoRunde = "-";
+    let letzterNettoScore = "-";
+
+    if (user && app.state.spieltage && app.state.scoreCards)
+    {
+        const beendeteTeilgenommen = app.state.spieltage.filter(function(st)
+        {
+            if (st.status !== 'Beendet') return false;
+            
+            const isDel = st.istGeloescht === true || 
+                          String(st.istGeloescht).toUpperCase() === "TRUE" || 
+                          st.istGelöscht === true || 
+                          String(st.istGelöscht).toUpperCase() === "TRUE";
+
+            if (isDel) return false;
+
+            const ids = String(st.teilnehmerCsv || "").split(',').map(function(id) { return id.trim(); });
+            return ids.includes(String(user.id).trim());
+        });
+
+        beendeteTeilgenommen.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+        gespielteRundenCount = beendeteTeilgenommen.length;
+
+        let bruttoRundenListe = [];
+
+        beendeteTeilgenommen.forEach(function(st)
+        {
+            const rundenScores = app.state.scoreCards.filter(function(sc)
+            {
+                return String(sc.spieltagId).trim() === String(st.id).trim() && String(sc.spielerId).trim() === String(user.id).trim();
+            });
+
+            const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return String(k.id).trim() === String(st.kursId).trim(); }) : null;
+            const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+            const kursBahnen = app.state.bahnen ? app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); }) : [];
+
+            let rundenNettoTotal = 0;
+            let rundenSchlaegeTotal = 0;
+            let gespielteBahnenInRunde = 0;
+
+            kursBahnen.forEach(function(bahn)
+            {
+                const hNr = parseInt(bahn.nr);
+                const scoreMatch = rundenScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
+
+                if (scoreMatch && parseInt(scoreMatch.strokes) > 0)
+                {
+                    const strokes = parseInt(scoreMatch.strokes);
+                    gespielteBahnenInRunde++;
+                    rundenSchlaegeTotal += strokes;
+
+                    let holeVorgabe = app.logic.calculateHoleVorgabe(user, st.kursId, bahn.si);
+                    const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
+                    rundenNettoTotal += nettoPkt;
+                }
+            });
+
+            if (gespielteBahnenInRunde >= maxBahnen && maxBahnen > 0)
+            {
+                if (rundenNettoTotal > besterNettoScore)
+                {
+                    besterNettoScore = rundenNettoTotal;
+                }
+                bruttoRundenListe.push(rundenSchlaegeTotal);
+                letzterNettoScore = `${rundenNettoTotal} Pkt`;
+            }
+        });
+
+        if (bruttoRundenListe.length > 0)
+        {
+            besteBruttoRunde = Math.min(...bruttoRundenListe) + " Schl.";
+        }
+    }
+
+    const netRecDisplay = besterNettoScore > 0 ? `${besterNettoScore} Pkt` : "-";
+
+    // Admin-Hinweis
+    let adminHintHtml = "";
+    if (rolle === "Admin" || rolle === "Spielleiter")
+    {
+        adminHintHtml = `
+            <div class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start space-x-3 text-amber-900 shadow-2xs">
+                <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                    <i class="fas fa-shield-halved text-xs"></i>
+                </div>
+                <div class="text-xs leading-relaxed">
+                    <b>Hallo ${nickname}!</b> Du bist als <span class="font-bold underline">${rolle}</span> eingeloggt. Unter <b>Runden</b> kannst du neue Spieltage auslosen.
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="space-y-6 animate-fade-in">
+            <!-- Header-Banner (Apple Style Gradient) -->
+            <div class="bg-gradient-to-br from-zinc-900 via-emerald-950 to-emerald-900 text-white p-6 rounded-3xl shadow-xl shadow-zinc-900/10 relative overflow-hidden border border-emerald-800/30">
+                <div class="absolute right-[-10px] bottom-[-20px] opacity-10 text-9xl pointer-events-none">
+                    <i class="fas fa-flag-checkered"></i>
+                </div>
+                <p class="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest">Clubhaus Dashboard</p>
+                <h2 class="text-2xl sm:text-3xl font-black tracking-tight mt-0.5 text-white">${nickname}</h2>
+                <div class="mt-3 inline-flex items-center gap-1.5 text-[11px] bg-white/10 backdrop-blur-md text-emerald-200 px-3.5 py-1 rounded-full font-extrabold uppercase tracking-wider border border-white/10 shadow-3xs">
+                    <i class="fas fa-golf-ball text-emerald-400 text-[10px]"></i> HCP ${user ? user.hcpLIE : '54'}
+                </div>
+            </div>
+
+            ${adminHintHtml}
+
+            <!-- Aktive Runde Sektion -->
+            <div class="space-y-2.5">
+                <h4 class="text-[11px] font-extrabold text-zinc-400 uppercase tracking-wider px-1">Aktueller Spieltag</h4>
+                ${activeRoundCardHtml}
+            </div>
+
+            <!-- KARRIERE-STATISTIKEN GRID -->
+            <div class="space-y-2.5">
+                <h4 class="text-[11px] font-extrabold text-zinc-400 uppercase tracking-wider px-1">Deine LIE-Karriere</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-trophy"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Netto-Rekord</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${netRecDisplay}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-medal"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Bestes Brutto</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${besteBruttoRunde}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-history"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Letzte Runde</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${letzterNettoScore}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-calendar-check"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${gespielteRundenCount} Runden</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schnellstart-Kacheln -->
+            <div class="grid grid-cols-2 gap-3 pb-6">
+                <button onclick="app.router.navigate('spieltage')" class="p-5 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-3xl text-left hover:border-emerald-500/50 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target">
+                    <div class="w-10 h-10 rounded-2xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-600 flex items-center justify-center text-base transition">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div>
+                        <span class="block font-black text-zinc-900 text-sm">Turniere</span>
+                        <span class="block text-[10px] text-zinc-400 font-medium mt-0.5">Alle Runden & Ergebnisse</span>
+                    </div>
+                </button>
+
+                <button onclick="app.router.navigate('spieler')" class="p-5 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-3xl text-left hover:border-emerald-500/50 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target">
+                    <div class="w-10 h-10 rounded-2xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-600 flex items-center justify-center text-base transition">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <span class="block font-black text-zinc-900 text-sm">LIE-Gruppe</span>
+                        <span class="block text-[10px] text-zinc-400 font-medium mt-0.5">Handicaps & Mitglieder</span>
+                    </div>
+                </button>
+
+                <button onclick="app.logic.openPixelGolfGame()" class="p-5 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent border border-amber-500/30 rounded-3xl text-left hover:border-amber-500/60 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target col-span-2">
+                    <div class="flex justify-between items-start">
+                        <div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center text-base">
+                            <i class="fas fa-gamepad"></i>
+                        </div>
+                        <span class="text-[10px] bg-amber-500/20 text-amber-800 font-extrabold px-2.5 py-1 rounded-full">Mini-Game</span>
+                    </div>
+                    <div class="mt-3">
+                        <span class="block font-black text-amber-950 text-sm">Pixel Golf Run starten</span>
+                        <span class="block text-[10px] text-amber-700 font-medium mt-0.5">Teste deine Skills im Arcade-Modus ⛳</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+    `;
+};[cite: 4]

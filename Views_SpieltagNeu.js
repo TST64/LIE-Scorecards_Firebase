@@ -6,10 +6,8 @@
 
 app.views.spieltag_neu = function()
 {
-    // Heutiges Datum als Standard festlegen (YYYY-MM-DD)
     const today = new Date().toISOString().split('T')[0];
 
-    // Kurse für Dropdown aufbereiten
     let kurseOptionsHtml = "";
     if (app.state.kurse && app.state.kurse.length > 0)
     {
@@ -21,7 +19,6 @@ app.views.spieltag_neu = function()
         }).join('');
     }
 
-    // Spieler-Auswahl-Checkboxes generieren (Standardmäßig alle abgewählt)
     let spielerCheckboxesHtml = "";
     if (app.state.spieler && app.state.spieler.length > 0)
     {
@@ -93,7 +90,6 @@ app.views.spieltag_neu = function()
                 <div id="auto-flight-section" class="space-y-3 pt-2 border-t border-stone-100">
                     <label class="text-[10px] font-bold text-stone-500 uppercase">Gewünschte Flight-Größe</label>
                     
-                    <!-- NEU: Standard-Aufteilung als Default -->
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <label class="flex items-center space-x-2 p-2 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-100 transition text-xs font-semibold text-stone-800">
                             <input type="radio" name="flight-size" value="standard" checked class="text-emerald-600 focus:ring-emerald-500">

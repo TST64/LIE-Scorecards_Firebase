@@ -1,10 +1,32 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Core Module
+// BMAssistent / LIE Scorecard - Globaler Anwendungs-State & Core Module
 // App_Core.js
 // BSD (Allman) Style
 // =========================================================================
 
 var app = app || {};
+
+app.state = 
+{
+    currentView: 'login',
+    currentUser: null,
+    leaderboardViewMode: 'matrix', 
+    spieler: [],
+    golfplaetze: [],
+    kurse: [],
+    bahnen: [],
+    handicaps: [],
+    spieltage: [],
+    scoreCards: [],
+    flights: [],
+    tempFlights: [],
+    tempZufallsFlights: [],
+    tempManualFlights: {},
+    liveScores: {},
+    activeManualFlightSeq: 1,
+    pollingIntervalId: null,
+    currentPollingRate: 60
+};
 
 app.core = (function()
 {
@@ -22,24 +44,24 @@ app.core = (function()
 
         if (!config)
         {
-            console.error('[App_Core] Firebase-Konfiguration (firebaseConfig) fehlt oder ist undefined.');
+            console.error('[App_Core] Firebase-Konfiguration fehlt.');
             return;
         }
 
         if (!firebase.apps.length)
         {
             firebase.initializeApp(config);
+            
+            const dbInstance = firebase.firestore();
+            
+            // Moderne Fetch Streams aktiviert (kein WebChannel-CORS-Konflikt mehr)
+            app.db = dbInstance;
+            console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
         }
-
-        app.db = firebase.firestore();
-
-        // Strikte Long-Polling Konfiguration ohne ungültiges 'merge'
-        app.db.settings({
-            experimentalForceLongPolling: true,
-            experimentalAutoDetectLongPolling: false
-        });
-
-        console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
+        else if (!app.db)
+        {
+            app.db = firebase.firestore();
+        }
     }
 
     function init()
@@ -53,4 +75,5 @@ app.core = (function()
     };
 })();
 
+app.initCore = app.core.init;
 app.initFirebase = app.core.initFirebase;

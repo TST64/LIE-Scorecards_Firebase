@@ -148,3 +148,89 @@ app.logic.toggleVaultAccess = function(targetStatus)
             }
         });
 };
+
+// Hilfsfunktion zur Generierung einer Inline-Edit-Tabelle
+app.logic.renderCollectionEditor = function(collectionName)
+{
+    const container = document.getElementById('admin-editor-table-container');
+    if (!container || !app.state[collectionName]) return;
+
+    const items = app.state[collectionName];
+    if (items.length === 0)
+    {
+        container.innerHTML = `<p class="text-xs text-stone-400 italic">Keine Einträge in ${collectionName} vorhanden.</p>`;
+        return;
+    }
+
+    const keys = Object.keys(items[0]).filter(k => k !== 'id');
+
+    let tableHtml = `
+        <div class="overflow-x-auto border border-stone-200 rounded-xl shadow-2xs">
+            <table class="w-full text-left text-xs bg-white">
+                <thead class="bg-stone-100 text-stone-600 font-bold border-b border-stone-200">
+                    <tr>
+                        <th class="p-2">ID</th>
+                        ${keys.map(k => `<th class="p-2">${k}</th>`).join('')}
+                        <th class="p-2 text-right">Aktion</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-stone-100">
+    `;
+
+    items.forEach(item => {
+        tableHtml += `<tr id="row-${item.id}">`;
+        tableHtml += `<td class="p-2 font-mono font-bold text-stone-400">${item.id}</td>`;
+        keys.forEach(k => {
+            tableHtml += `
+                <td class="p-1">
+                    <input type="text" data-col="${collectionName}" data-id="${item.id}" data-key="${k}" 
+                           value="${item[k] !== undefined ? item[k] : ''}" 
+                           class="w-full px-2 py-1 bg-stone-50 border border-stone-200 rounded-md text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none" />
+                </td>
+            `;
+        });
+        tableHtml += `
+            <td class="p-2 text-right whitespace-nowrap">
+                <button onclick="app.logic.saveInlineRow('${collectionName}', '${item.id}')" class="px-2 sm:px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-3xs transition">
+                    <i class="fas fa-save"></i>
+                </button>
+            </td>
+        `;
+        tableHtml += `</tr>`;
+    });
+
+    tableHtml += `</tbody></table></div>`;
+    container.innerHTML = tableHtml;
+};
+
+// Speichert geänderte Zeilenwerte nach Firestore
+app.logic.saveInlineRow = async function(collectionName, docId)
+{
+    const inputs = document.querySelectorAll(`input[data-col="${collectionName}"][data-id="${docId}"]`);
+    const updatedData = {};
+
+    inputs.forEach(input => {
+        const key = input.getAttribute('data-key');
+        let val = input.value.trim();
+        if (!isNaN(val) && val !== '') val = Number(val);
+        if (val === 'true') val = true;
+        if (val === 'false') val = false;
+        updatedData[key] = val;
+    });
+
+    const res = await app.logic.apiRequest('updateFirestoreDoc', {
+        collectionName: collectionName,
+        docId: docId,
+        data: updatedData
+    });
+
+    if (res && res.success)
+    {
+        app.logic.showToast(`Eintrag ${docId} in ${collectionName} gespeichert!`, 'success');
+        await app.logic.refreshGlobalAppData();
+    }
+    else
+    {
+        app.logic.showToast('Fehler beim Speichern: ' + (res ? res.error : 'Unbekannt'), 'error');
+    }
+};

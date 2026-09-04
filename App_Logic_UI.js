@@ -4,6 +4,7 @@
 // BSD (Allman) Style
 // =========================================================================
 
+var app = app || {};
 app.logic = app.logic || {};
 
 app.logic.updateHeaderRoleIcon = function()
@@ -145,9 +146,9 @@ app.logic.triggerMasterReset = function()
 {
     app.logic.showConfirm(
         "!!! GEFAHRENZONE !!!", 
-        "Möchtest du wirklich alle gespielten Runden, Flights und abgegebenen Scorekarten unwiderruflich löschen? Das System wird in den Urzustand versetzt.", 
+        "Möchtest du wirklich alle gespielten Runden, Flights und abgegebenen Scorekarten unwiderruflich löschen?", 
         "danger", 
-        function() 
+        async function() 
         {
             const btn = document.getElementById('master-reset-db-btn');
             if (btn)
@@ -156,30 +157,33 @@ app.logic.triggerMasterReset = function()
                 btn.innerHTML = `<i class="fas fa-bomb fa-spin mr-1"></i> Sprengung läuft...`;
             }
 
-            app.logic.apiRequest('clearTestDataBase')
-                .then(function(response)
+            try
+            {
+                const collections = ['spieltage', 'scorecards', 'flights', 'scores'];
+                for (const colName of collections)
                 {
-                    if (response && response.success)
-                    {
-                        app.logic.showToast("BUMM! Datenbank erfolgreich gereinigt!", "success");
-                        
-                        app.state.spieltage = [];
-                        app.state.scoreCards = [];
-                        app.state.flights = [];
-                        app.state.liveScores = {};
-                        
-                        app.router.navigate('dashboard');
-                    }
-                    else
-                    {
-                        app.logic.showToast("Fehler beim Master-Reset: " + response.error, "error");
-                        if (btn)
-                        {
-                            btn.disabled = false;
-                            btn.innerHTML = `<i class="fas fa-bomb mr-1"></i> Testdaten-Sprengung ausführen`;
-                        }
-                    }
-                });
+                    const snap = await app.db.collection(colName).get();
+                    const batch = app.db.batch();
+                    snap.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                }
+
+                app.logic.showToast("BUMM! Firestore-Datenbank erfolgreich geleert!", "success");
+                app.state.spieltage = [];
+                app.state.scoreCards = [];
+                app.state.flights = [];
+                app.state.liveScores = {};
+                app.router.navigate('dashboard');
+            }
+            catch(err)
+            {
+                app.logic.showToast("Fehler beim Zurücksetzen: " + err.message, "error");
+                if (btn)
+                {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fas fa-bomb mr-1"></i> Spieldaten komplett löschen`;
+                }
+            }
         }
     );
 };
@@ -190,23 +194,19 @@ app.logic.openPixelGolfGame = function()
     const currentUser = app.state.currentUser;
     const spielerName = currentUser ? (currentUser.nickname || currentUser.name) : "Golfer";
 
-    // Hier die neue GitHub Pages URL eintragen:
     const gameBaseUrl = "https://tst64.github.io/LIE_Scorecards_PixelGolf/";
     const fullGameUrl = `${gameBaseUrl}?player=${encodeURIComponent(spielerName)}`;
 
-    // Prüfen, ob es sich um ein Smartphone/Mobilgerät handelt (Bildschirmbreite < 640px)
     const isMobile = window.innerWidth < 640;
 
     if (isMobile)
     {
-        // Auf Handys direkt im neuen Tab öffnen für perfektes Landschafts-Scaling
         window.open(fullGameUrl, '_blank');
     }
     else
     {
-        // Auf Tablets/Desktop im Overlay laden
         const iframe = document.getElementById('pixel-golf-iframe');
-        modal = document.getElementById('pixel-golf-modal');
+        const modal = document.getElementById('pixel-golf-modal');
 
         if (iframe && modal)
         {
@@ -224,8 +224,7 @@ app.logic.closePixelGolfGame = function()
 
     if (iframe && modal)
     {
-        iframe.src = "about:blank"; // Stoppt Audio und Game-Loop im Hintergrund
+        iframe.src = "about:blank";
         modal.classList.add('hidden');
     }
 };
-

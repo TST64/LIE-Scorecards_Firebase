@@ -4,6 +4,7 @@
 // BSD (Allman) Style
 // =========================================================================
 
+var app = app || {};
 app.logic = app.logic || {};
 
 app.logic.toggleFlightMode = function()
@@ -510,7 +511,7 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
         }
     });
 
-    const confirmationMsg = `Möchtest du die Runde jetzt schließen? Sieger: Brutto: ${bruttoSieger}, Netto: ${nettoSieger}. HCP-Updates:${infoText || " Keine (alle im Puffer)"}. Danach sind keine Korrekturen mehr möglich.`;
+    const confirmationMsg = `Möchtest du die Runde jetzt schließen? Sieger: Brutto: ${bruttoSieger}, Netto: ${nettoSieger}. HCP-Updates:${infoText || " Keine (alle im Puffer)"}.`;
 
     app.logic.showConfirm(
         "Spieltag beenden?", 

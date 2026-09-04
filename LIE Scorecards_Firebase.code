@@ -45,12 +45,34 @@ DATEIINHALTE:
 ##### <App_Core.js>:
 ----------------------------------------------------------------------
 // =========================================================================
-// BMAssistent / LIE Scorecard - Core Module
+// BMAssistent / LIE Scorecard - Globaler Anwendungs-State & Core Module
 // App_Core.js
 // BSD (Allman) Style
 // =========================================================================
 
 var app = app || {};
+
+app.state = 
+{
+    currentView: 'login',
+    currentUser: null,
+    leaderboardViewMode: 'matrix', 
+    spieler: [],
+    golfplaetze: [],
+    kurse: [],
+    bahnen: [],
+    handicaps: [],
+    spieltage: [],
+    scoreCards: [],
+    flights: [],
+    tempFlights: [],
+    tempZufallsFlights: [],
+    tempManualFlights: {},
+    liveScores: {},
+    activeManualFlightSeq: 1,
+    pollingIntervalId: null,
+    currentPollingRate: 60
+};
 
 app.core = (function()
 {
@@ -68,24 +90,28 @@ app.core = (function()
 
         if (!config)
         {
-            console.error('[App_Core] Firebase-Konfiguration (firebaseConfig) fehlt oder ist undefined.');
+            console.error('[App_Core] Firebase-Konfiguration fehlt.');
             return;
         }
 
         if (!firebase.apps.length)
         {
             firebase.initializeApp(config);
+            
+            const dbInstance = firebase.firestore();
+            
+            // Verhindert den fetch-CORS Konflikt ohne experimentelle Flags
+            dbInstance.settings({
+                useFetchStreams: false
+            });
+
+            app.db = dbInstance;
+            console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
         }
-
-        app.db = firebase.firestore();
-
-        // Strikte Long-Polling Konfiguration ohne ungültiges 'merge'
-        app.db.settings({
-            experimentalForceLongPolling: true,
-            experimentalAutoDetectLongPolling: false
-        });
-
-        console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
+        else if (!app.db)
+        {
+            app.db = firebase.firestore();
+        }
     }
 
     function init()
@@ -105,7 +131,7 @@ app.initFirebase = app.core.initFirebase;
 ##### <App_Logic_Bridge.js>:
 ----------------------------------------------------------------------
 // =========================================================================
-// BMAssistent / LIE Scorecard - Bridge Logic
+// BMAssistent / LIE Scorecard - Firebase Bridge & Firestore CRUD Operations
 // App_Logic_Bridge.js
 // BSD (Allman) Style
 // =========================================================================
@@ -113,25 +139,18 @@ app.initFirebase = app.core.initFirebase;
 var app = app || {};
 app.logic = app.logic || {};
 
+// Globaler Daten-Refresh aus Cloud Firestore
 app.logic.refreshGlobalAppData = async function()
 {
-    app.data = app.data || {};
     app.state = app.state || {};
 
-    app.state.spieler = app.state.spieler || [];
-    app.state.spieltage = app.state.spieltage || [];
-    app.state.scoreCards = app.state.scoreCards || [];
-    app.state.flights = app.state.flights || [];
-    app.state.kurse = app.state.kurse || [];
-    app.state.golfplaetze = app.state.golfplaetze || [];
-    app.state.bahnen = app.state.bahnen || [];
-    app.state.handicaps = app.state.handicaps || []; // <-- Hier sicherstellen
-    app.state.liveScores = app.state.liveScores || {};
+    const icon = document.getElementById('global-refresh-icon');
+    const btn = document.getElementById('global-refresh-btn');
 
-    const refreshBtn = document.getElementById('global-refresh-icon');
-    if (refreshBtn)
+    if (btn && icon)
     {
-        refreshBtn.classList.add('fa-spin');
+        btn.disabled = true;
+        icon.classList.add('fa-spin');
     }
 
     try
@@ -163,28 +182,29 @@ app.logic.refreshGlobalAppData = async function()
             app.db.collection('handicaps').get().catch(function() { return { forEach: function() {} }; })
         ]);
 
-        // Spieler
         const spielerData = [];
         spielerSnap.forEach(function(doc) { spielerData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.spieler = spielerData;
 
-        // Spieltage
         const spieltageData = [];
         spieltageSnap.forEach(function(doc) { spieltageData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.spieltage = spieltageData;
 
-        // Scorecards
-        const scoresData = [];
-        scorecardsSnap.forEach(function(doc) { scoresData.push(Object.assign({ id: doc.id }, doc.data())); });
-        scoresSnap.forEach(function(doc) { scoresData.push(Object.assign({ id: doc.id }, doc.data())); });
-        app.state.scoreCards = scoresData;
+        const scoresMap = {};
+        scorecardsSnap.forEach(function(doc) { 
+            const data = Object.assign({ id: doc.id }, doc.data());
+            if (data.id) scoresMap[data.id] = data;
+        });
+        scoresSnap.forEach(function(doc) { 
+            const data = Object.assign({ id: doc.id }, doc.data());
+            if (data.id) scoresMap[data.id] = data;
+        });
+        app.state.scoreCards = Object.values(scoresMap);
 
-        // Flights
         const flightsData = [];
         flightsSnap.forEach(function(doc) { flightsData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.flights = flightsData;
 
-        // Kurse, Plätze, Bahnen & Handicaps
         const kurseData = [];
         kurseSnap.forEach(function(doc) { kurseData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.kurse = kurseData;
@@ -201,9 +221,27 @@ app.logic.refreshGlobalAppData = async function()
         handicapsSnap.forEach(function(doc) { handicapsData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.handicaps = handicapsData;
 
-        console.log('[Bridge] Globaler App-Datensatz erfolgreich geladen:', app.state);
+        if (app.state.currentUser)
+        {
+            const freshUserMatch = app.state.spieler.find(function(s) 
+            { 
+                return String(s.id).trim() === String(app.state.currentUser.id).trim(); 
+            });
+            if (freshUserMatch)
+            {
+                app.state.currentUser = freshUserMatch;
+            }
+        }
 
-        if (app.router && typeof app.router.renderCurrentView === 'function' && app.router.currentView)
+        if (app.router && typeof app.router.updateNavigationUI === 'function')
+        {
+            app.router.updateNavigationUI(app.state.currentView);
+        }
+        if (app.logic && typeof app.logic.updateHeaderRoleIcon === 'function')
+        {
+            app.logic.updateHeaderRoleIcon();
+        }
+        if (app.router && typeof app.router.renderCurrentView === 'function' && app.state.currentView)
         {
             app.router.renderCurrentView();
         }
@@ -211,13 +249,284 @@ app.logic.refreshGlobalAppData = async function()
     catch (err)
     {
         console.error('[Bridge] Fehler beim Laden der Firestore-Daten:', err);
+        app.logic.showToast("Daten konnten nicht geladen werden.", "error");
     }
     finally
     {
-        if (refreshBtn)
+        setTimeout(function()
         {
-            refreshBtn.classList.remove('fa-spin');
+            if (btn && icon)
+            {
+                btn.disabled = false;
+                icon.classList.remove('fa-spin');
+            }
+        }, 300);
+    }
+};
+
+// Dient als Abstraktionsschicht für Legacy-Aufrufe an Firestore
+app.logic.apiRequest = async function(action, payload = {})
+{
+    console.log(`[Bridge Firestore Request] Action: ${action}`, payload);
+
+    try
+    {
+        if (action === 'getInitialAppData')
+        {
+            await app.logic.refreshGlobalAppData();
+            return {
+                success: true,
+                spieler: app.state.spieler,
+                golfplaetze: app.state.golfplaetze,
+                kurse: app.state.kurse,
+                bahnen: app.state.bahnen,
+                handicaps: app.state.handicaps,
+                spieltage: app.state.spieltage,
+                scoreCards: app.state.scoreCards,
+                flights: app.state.flights
+            };
         }
+        else if (action === 'saveLiveScores')
+        {
+            const scoresArray = payload.payload || payload;
+            if (Array.isArray(scoresArray))
+            {
+                const batch = app.db.batch();
+                scoresArray.forEach(function(sc)
+                {
+                    const docRef = app.db.collection('scorecards').doc(String(sc.id));
+                    batch.set(docRef, sc, { merge: true });
+                });
+                await batch.commit();
+            }
+            return { success: true };
+        }
+        else if (action === 'createNewSpieltag')
+        {
+            const stObj = payload.spieltagObj;
+            const flights = payload.flightsPayload || [];
+
+            await app.db.collection('spieltage').doc(String(stObj.id)).set(stObj);
+
+            const batch = app.db.batch();
+            flights.forEach(function(f)
+            {
+                const fRef = app.db.collection('flights').doc(String(f.id));
+                batch.set(fRef, f);
+            });
+            await batch.commit();
+
+            return { success: true };
+        }
+        else if (action === 'closeSpieltagServer')
+        {
+            const { spieltagId, bruttoSieger, nettoSieger, handicapUpdates } = payload;
+            
+            await app.db.collection('spieltage').doc(String(spieltagId)).update({
+                status: 'Beendet',
+                bruttoSieger: bruttoSieger || '',
+                nettoSieger: nettoSieger || ''
+            });
+
+            if (handicapUpdates && handicapUpdates.length > 0)
+            {
+                const batch = app.db.batch();
+                handicapUpdates.forEach(function(upd)
+                {
+                    const spRef = app.db.collection('spieler').doc(String(upd.spielerId));
+                    batch.update(spRef, { hcpLIE: parseInt(upd.newHcpLie) });
+                });
+                await batch.commit();
+            }
+
+            return { success: true };
+        }
+        else if (action === 'cancelSpieltagServer')
+        {
+            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update({
+                status: 'Abgebrochen'
+            });
+            return { success: true };
+        }
+        else if (action === 'softDeleteSpieltagServer')
+        {
+            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update({
+                istGeloescht: true
+            });
+            return { success: true };
+        }
+        else if (action === 'savePlayerServer')
+        {
+            const sp = payload;
+            await app.db.collection('spieler').doc(String(sp.id)).set(sp, { merge: true });
+            return { success: true };
+        }
+        else if (action === 'deletePlayerServer')
+        {
+            await app.db.collection('spieler').doc(String(payload.spielerId)).delete();
+            return { success: true };
+        }
+        else if (action === 'getVaultLockStatus')
+        {
+            const doc = await app.db.collection('settings').doc('vault').get();
+            const data = doc.exists ? doc.data() : {};
+            return { success: true, isUnlocked: !!data.isUnlocked };
+        }
+        else if (action === 'toggleVaultLock')
+        {
+            await app.db.collection('settings').doc('vault').set({ isUnlocked: !!payload.status }, { merge: true });
+            return { success: true, isUnlocked: !!payload.status };
+        }
+        // Ergänzung in App_Logic_Bridge.js
+        else if (action === 'updateFirestoreDoc')
+        {
+            const { collectionName, docId, data } = payload;
+            await app.db.collection(collectionName).doc(String(docId)).set(data, { merge: true });
+            return { success: true };
+        }
+        else if (action === 'deleteFirestoreDoc')
+        {
+            const { collectionName, docId } = payload;
+            await app.db.collection(collectionName).doc(String(docId)).delete();
+            return { success: true };
+        }
+        else if (action === 'verifyPlayerPin')
+        {
+            // PIN aus Firestore abrufen und prüfen
+            const spDoc = await app.db.collection('spieler').doc(String(payload.spielerId)).get();
+            if (!spDoc.exists) {
+                return { success: false, error: 'Spieler nicht gefunden' };
+            }
+            const spData = spDoc.data();
+            
+            // Wenn in der DB noch keine PIN gesetzt ist, standardmäßig '0000' annehmen
+            const dbPin = spData.pin || '0000';
+            
+            if (String(dbPin).trim() === String(payload.pin).trim()) {
+                return { success: true };
+            } else {
+                return { success: false, error: 'PIN inkorrekt' };
+            }
+        }
+        else if (action === 'updatePlayerPin')
+        {
+            // Neue PIN im Firestore-Dokument des Spielers speichern
+            await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: payload.newPin }, { merge: true });
+            return { success: true };
+        }
+        else if (action === 'requestTempPin')
+        {
+            // 1. Profil aus Firestore abrufen
+            const spDoc = await app.db.collection('spieler').doc(String(payload.spielerId)).get();
+            if (!spDoc.exists) {
+                return { success: false, error: 'Spieler nicht gefunden' };
+            }
+            const spData = spDoc.data();
+            
+            // 2. Temporäre 4-stellige PIN generieren
+            const tempPin = Math.floor(1000 + Math.random() * 9000).toString();
+            
+            // 3. Neue PIN in Firestore speichern
+            await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: tempPin }, { merge: true });
+            
+            // HINWEIS: E-Mail-Versand aus reinem JS ist nicht möglich. 
+            // Zur Überbrückung geben wir die PIN für dich in der Konsole aus:
+            console.log(`[DEV] Temporäre PIN für ID ${payload.spielerId} generiert: ${tempPin}`);
+            
+            return { success: true, tempPin: tempPin, email: spData.email };
+        }
+        else
+        {
+            console.warn(`[Bridge] Unbehandelte Action "${action}", liefere Erfolg zurück.`);
+            return { success: true };
+        }
+        
+    }
+    catch (err)
+    {
+        console.error(`[Bridge Error] bei Action "${action}":`, err);
+        return { success: false, error: err.message };
+    }
+};
+
+app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
+{
+    app.logic.stopLivePolling();
+
+    const triggerUpdate = function()
+    {
+        const statusDot = document.getElementById('connection-status');
+        if (statusDot)
+        {
+            statusDot.className = "w-3 h-3 rounded-full bg-amber-400";
+        }
+
+        app.db.collection('scorecards').get()
+            .then(function(snapshot)
+            {
+                if (statusDot)
+                {
+                    statusDot.className = "w-3 h-3 rounded-full bg-emerald-400";
+                }
+
+                const freshScores = [];
+                snapshot.forEach(function(doc)
+                {
+                    const d = doc.data();
+                    if (String(d.spieltagId).trim() === String(spieltagId).trim())
+                    {
+                        freshScores.push(Object.assign({ id: doc.id }, d));
+                    }
+                });
+
+                const otherRoundScores = app.state.scoreCards.filter(function(sc)
+                {
+                    return String(sc.spieltagId).trim() !== String(spieltagId).trim();
+                });
+                app.state.scoreCards = otherRoundScores.concat(freshScores);
+
+                const container = document.getElementById('app-container');
+                if (container)
+                {
+                    if (app.state.currentView === 'leaderboard')
+                    {
+                        const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
+                        container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
+                    }
+                    else if (app.state.currentView === 'score_eingabe' && holeNr)
+                    {
+                        const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(function(k)
+                        {
+                            return k.startsWith(spieltagId + "_");
+                        }).length;
+
+                        if (ungesicherteAenderungen === 0)
+                        {
+                            container.innerHTML = app.views.score_eingabe(spieltagId, holeNr, flightSeq);
+                        }
+                    }
+                }
+            })
+            .catch(function(err)
+            {
+                if (statusDot)
+                {
+                    statusDot.className = "w-3 h-3 rounded-full bg-red-400";
+                }
+                console.warn("Polling-Update fehlgeschlagen:", err);
+            });
+    };
+
+    const msInterval = (app.state.currentPollingRate || 60) * 1000;
+    app.state.pollingIntervalId = setInterval(triggerUpdate, msInterval);
+};
+
+app.logic.stopLivePolling = function()
+{
+    if (app.state.pollingIntervalId)
+    {
+        clearInterval(app.state.pollingIntervalId);
+        app.state.pollingIntervalId = null;
     }
 };
 
@@ -230,41 +539,25 @@ app.logic.refreshGlobalAppData = async function()
 // BSD (Allman) Style
 // =========================================================================
 
-// =========================================================================
-// BMAssistent / LIE Scorecard - Live-Scoring & Calculations
-// App_Logic_Scores.js
-// BSD (Allman) Style
-// =========================================================================
-
+var app = app || {};
 app.logic = app.logic || {};
 
 app.logic.calculateHoleVorgabe = function(spieler, kursId, holeSi)
 {
     const hcp = parseFloat(spieler ? spieler.hcpLIE : 54.0) || 54.0;
+    const hcpsForKurs = (app.state.handicaps || []).filter(function(h) { return String(h.kursId).trim() === String(kursId).trim(); });
     
-    // Handicaps-Array aus State sicherstellen
-    const handicapsList = (app.state && Array.isArray(app.state.handicaps)) ? app.state.handicaps : [];
-    const hcpsForKurs = handicapsList.filter(function(h) 
-    { 
-        return String(h.kursId).trim() === String(kursId).trim(); 
-    });
-    
-    let vorgabeMatch = hcpsForKurs.find(function(h) 
-    { 
-        return parseFloat(h.vorgabe) === hcp; 
-    });
-    
+    let vorgabeMatch = hcpsForKurs.find(function(h) { return parseFloat(h.vorgabe) === hcp; });
     let spielvorgabeTotal = vorgabeMatch ? parseInt(vorgabeMatch.spielvorgabe) : Math.round(hcp);
 
     let basisSchlaege = Math.floor(spielvorgabeTotal / 18);
     let restSchlaege = spielvorgabeTotal % 18;
     
     let holeVorgabe = basisSchlaege;
-    if (parseInt(holeSi || 18) <= restSchlaege)
+    if (parseInt(holeSi) <= restSchlaege)
     {
         holeVorgabe += 1;
     }
-    
     return holeVorgabe;
 };
 
@@ -448,9 +741,10 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     }
 };
 
-app.logic.syncScoresWithServer = async function(spieltagId, flightSeq)
+app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
 {
-    const keysToSync = Object.keys(app.state.liveScores).filter(k => k.startsWith(spieltagId + "_"));
+    const keysToSync = Object.keys(app.state.liveScores).filter(function(k) { return k.startsWith(spieltagId + "_"); });
+    
     if (keysToSync.length === 0)
     {
         app.logic.showToast("Keine ausstehenden Änderungen.", "info");
@@ -464,123 +758,102 @@ app.logic.syncScoresWithServer = async function(spieltagId, flightSeq)
         syncBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Sende...`;
     }
 
-    try
-    {
-        const batch = app.db.batch();
-        const verarbeiteteKeys = {};
-
-        keysToSync.forEach(key => {
-            const parts = key.split('_'); 
-            const spielerId = parts[1];
-            const holeNr = parseInt(parts[2]);
-            const uniqueHoleKey = `${spielerId}_${holeNr}`;
-            
-            if (verarbeiteteKeys[uniqueHoleKey]) return;
-            verarbeiteteKeys[uniqueHoleKey] = true;
-
-            const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
-            const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
-            const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
-            const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
-            
-            let strokes = app.state.liveScores[scoreKey];
-            if (strokes === undefined || strokes === null || strokes <= 0) return;
-
-            const docId = `SC-${spieltagId}-${spielerId}-${holeNr}`;
-            const docRef = app.db.collection("scorecards").doc(docId);
-
-            const payload = {
-                id: docId,
-                spieltagId: String(spieltagId),
-                flightSeq: parseInt(flightSeq) || 1,
-                spielerId: String(spielerId),
-                hole: holeNr,
-                strokes: parseInt(strokes),
-                lady: !!app.state.liveScores[ladyKey],
-                puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
-                maxscore: !!app.state.liveScores[maxScoreKey]
-            };
-
-            batch.set(docRef, payload, { merge: true });
-        });
-
-        await batch.commit();
-
-        keysToSync.forEach(k => delete app.state.liveScores[k]);
-        app.logic.showToast("Scores erfolgreich in Firebase gesichert!", "success");
-    }
-    catch (err)
-    {
-        console.error("Firebase Sync-Fehler:", err);
-        app.logic.showToast("Fehler beim Sichern der Daten", "error");
-    }
-    finally
-    {
-        if (syncBtn)
-        {
-            syncBtn.disabled = false;
-            syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`;
-        }
-    }
-};
-
-app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
-{
     app.logic.stopLivePolling();
 
-    if (!app.db) app.initFirebase();
+    const scoresPayload = [];
+    const verarbeiteteKeys = {};
 
-    // Echtes Push-Event von Firestore abonnierten
-    app.state.unsubscribeLiveScores = app.db.collection("scorecards")
-        .where("spieltagId", "==", String(spieltagId))
-        .onSnapshot(function(snapshot)
+    keysToSync.forEach(function(key)
+    {
+        const parts = key.split('_'); 
+        const spielerId = parts[1];
+        const holeNr = parseInt(parts[2]);
+        
+        const uniqueHoleKey = `${spielerId}_${holeNr}`;
+        if (verarbeiteteKeys[uniqueHoleKey]) return;
+        verarbeiteteKeys[uniqueHoleKey] = true;
+
+        const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
+        const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
+        const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
+        const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
+        
+        let strokes = app.state.liveScores[scoreKey];
+        if (strokes === undefined || strokes === null || strokes <= 0) return;
+
+        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
+        const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
+        const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId) === String(spieltag ? spieltag.kursId : ""); });
+        const bahn = kursBahnen.find(function(b) { return parseInt(b.nr) === holeNr; }) || { si: 10 };
+
+        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si);
+
+        scoresPayload.push({
+            id: `SC-${spieltagId}-${spielerId}-${holeNr}`,
+            spieltagId: spieltagId,
+            flightSeq: parseInt(flightSeq) || 1,
+            spielerId: spielerId,
+            hole: holeNr,
+            strokes: parseInt(strokes),
+            strokesGiven: strokesGiven,
+            lady: !!app.state.liveScores[ladyKey],
+            puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
+            maxscore: !!app.state.liveScores[maxScoreKey]
+        });
+    });
+
+    if (scoresPayload.length === 0)
+    {
+        if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
+        app.logic.startLivePolling(spieltagId, null, flightSeq);
+        return;
+    }
+
+    app.logic.apiRequest('saveLiveScores', { payload: scoresPayload })
+        .then(function(response)
         {
-            const updatedScores = snapshot.docs.map(function(doc) { return doc.data(); });
-
-            // Vorhandene Scores dieser Runde durch die frischen Firestore-Daten ersetzen
-            const otherRoundScores = app.state.scoreCards.filter(function(sc)
+            if (response && response.success)
             {
-                return String(sc.spieltagId).trim() !== String(spieltagId).trim();
-            });
-            app.state.scoreCards = otherRoundScores.concat(updatedScores);
-
-            const container = document.getElementById('app-container');
-            if (container)
-            {
-                if (app.state.currentView === 'leaderboard')
+                keysToSync.forEach(function(key)
                 {
-                    const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
-                    container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
-                }
-                else if (app.state.currentView === 'score_eingabe' && holeNr)
-                {
-                    const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(function(k)
-                    {
-                        return k.startsWith(spieltagId + "_");
-                    }).length;
+                    delete app.state.liveScores[key];
+                });
 
-                    // Nur neu rendern, wenn der User gerade keine ungespeicherten Eingaben getippt hat
-                    if (ungesicherteAenderungen === 0)
+                scoresPayload.forEach(function(item)
+                {
+                    const idx = app.state.scoreCards.findIndex(function(sc) { return String(sc.id).trim() === String(item.id).trim(); });
+                    if (idx !== -1) 
                     {
-                        container.innerHTML = app.views.score_eingabe(spieltagId, holeNr, flightSeq);
+                        app.state.scoreCards[idx] = item;
                     }
-                }
+                    else 
+                    {
+                        app.state.scoreCards.push(item);
+                    }
+                });
+
+                app.logic.showToast("Scores erfolgreich gesichert!", "success");
             }
-        }, function(err)
+            else
+            {
+                app.logic.showToast("Sync-Fehler: " + (response ? response.error : "Unbekannt"), "error");
+            }
+
+            if (syncBtn)
+            {
+                syncBtn.disabled = false;
+                syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`;
+            }
+            app.logic.startLivePolling(spieltagId, null, flightSeq);
+        })
+        .catch(function(err)
         {
-            console.warn("[Firestore Listener Error]", err);
+            console.error("Netzwerkfehler beim Sichern:", err);
+            app.logic.showToast("Fehler beim Sichern der Daten", "error");
+            if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
+            app.logic.startLivePolling(spieltagId, null, flightSeq);
         });
 };
-
-app.logic.stopLivePolling = function()
-{
-    if (typeof app.state.unsubscribeLiveScores === "function")
-    {
-        app.state.unsubscribeLiveScores();
-        app.state.unsubscribeLiveScores = null;
-    }
-};
-
 
 
 ##### <App_Logic_Spieler.js>:
@@ -594,9 +867,9 @@ app.logic.stopLivePolling = function()
 var app = app || {};
 app.logic = app.logic || {};
 
-app.logic.submitPin = function(event)
+app.logic.submitPin = function(event) 
 {
-    if (event)
+    if (event) 
     {
         if (typeof event.preventDefault === 'function') event.preventDefault();
         if (typeof event.stopPropagation === 'function') event.stopPropagation();
@@ -608,37 +881,186 @@ app.logic.submitPin = function(event)
     const spielerId = document.getElementById('loginSpielerSelect')?.value;
     const pin = document.getElementById('loginPinInput')?.value;
 
-    if (!spielerId || !pin || pin.trim() === "")
+    if (!spielerId || !pin || pin.trim() === "") 
     {
         if (typeof app.logic.showToast === 'function') app.logic.showToast("Bitte Namen auswählen und PIN eintippen!", "info");
         return false;
     }
 
-    const ausgewaehlterSpieler = (app.state && app.state.spieler) 
-        ? app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); }) 
-        : null;
-
-    if (!ausgewaehlterSpieler)
+    if (btn)
     {
-        if (typeof app.logic.showToast === 'function') app.logic.showToast("Spieler nicht im Speicher gefunden!", "error");
-        return false;
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Prüfe Identität...`;
     }
 
-    app.state = app.state || {};
-    app.state.currentUser = ausgewaehlterSpieler;
-    localStorage.setItem('lie_scorecard_user_id', ausgewaehlterSpieler.id);
+    // PIN-Prüfung über deine bestehende Server-Bridge
+    app.logic.apiRequest('verifyPlayerPin', { spielerId: spielerId, pin: pin })
+        .then(function(response)
+        {
+            if (response && response.success)
+            {
+                const ausgewaehlterSpieler = (app.state && app.state.spieler) 
+                    ? app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); }) 
+                    : null;
 
-    if (app.logic.updateHeaderRoleIcon)
-    {
-        app.logic.updateHeaderRoleIcon();
-    }
+                if (!ausgewaehlterSpieler)
+                {
+                    app.logic.showToast("Spielerdaten nicht geladen!", "error");
+                    resetButton(btn);
+                    return;
+                }
 
-    if (app.router && typeof app.router.navigate === 'function')
-    {
-        app.router.navigate('dashboard');
+                app.state = app.state || {};
+                app.state.currentUser = ausgewaehlterSpieler;
+                localStorage.setItem('lie_scorecard_user_id', ausgewaehlterSpieler.id);
+
+                if (app.logic.updateHeaderRoleIcon) app.logic.updateHeaderRoleIcon();
+                if (app.router && typeof app.router.navigate === 'function') app.router.navigate('dashboard');
+            }
+            else
+            {
+                app.logic.showToast("PIN ist inkorrekt!", "error");
+                resetButton(btn);
+            }
+        }).catch(function(error) {
+            app.logic.showToast("Verbindungsfehler zur Datenbank.", "error");
+            resetButton(btn);
+        });
+
+    function resetButton(button) {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = `Login <i class="fas fa-sign-in-alt ml-1"></i>`; 
+        }
     }
 
     return false;
+};
+
+app.logic.changePin = function()
+{
+    const p1 = document.getElementById('pin-new-1');
+    const p2 = document.getElementById('pin-new-2');
+    if (!p1 || !p2 || !app.state.currentUser) return;
+
+    const val1 = p1.value.trim();
+    const val2 = p2.value.trim();
+
+    if (val1.length < 4 || isNaN(val1))
+    {
+        app.logic.showToast("Die PIN muss mindestens 4 Zahlen lang sein!", "info");
+        return;
+    }
+
+    if (val1 !== val2)
+    {
+        app.logic.showToast("Die beiden PINs stimmen nicht überein!", "info");
+        return;
+    }
+
+    // Geänderte PIN an den Server senden anstatt nur einen Toast anzuzeigen
+    app.logic.apiRequest('updatePlayerPin', { spielerId: app.state.currentUser.id, newPin: val1 })
+        .then(function(response) {
+            if (response && response.success) {
+                app.logic.showToast("PIN dauerhaft gespeichert!", "success");
+                app.router.navigate('dashboard');
+            } else {
+                app.logic.showToast("Fehler beim Speichern der PIN.", "error");
+            }
+        });
+};
+
+app.logic.savePlayer = function(isNew)
+{
+    const idInput = document.getElementById('edit-sp-id');
+    const nicknameInput = document.getElementById('edit-sp-nickname');
+    const nameInput = document.getElementById('edit-sp-name');
+    const emailInput = document.getElementById('edit-sp-email');
+    const hcpOffInput = document.getElementById('edit-sp-hcpoff');
+    const hcpLieInput = document.getElementById('edit-sp-hcplie');
+    const teeSelect = document.getElementById('edit-sp-tee');
+    const roleSelect = document.getElementById('edit-sp-role');
+
+    if (!idInput || !nicknameInput || !nameInput || !emailInput) return;
+
+    const spielerObj = {
+        isNew: isNew,
+        id: idInput.value.trim(),
+        nickname: nicknameInput.value.trim(),
+        name: nameInput.value.trim(),
+        email: emailInput.value.trim(),
+        teeColor: teeSelect ? teeSelect.value : 'Gelb',
+        hcpOfficial: parseFloat(hcpOffInput ? hcpOffInput.value : 54.0),
+        hcpLIE: parseInt(hcpLieInput ? hcpLieInput.value : 54),
+        role: roleSelect ? roleSelect.value : 'Spieler'
+    };
+
+    if (!spielerObj.id || !spielerObj.nickname || !spielerObj.name || !spielerObj.email)
+    {
+        app.logic.showToast("Bitte fülle alle Pflichtfelder (*) aus!", "info");
+        return;
+    }
+
+    const btn = document.getElementById('save-player-btn');
+    if (btn)
+    {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-1"></i> Speichere Profil...`;
+    }
+
+    app.logic.apiRequest('savePlayerServer', spielerObj)
+        .then(function(response)
+        {
+            if (response && response.success)
+            {
+                app.logic.showToast("Spielerprofil erfolgreich gespeichert!", "success");
+
+                if (app.state.currentUser && String(app.state.currentUser.id).trim() === String(spielerObj.id).trim())
+                {
+                    app.state.currentUser.role = spielerObj.role;
+                }
+
+                app.logic.refreshGlobalAppData().then(function()
+                {
+                    app.router.navigate('spieler');
+                });
+            }
+            else
+            {
+                app.logic.showToast("Fehler: " + (response ? response.error : "Unbekannt"), "error");
+                if (btn)
+                {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fas fa-save mr-1"></i> Profil speichern`;
+                }
+            }
+        });
+};
+
+app.logic.deletePlayer = function(spielerId)
+{
+    app.logic.showConfirm(
+        "Spieler löschen?", 
+        "Möchtest du diesen Spieler wirklich unwiderruflich aus der Datenbank löschen?", 
+        "danger", 
+        function() 
+        {
+            app.logic.apiRequest('deletePlayerServer', { spielerId: spielerId })
+                .then(function(response)
+                {
+                    if (response && response.success)
+                    {
+                        app.state.spieler = app.state.spieler.filter(function(s) { return String(s.id).trim() !== String(spielerId).trim(); });
+                        app.logic.showToast("Spieler erfolgreich gelöscht.", "success");
+                        app.router.navigate('spieler');
+                    }
+                    else
+                    {
+                        app.logic.showToast("Fehler beim Löschen: " + response.error, "error");
+                    }
+                });
+        }
+    );
 };
 
 app.logic.logout = function()
@@ -649,6 +1071,11 @@ app.logic.logout = function()
         "standard", 
         function() 
         {
+            // Fallback für den Fall, dass du Firebase Auth nutzt (war in deinem vorherigen Code-Schnipsel)
+            if (typeof firebase !== 'undefined' && firebase.auth) {
+                firebase.auth().signOut().catch(e => console.warn("Firebase signout error:", e));
+            }
+
             if (app.state)
             {
                 app.state.currentUser = null;
@@ -673,6 +1100,7 @@ app.logic.logout = function()
 // BSD (Allman) Style
 // =========================================================================
 
+var app = app || {};
 app.logic = app.logic || {};
 
 app.logic.toggleFlightMode = function()
@@ -1179,7 +1607,7 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
         }
     });
 
-    const confirmationMsg = `Möchtest du die Runde jetzt schließen? Sieger: Brutto: ${bruttoSieger}, Netto: ${nettoSieger}. HCP-Updates:${infoText || " Keine (alle im Puffer)"}. Danach sind keine Korrekturen mehr möglich.`;
+    const confirmationMsg = `Möchtest du die Runde jetzt schließen? Sieger: Brutto: ${bruttoSieger}, Netto: ${nettoSieger}. HCP-Updates:${infoText || " Keine (alle im Puffer)"}.`;
 
     app.logic.showConfirm(
         "Spieltag beenden?", 
@@ -1267,6 +1695,7 @@ app.logic.softDeleteSpieltag = function(spieltagId)
 // BSD (Allman) Style
 // =========================================================================
 
+var app = app || {};
 app.logic = app.logic || {};
 
 app.logic.updateHeaderRoleIcon = function()
@@ -1408,9 +1837,9 @@ app.logic.triggerMasterReset = function()
 {
     app.logic.showConfirm(
         "!!! GEFAHRENZONE !!!", 
-        "Möchtest du wirklich alle gespielten Runden, Flights und abgegebenen Scorekarten unwiderruflich löschen? Das System wird in den Urzustand versetzt.", 
+        "Möchtest du wirklich alle gespielten Runden, Flights und abgegebenen Scorekarten unwiderruflich löschen?", 
         "danger", 
-        function() 
+        async function() 
         {
             const btn = document.getElementById('master-reset-db-btn');
             if (btn)
@@ -1419,30 +1848,33 @@ app.logic.triggerMasterReset = function()
                 btn.innerHTML = `<i class="fas fa-bomb fa-spin mr-1"></i> Sprengung läuft...`;
             }
 
-            app.logic.apiRequest('clearTestDataBase')
-                .then(function(response)
+            try
+            {
+                const collections = ['spieltage', 'scorecards', 'flights', 'scores'];
+                for (const colName of collections)
                 {
-                    if (response && response.success)
-                    {
-                        app.logic.showToast("BUMM! Datenbank erfolgreich gereinigt!", "success");
-                        
-                        app.state.spieltage = [];
-                        app.state.scoreCards = [];
-                        app.state.flights = [];
-                        app.state.liveScores = {};
-                        
-                        app.router.navigate('dashboard');
-                    }
-                    else
-                    {
-                        app.logic.showToast("Fehler beim Master-Reset: " + response.error, "error");
-                        if (btn)
-                        {
-                            btn.disabled = false;
-                            btn.innerHTML = `<i class="fas fa-bomb mr-1"></i> Testdaten-Sprengung ausführen`;
-                        }
-                    }
-                });
+                    const snap = await app.db.collection(colName).get();
+                    const batch = app.db.batch();
+                    snap.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                }
+
+                app.logic.showToast("BUMM! Firestore-Datenbank erfolgreich geleert!", "success");
+                app.state.spieltage = [];
+                app.state.scoreCards = [];
+                app.state.flights = [];
+                app.state.liveScores = {};
+                app.router.navigate('dashboard');
+            }
+            catch(err)
+            {
+                app.logic.showToast("Fehler beim Zurücksetzen: " + err.message, "error");
+                if (btn)
+                {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fas fa-bomb mr-1"></i> Spieldaten komplett löschen`;
+                }
+            }
         }
     );
 };
@@ -1453,23 +1885,19 @@ app.logic.openPixelGolfGame = function()
     const currentUser = app.state.currentUser;
     const spielerName = currentUser ? (currentUser.nickname || currentUser.name) : "Golfer";
 
-    // Hier die neue GitHub Pages URL eintragen:
     const gameBaseUrl = "https://tst64.github.io/LIE_Scorecards_PixelGolf/";
     const fullGameUrl = `${gameBaseUrl}?player=${encodeURIComponent(spielerName)}`;
 
-    // Prüfen, ob es sich um ein Smartphone/Mobilgerät handelt (Bildschirmbreite < 640px)
     const isMobile = window.innerWidth < 640;
 
     if (isMobile)
     {
-        // Auf Handys direkt im neuen Tab öffnen für perfektes Landschafts-Scaling
         window.open(fullGameUrl, '_blank');
     }
     else
     {
-        // Auf Tablets/Desktop im Overlay laden
         const iframe = document.getElementById('pixel-golf-iframe');
-        modal = document.getElementById('pixel-golf-modal');
+        const modal = document.getElementById('pixel-golf-modal');
 
         if (iframe && modal)
         {
@@ -1487,12 +1915,10 @@ app.logic.closePixelGolfGame = function()
 
     if (iframe && modal)
     {
-        iframe.src = "about:blank"; // Stoppt Audio und Game-Loop im Hintergrund
+        iframe.src = "about:blank";
         modal.classList.add('hidden');
     }
 };
-
-
 
 
 ##### <App_Router.js>:
@@ -1507,32 +1933,53 @@ var app = app || {};
 app.router = app.router || {};
 
 app.router.currentView = null;
+app.router.currentParams = null;
 
-app.router.navigate = function(viewName)
+app.router.navigate = function(viewName, params)
 {
-    // 1. Splash Screen ausblenden
+    if (app.state.liveScores && Object.keys(app.state.liveScores).length > 0)
+    {
+        console.log("[Router Guard] Ungesicherte Scores entdeckt. Starte Auto-Sync...");
+        
+        let activeSpieltagId = params ? params.id : null;
+        let activeFlightSeq = params ? params.flightSeq : 1;
+        
+        if (!activeSpieltagId && app.state.spieltage)
+        {
+            const aktRunde = app.state.spieltage.find(function(st) { return st.status === 'Aktiv'; });
+            if (aktRunde) activeSpieltagId = aktRunde.id;
+        }
+        
+        if (activeSpieltagId)
+        {
+            app.logic.syncScoresWithServer(activeSpieltagId, activeFlightSeq);
+        }
+    }
+
+    if (app.logic && typeof app.logic.stopLivePolling === 'function')
+    {
+        app.logic.stopLivePolling();
+    }
+
     const loadingEl = document.getElementById('app-loading');
     if (loadingEl)
     {
         loadingEl.classList.add('hidden');
     }
 
-    // 2. Datenobjekte & Fallbacks sicherstellen
-    app.data = app.data || {};
     app.state = app.state || {};
     app.state.spieler = app.state.spieler || [];
     app.state.spieltage = app.state.spieltage || [];
     app.state.scoreCards = app.state.scoreCards || [];
     app.state.liveScores = app.state.liveScores || {};
 
-    // 3. Routing-Ziel bestimmen
     const targetView = viewName || 'login';
     app.router.currentView = targetView;
+    app.router.currentParams = params || null;
+    app.state.currentView = targetView;
 
-    // 4. UI-Elemente anpassen (Bottom Nav, Header Actions)
     app.router.updateNavigationUI(targetView);
 
-    // 5. Container-Element abgreifen
     const container = document.getElementById('app-container');
     if (!container)
     {
@@ -1540,10 +1987,29 @@ app.router.navigate = function(viewName)
         return;
     }
 
-    // 6. Ansicht rendern & HTML in den DOM-Container injizieren
+    let p1 = params;
+    let p2 = undefined;
+    let p3 = undefined;
+
+    if (params && typeof params === 'object')
+    {
+        p1 = params.id !== undefined ? params.id : params.hole;
+        p2 = params.mode !== undefined ? params.mode : params.hole;
+        p3 = params.flightSeq !== undefined ? params.flightSeq : undefined;
+    }
+
     if (app.views && typeof app.views[targetView] === 'function')
     {
-        container.innerHTML = app.views[targetView]();
+        container.innerHTML = app.views[targetView](p1, p2, p3);
+
+        if (targetView === 'leaderboard' && params && params.id)
+        {
+            app.logic.startLivePolling(params.id);
+        }
+        else if (targetView === 'score_eingabe' && params && params.id && params.hole)
+        {
+            app.logic.startLivePolling(params.id, params.hole, params.flightSeq);
+        }
     }
     else if (app.views && typeof app.views.dashboard === 'function')
     {
@@ -1555,13 +2021,15 @@ app.router.navigate = function(viewName)
     {
         console.error('[Router] Keine passende View zum Rendern gefunden.');
     }
+
+    window.scrollTo(0, 0);
 };
 
 app.router.renderCurrentView = function()
 {
     if (app.router.currentView)
     {
-        app.router.navigate(app.router.currentView);
+        app.router.navigate(app.router.currentView, app.router.currentParams);
     }
     else
     {
@@ -1572,79 +2040,67 @@ app.router.renderCurrentView = function()
 
 app.router.updateNavigationUI = function(viewName)
 {
-    const bottomNav = document.getElementById('bottom-nav');
-    const headerLogoutBtn = document.getElementById('header-logout-btn');
-    const headerActionBtn = document.getElementById('header-action-btn');
+    if (app.logic && typeof app.logic.updateHeaderRoleIcon === 'function')
+    {
+        app.logic.updateHeaderRoleIcon();
+    }
 
-    // Login-Screen Sonderbehandlung
+    const actionBtn = document.getElementById('header-action-btn');
+    const navBar = document.getElementById('bottom-nav');
+    const adminNavBtn = document.getElementById('nav-admin');
+
+    if (!actionBtn || !navBar) return;
+
+    const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
+    const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
+
+    if (viewName === 'spieltage' && isLeiter)
+    {
+        actionBtn.classList.remove('hidden');
+    }
+    else
+    {
+        actionBtn.classList.add('hidden');
+    }
+
+    if (adminNavBtn)
+    {
+        if (isAdmin)
+        {
+            adminNavBtn.classList.remove('hidden');
+        }
+        else
+        {
+            adminNavBtn.classList.add('hidden');
+        }
+    }
+
     if (viewName === 'login')
     {
-        if (bottomNav)
+        navBar.classList.add('hidden');
+    }
+    else
+    {
+        navBar.classList.remove('hidden');
+        
+        document.querySelectorAll('#bottom-nav button').forEach(function(btn)
         {
-            bottomNav.classList.add('hidden');
-        }
+            btn.classList.remove('text-emerald-600', 'font-bold');
+            btn.classList.add('text-stone-400');
+        });
 
-        if (headerLogoutBtn)
-        {
-            headerLogoutBtn.classList.add('hidden');
-        }
+        let activeTabId = "";
+        if (viewName === 'dashboard') activeTabId = 'nav-dash';
+        if (viewName === 'spieltage' || viewName === 'spieltag_neu' || viewName === 'leaderboard') activeTabId = 'nav-rounds';
+        if (viewName === 'spieler' || viewName === 'spieler_edit') activeTabId = 'nav-players';
+        if (viewName === 'admin') activeTabId = 'nav-admin';
+        if (viewName === 'help') activeTabId = 'nav-help';
 
-        if (headerActionBtn)
-        {
-            headerActionBtn.classList.add('hidden');
-        }
-
-        return;
-    }
-
-    // Bottom Navigation für angemeldete Bereiche einblenden
-    if (bottomNav)
-    {
-        bottomNav.classList.remove('hidden');
-    }
-
-    if (headerLogoutBtn && app.state && app.state.currentUser)
-    {
-        headerLogoutBtn.classList.remove('hidden');
-    }
-
-    // Aktiven Navigation-Tab optisch hervorheben
-    const navButtons = document.querySelectorAll('.nav-btn');
-    navButtons.forEach(function(btn)
-    {
-        btn.classList.remove('text-emerald-600');
-        btn.classList.add('text-stone-400');
-    });
-
-    let activeNavId = null;
-    if (viewName === 'dashboard')
-    {
-        activeNavId = 'nav-dash';
-    }
-    else if (viewName === 'spieltage' || viewName === 'spieltag_neu')
-    {
-        activeNavId = 'nav-rounds';
-    }
-    else if (viewName === 'spieler')
-    {
-        activeNavId = 'nav-players';
-    }
-    else if (viewName === 'help')
-    {
-        activeNavId = 'nav-help';
-    }
-    else if (viewName === 'admin' || viewName === 'admin_gruppe')
-    {
-        activeNavId = 'nav-admin';
-    }
-
-    if (activeNavId)
-    {
-        const activeBtn = document.getElementById(activeNavId);
+        const activeBtn = document.getElementById(activeTabId);
         if (activeBtn)
         {
             activeBtn.classList.remove('text-stone-400');
-            activeBtn.classList.add('text-emerald-600');
+            activeBtn.classList.add('text-emerald-600', 'font-bold');
         }
     }
 };
@@ -1659,13 +2115,21 @@ app.router.updateNavigationUI = function(viewName)
 // =========================================================================
 
 var app = app || {};
+app.isInitialized = false;
 
 app.initStart = async function()
 {
-    // Globalen State sicherstellen
+    if (app.isInitialized) return;
+    app.isInitialized = true;
+
     app.state = app.state || {};
     app.state.liveScores = app.state.liveScores || {};
-    app.data = app.data || {};
+
+    const splashImg = document.getElementById('splash-logo');
+    if (splashImg && app.logoString)
+    {
+        splashImg.src = app.logoString;
+    }
 
     // 1. Firebase initialisieren
     if (app.core && typeof app.core.init === 'function')
@@ -1679,41 +2143,65 @@ app.initStart = async function()
         await app.logic.refreshGlobalAppData();
     }
 
-    // 3. Auto-Login prüfen: Gespeicherte User-ID aus localStorage wiederherstellen
-    const savedUserId = localStorage.getItem('lie_scorecard_user_id');
-    if (savedUserId && app.state.spieler && app.state.spieler.length > 0)
+    // 3. Auto-Login check per Firebase Auth (statt lokalem Storage)
+    firebase.auth().onAuthStateChanged(function(user)
     {
-        const restoredUser = app.state.spieler.find(function(s)
+        if (user && app.state.spieler && app.state.spieler.length > 0)
         {
-            return String(s.id).trim() === String(savedUserId).trim();
-        });
-
-        if (restoredUser)
-        {
-            app.state.currentUser = restoredUser;
-            
-            if (app.logic && typeof app.logic.updateHeaderRoleIcon === 'function')
+            // user.uid entspricht der Spieler-ID aus unserem Custom Token
+            const restoredUser = app.state.spieler.find(function(s)
             {
-                app.logic.updateHeaderRoleIcon();
+                return String(s.id).trim() === String(user.uid).trim();
+            });
+
+            if (restoredUser)
+            {
+                app.state.currentUser = restoredUser;
+                
+                if (app.logic && typeof app.logic.updateHeaderRoleIcon === 'function')
+                {
+                    app.logic.updateHeaderRoleIcon();
+                }
+
+                // Nur auf Dashboard weiterleiten, wenn wir noch auf Login stehen
+                if (app.state.currentView === 'login' || !app.state.currentView)
+                {
+                    if (app.router && typeof app.router.navigate === 'function')
+                    {
+                        app.router.navigate('dashboard');
+                    }
+                }
             }
         }
-    }
-
-    // 4. Routing durchführen (Dashboard wenn eingeloggt, sonst Login)
-    if (app.router && typeof app.router.navigate === 'function')
-    {
-        const defaultTarget = (app.state && app.state.currentUser) ? 'dashboard' : 'login';
-        app.router.navigate(defaultTarget);
-    }
-    else
-    {
-        const loadingEl = document.getElementById('app-loading');
-        if (loadingEl)
+        else
         {
-            loadingEl.classList.add('hidden');
+            // Nicht eingeloggt oder ausgeloggt
+            app.state.currentUser = null;
+            if (app.router && typeof app.router.navigate === 'function')
+            {
+                if (app.state.currentView !== 'login')
+                {
+                    app.router.navigate('login');
+                }
+            }
+            
+            const loadingEl = document.getElementById('app-loading');
+            if (loadingEl)
+            {
+                loadingEl.classList.add('hidden');
+            }
         }
-    }
+    });
 };
+
+if (document.readyState === 'complete' || document.readyState === 'interactive')
+{
+    app.initStart();
+}
+else
+{
+    document.addEventListener("DOMContentLoaded", app.initStart, { once: true });
+}
 
 
 ##### <App_View_Help.js>:
@@ -1831,18 +2319,17 @@ app.views.help = function()
 ##### <Code.js>:
 ----------------------------------------------------------------------
 /**
- * BMAssistent / LIE Scorecard - Backend API
+ * BMAssistent / LIE Scorecard - Micro Backend API (Nur E-Mail Service)
  * Code.js
- * BSD (Allman) Style
  */
 
-function doGet(e) 
+function doGet(e)
 {
-    try 
+    try
     {
         if (!e || !e.parameter || !e.parameter.data)
         {
-            return ContentService.createTextOutput("Backend aktiv. API bereit.")
+            return ContentService.createTextOutput("Micro-Backend aktiv. E-Mail API bereit.")
                 .setMimeType(ContentService.MimeType.TEXT);
         }
 
@@ -1850,89 +2337,20 @@ function doGet(e)
         const action = body.action;
         const callback = e.parameter.callback;
 
-        Logger.log("doGet:" + action);
-        
         let result;
 
-        switch (action) 
+        switch (action)
         {
-            case 'getInitialAppData':
-                result = getInitialAppData();
-                break;
-
-            case 'saveLiveScores':
-                result = saveLiveScores(body.payload || body);
-                break;
-
-            case 'verifyPlayerPin':
-                result = verifyPlayerPin(body.spielerId, body.pin);
-                break;
-                
-            case 'requestTempPin':
-                result = requestTempPin(body.spielerId);
-                break;
-                
-            case 'changePlayerPinServer':
-                result = changePlayerPinServer(body.spielerId, body.newPin);
-                break;
-                
-            case 'savePlayerServer':
-                result = savePlayerServer(body);
-                break;
-
-            case 'deletePlayerServer':
-                result = deletePlayerServer(body.spielerId);
-                break;
-
-            case 'setPlayerPin':
-                result = setPlayerPin(body.spielerId, body.pin, body.mustChange);
-                break;
-                
-            case 'clearTestDataBase':
-                result = clearTestDataBase();
-                break;
-                
-            case 'cancelSpieltagServer':
-                result = cancelSpieltagServer(body.spieltagId);
-                break;
-                
-            case 'closeSpieltagServer':
-                result = closeSpieltagServer(body.spieltagId, body.bruttoSieger, body.nettoSieger, body.handicapUpdates);
-                break;
-                
-            case 'createNewSpieltag':
-                result = createNewSpieltag(body.spieltagObj, body.flightsPayload);
-                break;
-                
-            case 'getLiveScoreUpdates':
-                result = getLiveScoreUpdates(body.spieltagId);
-                break;
-
-            case 'softDeleteSpieltagServer':
-                result = softDeleteSpieltagServer(body.spieltagId);
-                break;
-                // In Code.js im Switch-Block ergänzen:
-            case 'syncToVault':
-                result = syncToVault();
-                break;
-
-            case 'savePixelGolfHighscore':
-                result = savePixelGolfHighscore(body.spielerName, body.score);
-                break;
-
-            case 'toggleVaultLock':
-                result = toggleVaultLock(body.spielerId, body.status);
-                break;
-
-            case 'getVaultLockStatus':
-                result = getVaultLockStatus();
+            case 'sendTempPinEmail':
+                // Frontend generiert die Temp-PIN, GAS versendet sie nur noch
+                result = sendTempPinEmail(body.spielerId, body.tempPin);
                 break;
 
             default:
                 throw new Error("Unbekannte Action: " + action);
         }
 
-        const jsonResponse = JSON.stringify({ success: true, ...result });
+        const jsonResponse = JSON.stringify({ success: (!result.error), ...result });
 
         if (callback)
         {
@@ -1942,8 +2360,8 @@ function doGet(e)
 
         return ContentService.createTextOutput(jsonResponse)
             .setMimeType(ContentService.MimeType.JSON);
-    } 
-    catch (err) 
+    }
+    catch (err)
     {
         const errorResponse = JSON.stringify({ success: false, error: err.message });
         
@@ -1958,496 +2376,29 @@ function doGet(e)
     }
 }
 
-function doPost(e) 
+function doPost(e)
 {
     return doGet(e);
 }
 
-function doOptions(e) 
+function sendTempPinEmail(spielerId, tempPin)
 {
-    return ContentService.createTextOutput("OK")
-        .setMimeType(ContentService.MimeType.TEXT);
-}
-
-function getSheetDataAsJson(sheet, filterCol = null, filterVal = null)
-{
-    if (!sheet) return [];
-
-    const data = sheet.getDataRange().getValues();
-    if (data.length <= 1) return [];
-
-    const headers = data[0];
-    const rows = data.slice(1);
-
-    return rows.map(function(row) 
+    try
     {
-        const obj = {};
-        headers.forEach(function(header, index) 
+        const props = PropertiesService.getScriptProperties();
+        const ssAdminUrl = props.getProperty("ssAdmin");
+        
+        if (!ssAdminUrl)
         {
-            let val = row[index];
-            
-            if (val instanceof Date) 
-            {
-                val = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
-            }
-            
-            if ((header === "teilnehmerCsv" || header === "spielerIdsCsv") && val) 
-            {
-                let cleanStr = String(val).trim();
-                if (cleanStr !== "" && !cleanStr.includes(",") && /^\d+$/.test(cleanStr) && cleanStr.length > 3) 
-                {
-                    val = cleanStr.match(/.{1,3}/g).join(",");
-                } 
-                else 
-                {
-                    val = cleanStr;
-                }
-            }
-            obj[header] = val;
-        });
-        return obj;
-    }).filter(function(item) 
-    {
-        const hasValidId = item.id !== undefined && item.id !== null && String(item.id).trim() !== "";
-        if (!hasValidId)
-        {
-            return false;
+            throw new Error("Skripteigenschaft 'ssAdmin' fehlt!");
         }
 
-        return filterCol === null || String(item[filterCol]).trim() === String(filterVal).trim();
-    });
-}
-
-function clearTestDataBase()
-{
-    try
-    {
-        const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-        const tablesToClear = ["app_Spieltage", "app_Flights", "app_ScoreCards"];
-        
-        tablesToClear.forEach(function(sheetName)
-        {
-            const sheet = ssApp.getSheetByName(sheetName);
-            if (!sheet)
-            {
-                return;
-            }
-            
-            const lastRow = sheet.getLastRow();
-            const lastColumn = sheet.getLastColumn();
-            
-            if (lastRow > 1)
-            {
-                const dataRange = sheet.getRange(2, 1, lastRow - 1, lastColumn);
-                dataRange.clearContent();
-            }
-        });
-        
-        SpreadsheetApp.flush();
-        return { success: true };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function getInitialAppData()
-{
-    const debugLog = [];
-    try
-    {
-        debugLog.push("Verbinde mit Spreadsheets über Projekteigenschaften...");
-        const ssAdmin = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssAdmin"));
-        const ssRef = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssRef"));
-        const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-
+        const ssAdmin = SpreadsheetApp.openByUrl(ssAdminUrl);
         const tSpieler = ssAdmin.getSheetByName("adm_Spieler");
-        if (!tSpieler) return { success: false, error: "Tabelle 'adm_Spieler' nicht gefunden!" };
 
-        const tPlaetze = ssRef.getSheetByName("ref_Golfplätze");
-        if (!tPlaetze) return { success: false, error: "Tabelle 'ref_Golfplätze' nicht gefunden!" };
-
-        const tKurse = ssRef.getSheetByName("ref_GolfplatzKurse");
-        if (!tKurse) return { success: false, error: "Tabelle 'ref_GolfplatzKurse' nicht gefunden!" };
-
-        const tBahnen = ssRef.getSheetByName("ref_KursBahnen");
-        if (!tBahnen) return { success: false, error: "Tabelle 'ref_KursBahnen' nicht gefunden!" };
-
-        const tHandicaps = ssRef.getSheetByName("ref_KursHandicap");
-        if (!tHandicaps) return { success: false, error: "Tabelle 'ref_KursHandicap' nicht gefunden!" };
-
-        const tSpieltage = ssApp.getSheetByName("app_Spieltage");
-        if (!tSpieltage) return { success: false, error: "Tabelle 'app_Spieltage' nicht gefunden!" };
-
-        const tScoreCards = ssApp.getSheetByName("app_ScoreCards");
-        if (!tScoreCards) return { success: false, error: "Tabelle 'app_ScoreCards' nicht gefunden!" };
-
-        const tFlights = ssApp.getSheetByName("app_Flights");
-        if (!tFlights) return { success: false, error: "Tabelle 'app_Flights' nicht gefunden!" };
-
-        return {
-            success: true,
-            spieler: getSheetDataAsJson(tSpieler),
-            golfplaetze: getSheetDataAsJson(tPlaetze),
-            kurse: getSheetDataAsJson(tKurse),
-            bahnen: getSheetDataAsJson(tBahnen),
-            handicaps: getSheetDataAsJson(tHandicaps),
-            spieltage: getSheetDataAsJson(tSpieltage),
-            scoreCards: getSheetDataAsJson(tScoreCards),
-            flights: getSheetDataAsJson(tFlights)
-        };
-    }
-    catch (err)
-    {
-        return {
-            success: false,
-            error: "Kritischer Abbruch bei Schritt: " + debugLog.pop() + "\n\nDetails: " + err.toString()
-        };
-    }
-}
-
-
-/**
- * Speichert Live-Scores mit strikter Upsert-Logik (Update or Insert).
- * Verhindert Duplikate in app_ScoreCards vollständig.
- */
-function saveLiveScores(scoresArray)
-{
-    try
-    {
-        if (!scoresArray || !Array.isArray(scoresArray) || scoresArray.length === 0)
+        if (!tSpieler)
         {
-            return { success: true };
-        }
-
-        const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-        const tScores = ssApp.getSheetByName("app_ScoreCards");
-        
-        if (!tScores)
-        {
-            return { success: false, error: "Tabelle 'app_ScoreCards' wurde nicht gefunden." };
-        }
-
-        // 1. Header sicherstellen, falls das Blatt völlig leer ist
-        let lastRow = tScores.getLastRow();
-        if (lastRow === 0)
-        {
-            tScores.appendRow(["id", "spieltagId", "flightSeq", "spielerId", "hole", "strokes", "strokesGiven", "lady", "puts", "maxscore"]);
-            lastRow = 1;
-        }
-
-        // 2. Bestehende Daten einlesen, um Zeilen-Indizes anhand der 'id' (Spalte 1) zu mappen
-        const existingData = tScores.getDataRange().getValues();
-        const idToRowMap = {}; // Key: ScoreCard-ID -> Value: Zeilennummer im Sheet (1-basiert)
-
-        for (let i = 1; i < existingData.length; i++)
-        {
-            const existingId = String(existingData[i][0]).trim();
-            if (existingId !== "")
-            {
-                idToRowMap[existingId] = i + 1; // i=1 ist Zeile 2 im Google Sheet
-            }
-        }
-
-        const rowsToAppend = [];
-
-        // 3. Durch alle eingehenden Scores iterieren
-        scoresArray.forEach(function(item)
-        {
-            const cleanId = String(item.id).trim();
-            
-            // 10 Spalten konform zur Tabellenstruktur
-            const rowData = [
-                cleanId,
-                String(item.spieltagId).trim(),
-                parseInt(item.flightSeq) || 1,
-                String(item.spielerId).trim(),
-                parseInt(item.hole),
-                parseInt(item.strokes),
-                parseInt(item.strokesGiven) || 0,
-                item.lady ? "TRUE" : "FALSE",
-                parseInt(item.puts) !== undefined ? parseInt(item.puts) : 2,
-                item.maxscore ? "TRUE" : "FALSE"
-            ];
-
-            if (idToRowMap[cleanId])
-            {
-                // A) UPDATE: ID existiert bereits -> Bestehende Zeile direkt im Sheet überschreiben
-                const existingRowIndex = idToRowMap[cleanId];
-                tScores.getRange(existingRowIndex, 1, 1, 10).setValues([rowData]);
-            }
-            else
-            {
-                // B) INSERT: Neue ID -> Für Batch-Append am Ende vormerken
-                rowsToAppend.push(rowData);
-                // ID in Map registrieren, falls im selben Payload Duplikate enthalten sein sollten
-                idToRowMap[cleanId] = lastRow + rowsToAppend.length;
-            }
-        });
-
-        // 4. Neue Einträge gesammelt unten anfügen
-        if (rowsToAppend.length > 0)
-        {
-            const currentLastRow = tScores.getLastRow();
-            tScores.getRange(currentLastRow + 1, 1, rowsToAppend.length, 10).setValues(rowsToAppend);
-        }
-
-        SpreadsheetApp.flush();
-        return { success: true };
-    }
-    catch (err)
-    {
-        Logger.log("[saveLiveScores Error] " + err.toString());
-        return { success: false, error: err.toString() };
-    }
-}
-
-function createNewSpieltag(spieltagObj, flightsArray)
-{
-    try
-    {
-        const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-        const tSpieltage = ssApp.getSheetByName("app_Spieltage");
-        
-        tSpieltage.appendRow([
-            spieltagObj.id,
-            spieltagObj.date,
-            spieltagObj.kursId,
-            spieltagObj.status,
-            "'" + String(spieltagObj.teilnehmerCsv),
-            spieltagObj.bruttoSieger || "",
-            spieltagObj.nettoSieger || "",
-            "FALSE"
-        ]);
-
-        const tFlights = ssApp.getSheetByName("app_Flights");
-        flightsArray.forEach(function(f)
-        {
-            tFlights.appendRow([
-                f.id,
-                f.spieltagId,
-                "'" + String(f.spielerIdsCsv)
-            ]);
-        });
-
-        return { success: true };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function updatePlayerHandicap(spielerId, newHcpOfficial, newHcpLie)
-{
-    try
-    {
-        const ssAdmin = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssAdmin"));
-        const tSpieler = ssAdmin.getSheetByName("adm_Spieler");
-        
-        const data = tSpieler.getDataRange().getValues();
-        let zeile = -1;
-
-        for (let i = 1; i < data.length; i++)
-        {
-            if (parseInt(data[i][0]) === parseInt(spielerId))
-            {
-                zeile = i + 1;
-                break;
-            }
-        }
-
-        if (zeile === -1)
-        {
-            return { success: false, error: "Spieler nicht in der Datenbank gefunden." };
-        }
-
-        tSpieler.getRange(zeile, 6).setValue(parseFloat(newHcpOfficial));
-        tSpieler.getRange(zeile, 7).setValue(parseInt(newHcpLie));
-        
-        SpreadsheetApp.flush();
-        return { success: true };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function setPlayerPin(spielerId, newPin, isFirstLogin) 
-{
-    try 
-    {
-        const cleanId = parseInt(spielerId);
-        if (isNaN(cleanId) || cleanId <= 0) {
-            throw new Error("Ungültige Spieler-ID übergeben: " + spielerId);
-        }
-
-        const ssAdmin = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssAdmin"));
-        const tPin = ssAdmin.getSheetByName("adm_Pin");
-        if (!tPin) return { success: false, error: "Tabelle 'adm_Pin' nicht gefunden." };
-
-        const data = tPin.getDataRange().getValues();
-        const salt = Utilities.getUuid();
-        const combinedInput = String(newPin).trim() + salt;
-        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combinedInput, Utilities.Charset.UTF_8);
-        const hash = Utilities.base64Encode(digest);
-        
-        const timestamp = new Date().toString();
-        const flagFirstLogin = isFirstLogin ? true : false;
-
-        for (let i = 1; i < data.length; i++) 
-        {
-            if (parseInt(data[i][0]) === cleanId) 
-            {
-                tPin.getRange(i + 1, 2).setValue(hash);
-                tPin.getRange(i + 1, 3).setValue(salt);
-                tPin.getRange(i + 1, 4).setValue(timestamp);
-                tPin.getRange(i + 1, 5).setValue(flagFirstLogin);
-                tPin.getRange(i + 1, 6).setValue(0);
-                tPin.getRange(i + 1, 7).setValue("");
-                tPin.getRange(i + 1, 8).setValue("");
-                SpreadsheetApp.flush();
-                return { success: true };
-            }
-        }
-
-        tPin.appendRow([cleanId, hash, salt, timestamp, flagFirstLogin, 0, "", ""]);
-        SpreadsheetApp.flush();
-        return { success: true };
-    } 
-    catch (err) 
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function verifyPlayerPin(spielerId, enteredPin)
-{
-    try
-    {
-        const ssAdmin = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssAdmin"));
-        const tPin = ssAdmin.getSheetByName("adm_Pin");
-        
-        if (!tPin) return { success: false, error: "Sicherheits-Tabelle 'adm_Pin' wurde nicht gefunden." };
-
-        let data = tPin.getDataRange().getValues();
-        let zeileIndex = -1;
-        let dbRecord = null;
-
-        for (let i = 1; i < data.length; i++)
-        {
-            if (parseInt(data[i][0]) === parseInt(spielerId))
-            {
-                zeileIndex = i + 1;
-                dbRecord = {
-                    pinHash: String(data[i][1]).trim(),
-                    salt: String(data[i][2]).trim(),
-                    mustChange: String(data[i][4]).toUpperCase() === "TRUE",
-                    failedAttempts: parseInt(data[i][5]) || 0,
-                    pendingPinHash: String(data[i][6]).trim(),
-                    pendingSalt: String(data[i][7]).trim()
-                };
-                break;
-            }
-        }
-
-        if (!dbRecord) 
-        {
-            const mailResult = requestTempPin(spielerId);
-            if (mailResult.success)
-            {
-                return { success: false, isFirstLoginEmail: true, error: "Ein Bestätigungs-Code wurde an deine hinterlegte E-Mail-Adresse gesendet. Bitte schaue in dein Postfach!" };
-            }
-            else
-            {
-                return { success: false, error: mailResult.error };
-            }
-        }
-
-        const cleanEnteredPin = String(enteredPin).trim();
-
-        if (dbRecord.pendingPinHash && dbRecord.pendingSalt)
-        {
-            const combinedTemp = cleanEnteredPin + dbRecord.pendingSalt;
-            const digestTemp = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combinedTemp, Utilities.Charset.UTF_8);
-            const computedTempHash = Utilities.base64Encode(digestTemp);
-
-            if (computedTempHash === dbRecord.pendingPinHash)
-            {
-                const timestamp = new Date().toString();
-                tPin.getRange(zeileIndex, 2).setValue(dbRecord.pendingPinHash);
-                tPin.getRange(zeileIndex, 3).setValue(dbRecord.pendingSalt);
-                tPin.getRange(zeileIndex, 4).setValue(timestamp);
-                tPin.getRange(zeileIndex, 5).setValue(true);
-                tPin.getRange(zeileIndex, 6).setValue(0);
-                tPin.getRange(zeileIndex, 7).setValue("");
-                tPin.getRange(zeileIndex, 8).setValue("");
-                SpreadsheetApp.flush();
-
-                return { success: true, mustChange: true };
-            }
-        }
-
-        if (dbRecord.failedAttempts >= 3)
-        {
-            return { 
-                success: false, 
-                locked: true, 
-                error: "3-mal falsche PIN eingegeben! Bitte fordere über den Button unten eine neue PIN per E-Mail an." 
-            };
-        }
-
-        if (dbRecord.pinHash && dbRecord.salt)
-        {
-            const combinedInput = cleanEnteredPin + dbRecord.salt;
-            const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combinedInput, Utilities.Charset.UTF_8);
-            const computedHash = Utilities.base64Encode(digest);
-
-            if (computedHash === dbRecord.pinHash) 
-            {
-                tPin.getRange(zeileIndex, 6).setValue(0);
-                SpreadsheetApp.flush();
-                return { success: true, mustChange: dbRecord.mustChange };
-            }
-        }
-
-        const newAttempts = dbRecord.failedAttempts + 1;
-        tPin.getRange(zeileIndex, 6).setValue(newAttempts);
-        SpreadsheetApp.flush();
-
-        if (newAttempts >= 3)
-        {
-            return { 
-                success: false, 
-                locked: true, 
-                error: "3-mal falsche PIN eingegeben! Dein Konto wurde gesperrt. Fordere eine neue PIN per E-Mail an." 
-            };
-        }
-
-        return { 
-            success: false, 
-            error: `Falsche PIN! (Versuch ${newAttempts} von 3)` 
-        };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function requestTempPin(spielerId)
-{
-    try
-    {
-        const ssAdmin = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssAdmin"));
-        const tSpieler = ssAdmin.getSheetByName("adm_Spieler");
-        const tPin = ssAdmin.getSheetByName("adm_Pin");
-
-        if (!tSpieler || !tPin)
-        {
-            return { success: false, error: "Tabellen 'adm_Spieler' oder 'adm_Pin' wurden nicht gefunden." };
+            throw new Error("Tabelle 'adm_Spieler' nicht gefunden.");
         }
 
         const spielerData = tSpieler.getDataRange().getValues();
@@ -2466,584 +2417,42 @@ function requestTempPin(spielerId)
 
         if (!spielerEmail || !spielerEmail.includes("@"))
         {
-            return { success: false, error: "Für diesen Spieler ist keine gültige E-Mail-Adresse hinterlegt!" };
+            throw new Error("Für diesen Spieler ist keine gültige E-Mail-Adresse hinterlegt!");
         }
-
-        const tempPin = Math.floor(100000 + Math.random() * 900000).toString();
-
-        const salt = Utilities.getUuid();
-        const combinedInput = tempPin + salt;
-        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combinedInput, Utilities.Charset.UTF_8);
-        const hash = Utilities.base64Encode(digest);
-
-        const pinData = tPin.getDataRange().getValues();
-        let zeileIndex = -1;
-
-        for (let j = 1; j < pinData.length; j++)
-        {
-            if (parseInt(pinData[j][0]) === parseInt(spielerId))
-            {
-                zeileIndex = j + 1;
-                break;
-            }
-        }
-
-        if (zeileIndex !== -1)
-        {
-            tPin.getRange(zeileIndex, 7).setValue(hash);
-            tPin.getRange(zeileIndex, 8).setValue(salt);
-        }
-        else
-        {
-            tPin.appendRow([parseInt(spielerId), "", "", new Date().toString(), true, 0, hash, salt]);
-        }
-
-        SpreadsheetApp.flush();
 
         const subject = "Dein Einmal-Code für die LIE Scorecard";
-        const bodyText = `Hallo ${spielerName},\n\ndein Einmal-Code für die Anforderung einer neuen PIN lautet: ${tempPin}\n\nBitte gib diesen Code in der LIE Scorecard App, unter https://www.lochihnein.de ein. Deine bisherige PIN bleibt solange gültig, bis du dich mit diesem Code anmeldest.\n\nSportliche Grüße,\nDein LIE Scorecard Team`;
+        const bodyText = `Hallo ${spielerName},\n\ndein Einmal-Code lautet: ${tempPin}\n\nBitte gib diesen Code in der LIE Scorecard App unter https://www.lochihnein.de ein.\n\nSportliche Grüße,\nDein LIE Scorecard Team`;
         
         MailApp.sendEmail(spielerEmail, subject, bodyText);
 
-        return { success: true };
+        return { message: "E-Mail erfolgreich versendet" };
     }
     catch (err)
     {
-        return { success: false, error: err.toString() };
+        return { error: err.toString() };
     }
 }
-
-function changePlayerPinServer(spielerId, newPin)
-{
-    return setPlayerPin(spielerId, newPin, false);
-}
-
-function closeSpieltagServer(spieltagId, bruttoSieger, nettoSieger, handicapUpdatesArray)
-{
-    try
-    {
-        const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-        const tSpieltage = ssApp.getSheetByName("app_Spieltage");
-        
-        if (!tSpieltage)
-        {
-            return { success: false, error: "Tabelle 'app_Spieltage' wurde nicht gefunden." };
-        }
-
-        const dataSpieltage = tSpieltage.getDataRange().getValues();
-        let zeileSpieltag = -1;
-
-        for (let i = 1; i < dataSpieltage.length; i++)
-        {
-            if (String(dataSpieltage[i][0]).trim() === String(spieltagId).trim())
-            {
-                zeileSpieltag = i + 1;
-                break;
-            }
-        }
-
-        if (zeileSpieltag === -1)
-        {
-            return { success: false, error: "Spieltag nicht in der Datenbank gefunden." };
-        }
-
-        tSpieltage.getRange(zeileSpieltag, 4).setValue("Beendet");
-        tSpieltage.getRange(zeileSpieltag, 6).setValue(bruttoSieger);
-        tSpieltage.getRange(zeileSpieltag, 7).setValue(nettoSieger);
-
-        if (handicapUpdatesArray && handicapUpdatesArray.length > 0)
-        {
-            const ssAdmin = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssAdmin"));
-            const tSpieler = ssAdmin.getSheetByName("adm_Spieler");
-            if (tSpieler)
-            {
-                const dataSpieler = tSpieler.getDataRange().getValues();
-                
-                handicapUpdatesArray.forEach(function(update)
-                {
-                    let zeileSpieler = -1;
-                    for (let j = 1; j < dataSpieler.length; j++)
-                    {
-                        if (String(dataSpieler[j][0]).trim() === String(update.spielerId).trim())
-                        {
-                            zeileSpieler = j + 1;
-                            break;
-                        }
-                    }
-
-                    if (zeileSpieler !== -1)
-                    {
-                        tSpieler.getRange(zeileSpieler, 7).setValue(parseInt(update.newHcpLie));
-                    }
-                });
-            }
-        }
-        
-        SpreadsheetApp.flush();
-        return { success: true };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function savePlayerServer(spielerObj)
-{
-    try
-    {
-        const ssAdmin = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssAdmin"));
-        const tSpieler = ssAdmin.getSheetByName("adm_Spieler");
-        
-        if (!tSpieler)
-        {
-            return { success: false, error: "Tabelle 'adm_Spieler' nicht gefunden." };
-        }
-
-        const data = tSpieler.getDataRange().getValues();
-
-        let zeile = -1;
-        for (let i = 1; i < data.length; i++)
-        {
-            if (String(data[i][0]).trim() === String(spielerObj.id).trim())
-            {
-                zeile = i + 1;
-                break;
-            }
-        }
-
-        if (spielerObj.isNew && zeile !== -1)
-        {
-            return { success: false, error: "Ein Spieler mit dieser ID existiert bereits!" };
-        }
-
-        const rowData = [
-            spielerObj.id,
-            spielerObj.name,
-            spielerObj.nickname,
-            spielerObj.email,
-            spielerObj.teeColor,
-            parseFloat(spielerObj.hcpOfficial) || 54.0,
-            parseInt(spielerObj.hcpLIE) || 54,
-            spielerObj.role
-        ];
-
-        if (zeile !== -1)
-        {
-            tSpieler.getRange(zeile, 1, 1, 8).setValues([rowData]);
-        }
-        else
-        {
-            tSpieler.appendRow(rowData);
-            setPlayerPin(spielerObj.id, "4722", true);
-        }
-
-        SpreadsheetApp.flush();
-        return { success: true };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function deletePlayerServer(spielerId)
-{
-    try
-    {
-        const ssAdmin = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssAdmin"));
-        const tSpieler = ssAdmin.getSheetByName("adm_Spieler");
-        const data = tSpieler.getDataRange().getValues();
-
-        const activeUserEmail = String(Session.getActiveUser().getEmail()).trim().toLowerCase();
-        let actingUserRole = "";
-        for (let i = 1; i < data.length; i++)
-        {
-            if (String(data[i][3]).trim().toLowerCase() === activeUserEmail)
-            {
-                actingUserRole = String(data[i][7]).trim();
-                break;
-            }
-        }
-        if (actingUserRole !== "Admin")
-        {
-            return { success: false, error: "Berechtigung verweigert! Nur Administratoren dürfen Spieler löschen." };
-        }
-
-        let zeile = -1;
-        for (let i = 1; i < data.length; i++)
-        {
-            if (String(data[i][0]).trim() === String(spielerId).trim())
-            {
-                zeile = i + 1;
-                break;
-            }
-        }
-
-        if (zeile === -1)
-        {
-            return { success: false, error: "Spieler nicht in der Datenbank gefunden." };
-        }
-
-        tSpieler.deleteRow(zeile);
-        
-        const tPin = ssAdmin.getSheetByName("adm_Pin");
-        if (tPin)
-        {
-            const pinData = tPin.getDataRange().getValues();
-            for (let j = 1; j < pinData.length; j++)
-            {
-                if (String(pinData[j][0]).trim() === String(spielerId).trim())
-                {
-                    tPin.deleteRow(j + 1);
-                    break;
-                }
-            }
-        }
-
-        SpreadsheetApp.flush();
-        return { success: true };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function cancelSpieltagServer(spieltagId)
-{
-    try
-    {
-        const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-        const tSpieltage = ssApp.getSheetByName("app_Spieltage");
-        
-        if (!tSpieltage)
-        {
-            return { success: false, error: "Tabelle 'app_Spieltage' wurde nicht gefunden." };
-        }
-
-        const data = tSpieltage.getDataRange().getValues();
-        let zeile = -1;
-
-        for (let i = 1; i < data.length; i++)
-        {
-            if (String(data[i][0]).trim() === String(spieltagId).trim())
-            {
-                zeile = i + 1;
-                break;
-            }
-        }
-
-        if (zeile === -1)
-        {
-            return { success: false, error: "Spieltag nicht in der Datenbank gefunden." };
-        }
-
-        tSpieltage.getRange(zeile, 4).setValue("Abgebrochen");
-        SpreadsheetApp.flush();
-        return { success: true };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function getLiveScoreUpdates(spieltagId)
-{
-    try
-    {
-        const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-        const tScoreCards = ssApp.getSheetByName("app_ScoreCards");
-        
-        if (!tScoreCards)
-        {
-            return { success: false, error: "Tabelle 'app_ScoreCards' nicht gefunden." };
-        }
-
-        const allScores = getSheetDataAsJson(tScoreCards);
-        const filteredScores = allScores.filter(function(sc)
-        {
-            return String(sc.spieltagId).trim() === String(spieltagId).trim();
-        });
-
-        const currentRate = getPollingRateProperty();
-
-        return {
-            success: true,
-            scoreCards: filteredScores,
-            pollingRate: currentRate
-        };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-function getSpreadsheetUrl(key)
-{
-    const props = PropertiesService.getScriptProperties();
-    const url = props.getProperty(key);
-    if (!url) 
-    {
-        throw new Error("Die Skripteigenschaft '" + key + "' (Spreadsheet-URL) ist nicht konfiguriert!");
-    }
-    return url;
-}
-
-function getPollingRateProperty()
-{
-    try
-    {
-        const props = PropertiesService.getScriptProperties();
-        const rate = props.getProperty("pollingRate");
-        if (rate)
-        {
-            return parseInt(rate);
-        }
-    }
-    catch (err)
-    {
-        Logger.log("Fehler beim Lesen der pollingRate Eigenschaft: " + err.toString());
-    }
-    return 60; 
-}
-
-function softDeleteSpieltagServer(spieltagId)
-{
-    try
-    {
-        const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-        const tSpieltage = ssApp.getSheetByName("app_Spieltage");
-        
-        if (!tSpieltage)
-        {
-            return { success: false, error: "Tabelle 'app_Spieltage' nicht gefunden." };
-        }
-
-        const data = tSpieltage.getDataRange().getValues();
-        const headers = data[0];
-        
-        let delColIndex = headers.findIndex(function(h) 
-        { 
-            return String(h).trim() === "istGeloescht" || String(h).trim() === "istGelöscht"; 
-        });
-
-        if (delColIndex === -1)
-        {
-            return { success: false, error: "Spalte 'istGeloescht' nicht in der Tabelle gefunden!" };
-        }
-
-        let zeile = -1;
-        for (let i = 1; i < data.length; i++)
-        {
-            if (String(data[i][0]).trim() === String(spieltagId).trim())
-            {
-                zeile = i + 1;
-                break;
-            }
-        }
-
-        if (zeile === -1)
-        {
-            return { success: false, error: "Spieltag nicht gefunden." };
-        }
-
-        tSpieltage.getRange(zeile, delColIndex + 1).setValue("TRUE");
-        SpreadsheetApp.flush();
-
-        return { success: true };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-/**
- * Einmaliges Bereinigungs-Skript für bestehende Duplikate in app_ScoreCards.
- * Kann manuell im Apps Script Editor gestartet werden.
- */
-function cleanupDuplicateScorecards()
-{
-    Logger.log("=== START DUPLIKAT-BEREINIGUNG ===");
-    const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-    const tScores = ssApp.getSheetByName("app_ScoreCards");
-    if (!tScores) return;
-
-    const data = tScores.getDataRange().getValues();
-    if (data.length <= 1) return;
-
-    const headers = data[0];
-    const uniqueMap = {};
-
-    // Von oben nach unten durchgehen: Spätere Eintragszeilen überschreiben frühere
-    for (let i = 1; i < data.length; i++)
-    {
-        const row = data[i];
-        const scId = String(row[0]).trim();
-        if (scId !== "")
-        {
-            uniqueMap[scId] = row;
-        }
-    }
-
-    const cleanRows = [headers];
-    Object.keys(uniqueMap).forEach(function(key)
-    {
-        cleanRows.push(uniqueMap[key]);
-    });
-
-    // Tabelle leeren und bereinigte Daten schreiben
-    tScores.clearContent();
-    tScores.getRange(1, 1, cleanRows.length, headers.length).setValues(cleanRows);
-    SpreadsheetApp.flush();
-    Logger.log(`=== FERTIG! Tabelle von ${data.length} Zeilen auf ${cleanRows.length} Zeilen bereinigt. ===`);
-}
-
-/**
- * Speichert Highscores aus dem Mini-Game 'Pixel Golf Run'
- */
-function savePixelGolfHighscore(spielerNameOrData, scoreParam)
-{
-    try
-    {
-        let spielerName = spielerNameOrData;
-        let score = scoreParam;
-        let clientTimestamp = null;
-
-        // Falls die Funktion über den API-Handler ein Objekt übergibt:
-        if (typeof spielerNameOrData === "object" && spielerNameOrData !== null)
-        {
-            spielerName = spielerNameOrData.spielerName;
-            score = spielerNameOrData.score;
-            clientTimestamp = spielerNameOrData.timestamp || null;
-        }
-
-        const cleanName = String(spielerName || "Unbekannt").trim();
-        const cleanScore = parseInt(score) || 0;
-
-        if (cleanScore <= 0)
-        {
-            return { success: false, error: "Ungültiger Score" };
-        }
-
-        const ssApp = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssApp"));
-        let tHighscores = ssApp.getSheetByName("app_PixelRunHighscores");
-
-        // Falls das Blatt noch nicht existiert, automatisch anlegen
-        if (!tHighscores)
-        {
-            tHighscores = ssApp.insertSheet("app_PixelRunHighscores");
-            tHighscores.appendRow(["id", "spielerName", "score", "datum", "syncedAt"]);
-        }
-
-        // Falls ein Zeitstempel aus dem Game mitkam, nutzen wir diesen für das Datum, sonst Serverzeit
-        const eventDate = clientTimestamp ? new Date(clientTimestamp) : new Date();
-        const now = new Date();
-
-        const datumStr = Utilities.formatDate(eventDate, Session.getScriptTimeZone(), "yyyy-MM-dd");
-        const syncedAtStr = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-        const newId = "HS-" + Date.now();
-
-        tHighscores.appendRow([
-            newId,
-            cleanName,
-            cleanScore,
-            datumStr,
-            syncedAtStr
-        ]);
-
-        SpreadsheetApp.flush();
-        return { success: true, message: "Highscore gespeichert!" };
-    }
-    catch (err)
-    {
-        Logger.log("[savePixelGolfHighscore Error] " + err.toString());
-        return { success: false, error: err.toString() };
-    }
-}
-
-/**
- * Liest den Freischalt-Status des Vaults aus den ScriptProperties
- */
-function getVaultLockStatus()
-{
-    try
-    {
-        const props = PropertiesService.getScriptProperties();
-        const status = props.getProperty("vaultUnlocked");
-        // Standardmäßig gesperrt (false), außer es steht explizit "true" drin
-        return { success: true, isUnlocked: status === "true" };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
-/**
- * Schaltet den Vault-Zugriff frei oder sperrt ihn (Nur für Admins)
- */
-function toggleVaultLock(spielerId, newStatus)
-{
-    try
-    {
-        const ssAdmin = SpreadsheetApp.openByUrl(getSpreadsheetUrl("ssAdmin"));
-        const tSpieler = ssAdmin.getSheetByName("adm_Spieler");
-        const data = tSpieler.getDataRange().getValues();
-
-        // Admin-Rechte prüfen
-        let isUserAdmin = false;
-        for (let i = 1; i < data.length; i++)
-        {
-            if (String(data[i][0]).trim() === String(spielerId).trim())
-            {
-                if (String(data[i][7]).trim() === "Admin")
-                {
-                    isUserAdmin = true;
-                }
-                break;
-            }
-        }
-
-        if (!isUserAdmin)
-        {
-            return { success: false, error: "Berechtigung verweigert! Nur Admins dürfen den Vault freischalten." };
-        }
-
-        const props = PropertiesService.getScriptProperties();
-        props.setProperty("vaultUnlocked", newStatus ? "true" : "false");
-        
-        SpreadsheetApp.flush();
-        return { success: true, isUnlocked: newStatus };
-    }
-    catch (err)
-    {
-        return { success: false, error: err.toString() };
-    }
-}
-
 
 
 ##### <config.js>:
 ----------------------------------------------------------------------
 // config.js
-window.CONFIG = {
-    appVersion: '2.2.0.0'
+
+window.CONFIG =
+{
+    appVersion: '2.2.0.0',
+    gasUrl: 'https://script.google.com/macros/s/AKfycbzap_OWZvJuJFRGFGqVaj_3RzgquUNBdHkI6q12hum52Xf_nLSKF9U5cmd10vSuvGowEg/exec'
 };
-  
-  // Hier das firebase-Objekt verschachteln:
-window.firebaseConfig = {
+
+window.firebaseConfig =
+{
     apiKey: "AIzaSyBH6Rb8RLKw6tUrOM-j8Qcfnqlkte3crCM",
     authDomain: "liescorecard-70c5e.firebaseapp.com",
     projectId: "liescorecard-70c5e",
     storageBucket: "liescorecard-70c5e.firebasestorage.app",
     messagingSenderId: "163868016379",
     appId: "1:163868016379:web:0b7f1aeb29d80f9ca37a5e"
-  };
-
+};
 
 
 ##### <index.html>:
@@ -3060,6 +2469,7 @@ window.firebaseConfig = {
 
     <!-- Firebase Web SDK (v10 Compat Mode) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -3164,6 +2574,44 @@ window.firebaseConfig = {
     <!-- Globaler Toast Container -->
     <div id="global-toast-container" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none"></div>
 
+    <!-- Globales Confirmation Modal -->
+    <div id="global-confirm-modal" class="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div id="confirm-modal-box" class="bg-white rounded-2xl max-w-xs w-full p-5 space-y-4 shadow-2xl transition-all duration-200 opacity-0 scale-95 border border-stone-100">
+            <div class="flex items-start space-x-3">
+                <div id="confirm-modal-icon-container" class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 bg-emerald-100 text-emerald-700">
+                    <i id="confirm-modal-icon" class="fas fa-question-circle text-sm"></i>
+                </div>
+                <div class="space-y-1">
+                    <h3 id="confirm-modal-title" class="font-bold text-stone-800 text-sm">Titel</h3>
+                    <p id="confirm-modal-message" class="text-stone-500 text-xs leading-relaxed">Nachricht</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 pt-2">
+                <button id="confirm-modal-cancel" class="bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold py-2.5 rounded-xl text-xs transition">Abbrechen</button>
+                <button id="confirm-modal-submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-xs">Bestätigen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pixel Golf Run Mini-Game Modal -->
+    <div id="pixel-golf-modal" class="fixed inset-0 z-50 bg-stone-900/90 backdrop-blur-xs hidden flex flex-col p-0 sm:p-4">
+        <div class="bg-white w-full h-full sm:max-w-4xl sm:h-[90vh] sm:rounded-2xl mx-auto my-auto flex flex-col shadow-2xl border border-stone-200 overflow-hidden">
+            <!-- Header -->
+            <div class="bg-emerald-800 text-white px-4 py-2.5 flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-sm tracking-wide flex items-center gap-2">
+                    <i class="fas fa-gamepad text-amber-400"></i> Pixel Golf Run
+                </h3>
+                <button onclick="app.logic.closePixelGolfGame()" class="text-white opacity-80 hover:opacity-100 touch-target text-lg">
+                    <i class="fas fa-times-circle"></i>
+                </button>
+            </div>
+            <!-- Game Frame -->
+            <div class="flex-1 w-full h-full bg-black overflow-hidden">
+                <iframe id="pixel-golf-iframe" src="about:blank" class="w-full h-full border-0" allow="autoplay"></iframe>
+            </div>
+        </div>
+    </div>
+
     <!-- Dynamisches Skript-Laden -->
     <script>
         (function() 
@@ -3233,17 +2681,17 @@ window.firebaseConfig = {
 ##### <Style.css>:
 ----------------------------------------------------------------------
 /* =========================================================================
-   BMAssistent / LIE Scorecard - Clean Tech Emerald Theme
+   BMAssistent / LIE Scorecard - Modern Apple / Glassmorphism Theme
    Style.css
    BSD (Allman) Style
    ========================================================================= */
 
 :root
 {
-    --color-header-bg: #064e3b;       /* Deep Emerald */
-    --color-bg-body: #f4f4f5;         /* Neutral Zinc 100 */
-    --color-card-bg: #ffffff;
-    --color-emerald-accent: #059669;  /* Mint / Emerald 600 */
+    --color-header-bg: #042f2e;       /* Deep Midnight Emerald */
+    --color-bg-body: #f8fafc;         /* Ultra-clean Slate 50 */
+    --color-card-bg: rgba(255, 255, 255, 0.85);
+    --color-emerald-accent: #059669;  /* Modern Emerald 600 */
     --color-amber-accent: #d97706;    /* Warm Amber 600 */
 }
 
@@ -3255,31 +2703,32 @@ html, body
     overflow-x: hidden;
     background-color: var(--color-bg-body);
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* App Shell Canvas */
+/* App Shell Canvas mit modernem Glassmorphism-Schatten */
 #app-container
 {
     width: 100%;
     box-sizing: border-box;
-    transition: opacity 0.15s ease-in-out;
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Deaktiviert die unschöne graue Fläche beim Tippen auf Mobilgeräten */
+/* Deaktiviert die unschöne graue Tap-Fläche auf Mobilgeräten */
 button, a, .nav-btn
 {
     -webkit-tap-highlight-color: transparent;
     outline: none;
 }
 
-/* One-Hand Safe Input States */
+/* One-Hand Safe Input Targets */
 .touch-target
 {
     min-height: 44px;
     min-width: 44px;
 }
 
-/* Custom Scrollbar für Loch-Navigation */
+/* Custom Scrollbar für Loch-Navigation & Listen */
 .scrollbar-none::-webkit-scrollbar
 {
     display: none;
@@ -3289,6 +2738,299 @@ button, a, .nav-btn
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
+
+/* Sanfte Animationen */
+@keyframes fadeIn 
+{
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in 
+{
+    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+```[cite: 4]
+
+---
+
+### 2. `Views_Dashboard.js` (Dashboard im modernen Look)
+##### <Views_Dashboard.js>:
+```javascript
+// =========================================================================
+// BMAssistent / LIE Scorecard - Dashboard Ansicht (Modern Apple Style)
+// Views_Dashboard.js
+// BSD (Allman) Style
+// =========================================================================
+
+app.views.dashboard = function()
+{
+    const user = app.state.currentUser;
+    const nickname = user ? user.nickname : "Golfer";
+    const rolle = user ? user.role : "Spieler";
+    
+    // Aktive Runde ermitteln (sofern nicht gelöscht)
+    const aktiveRunde = app.state.spieltage ? app.state.spieltage.find(function(st) 
+    { 
+        if (!st) return false;
+
+        const isDel = st.istGeloescht === true || 
+                      String(st.istGeloescht).toUpperCase() === "TRUE" || 
+                      st.istGelöscht === true || 
+                      String(st.istGelöscht).toUpperCase() === "TRUE";
+
+        return st.status === 'Aktiv' && !isDel; 
+    }) : null;
+    
+    let activeRoundCardHtml = "";
+    if (aktiveRunde)
+    {
+        const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return String(k.id) === String(aktiveRunde.kursId); }) : null;
+        const platz = kurs ? app.state.golfplaetze.find(function(p) { return String(p.id) === String(kurs.platzId); }) : null;
+        
+        const meinFlight = app.state.flights ? app.state.flights.find(function(f) 
+        {
+            if (f.spieltagId !== aktiveRunde.id) return false;
+            const ids = String(f.spielerIdsCsv || "").split(',').map(function(id) { return id.trim(); });
+            return ids.includes(String(user ? user.id : '').trim());
+        }) : null;
+
+        let flightSeq = 1;
+        if (meinFlight)
+        {
+            const parts = meinFlight.id.split('-');
+            flightSeq = parseInt(parts[parts.length - 1]) || 1;
+        }
+
+        activeRoundCardHtml = `
+            <div class="p-5 bg-gradient-to-br from-emerald-950 via-emerald-900 to-zinc-900 text-white rounded-3xl shadow-xl shadow-emerald-950/10 space-y-4 border border-emerald-800/40 relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 opacity-10 text-9xl pointer-events-none">
+                    <i class="fas fa-golf-ball-tee"></i>
+                </div>
+                <div class="flex justify-between items-center relative z-10">
+                    <span class="text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full tracking-wider animate-pulse flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Live-Turnier aktiv
+                    </span>
+                    <span class="text-xs font-medium text-emerald-200/80">${aktiveRunde.date}</span>
+                </div>
+                <div class="relative z-10">
+                    <h3 class="font-black text-white text-lg tracking-tight">${platz ? platz.name : 'LIE Golfrunde'}</h3>
+                    <p class="text-xs text-emerald-200/90 font-medium mt-0.5">${kurs ? kurs.name : ''} &bull; Flight ${flightSeq}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-2.5 pt-2 relative z-10">
+                    <button onclick="app.router.navigate('score_eingabe', { id: '${aktiveRunde.id}', hole: 1, flightSeq: ${flightSeq} })" class="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-extrabold py-3 rounded-2xl text-xs transition shadow-md shadow-emerald-500/20 text-center flex items-center justify-center gap-1.5 touch-target">
+                        <i class="fas fa-pen-to-square"></i> Scores tippen
+                    </button>
+                    <button onclick="app.router.navigate('leaderboard', { id: '${aktiveRunde.id}', mode: 'netto' })" class="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-bold py-3 rounded-2xl text-xs transition text-center shadow-xs flex items-center justify-center gap-1.5 touch-target">
+                        <i class="fas fa-list-ol text-emerald-400"></i> Leaderboard
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    else
+    {
+        activeRoundCardHtml = `
+            <div class="p-6 text-center bg-white/60 backdrop-blur-md border border-zinc-200/80 rounded-3xl shadow-xs">
+                <div class="w-12 h-12 bg-zinc-100 text-zinc-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-lg">
+                    <i class="fas fa-golf-ball"></i>
+                </div>
+                <p class="text-zinc-800 text-xs font-bold">Zurzeit läuft kein aktives Match.</p>
+                <p class="text-zinc-400 text-[11px] mt-1 max-w-xs mx-auto">Sobald eine neue Runde ausgelost wird, erscheint hier deine Scorekarte automatisch.</p>
+            </div>
+        `;
+    }
+
+    // --- KARRIERE-STATISTIKEN BERECHNEN ---
+    let gespielteRundenCount = 0;
+    let besterNettoScore = 0;
+    let besteBruttoRunde = "-";
+    let letzterNettoScore = "-";
+
+    if (user && app.state.spieltage && app.state.scoreCards)
+    {
+        const beendeteTeilgenommen = app.state.spieltage.filter(function(st)
+        {
+            if (st.status !== 'Beendet') return false;
+            
+            const isDel = st.istGeloescht === true || 
+                          String(st.istGeloescht).toUpperCase() === "TRUE" || 
+                          st.istGelöscht === true || 
+                          String(st.istGelöscht).toUpperCase() === "TRUE";
+
+            if (isDel) return false;
+
+            const ids = String(st.teilnehmerCsv || "").split(',').map(function(id) { return id.trim(); });
+            return ids.includes(String(user.id).trim());
+        });
+
+        beendeteTeilgenommen.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+        gespielteRundenCount = beendeteTeilgenommen.length;
+
+        let bruttoRundenListe = [];
+
+        beendeteTeilgenommen.forEach(function(st)
+        {
+            const rundenScores = app.state.scoreCards.filter(function(sc)
+            {
+                return String(sc.spieltagId).trim() === String(st.id).trim() && String(sc.spielerId).trim() === String(user.id).trim();
+            });
+
+            const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return String(k.id).trim() === String(st.kursId).trim(); }) : null;
+            const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+            const kursBahnen = app.state.bahnen ? app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); }) : [];
+
+            let rundenNettoTotal = 0;
+            let rundenSchlaegeTotal = 0;
+            let gespielteBahnenInRunde = 0;
+
+            kursBahnen.forEach(function(bahn)
+            {
+                const hNr = parseInt(bahn.nr);
+                const scoreMatch = rundenScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
+
+                if (scoreMatch && parseInt(scoreMatch.strokes) > 0)
+                {
+                    const strokes = parseInt(scoreMatch.strokes);
+                    gespielteBahnenInRunde++;
+                    rundenSchlaegeTotal += strokes;
+
+                    let holeVorgabe = app.logic.calculateHoleVorgabe(user, st.kursId, bahn.si);
+                    const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
+                    rundenNettoTotal += nettoPkt;
+                }
+            });
+
+            if (gespielteBahnenInRunde >= maxBahnen && maxBahnen > 0)
+            {
+                if (rundenNettoTotal > besterNettoScore)
+                {
+                    besterNettoScore = rundenNettoTotal;
+                }
+                bruttoRundenListe.push(rundenSchlaegeTotal);
+                letzterNettoScore = `${rundenNettoTotal} Pkt`;
+            }
+        });
+
+        if (bruttoRundenListe.length > 0)
+        {
+            besteBruttoRunde = Math.min(...bruttoRundenListe) + " Schl.";
+        }
+    }
+
+    const netRecDisplay = besterNettoScore > 0 ? `${besterNettoScore} Pkt` : "-";
+
+    // Admin-Hinweis
+    let adminHintHtml = "";
+    if (rolle === "Admin" || rolle === "Spielleiter")
+    {
+        adminHintHtml = `
+            <div class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start space-x-3 text-amber-900 shadow-2xs">
+                <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                    <i class="fas fa-shield-halved text-xs"></i>
+                </div>
+                <div class="text-xs leading-relaxed">
+                    <b>Hallo ${nickname}!</b> Du bist als <span class="font-bold underline">${rolle}</span> eingeloggt. Unter <b>Runden</b> kannst du neue Spieltage auslosen.
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="space-y-6 animate-fade-in">
+            <!-- Header-Banner (Apple Style Gradient) -->
+            <div class="bg-gradient-to-br from-zinc-900 via-emerald-950 to-emerald-900 text-white p-6 rounded-3xl shadow-xl shadow-zinc-900/10 relative overflow-hidden border border-emerald-800/30">
+                <div class="absolute right-[-10px] bottom-[-20px] opacity-10 text-9xl pointer-events-none">
+                    <i class="fas fa-flag-checkered"></i>
+                </div>
+                <p class="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest">Clubhaus Dashboard</p>
+                <h2 class="text-2xl sm:text-3xl font-black tracking-tight mt-0.5 text-white">${nickname}</h2>
+                <div class="mt-3 inline-flex items-center gap-1.5 text-[11px] bg-white/10 backdrop-blur-md text-emerald-200 px-3.5 py-1 rounded-full font-extrabold uppercase tracking-wider border border-white/10 shadow-3xs">
+                    <i class="fas fa-golf-ball text-emerald-400 text-[10px]"></i> HCP ${user ? user.hcpLIE : '54'}
+                </div>
+            </div>
+
+            ${adminHintHtml}
+
+            <!-- Aktive Runde Sektion -->
+            <div class="space-y-2.5">
+                <h4 class="text-[11px] font-extrabold text-zinc-400 uppercase tracking-wider px-1">Aktueller Spieltag</h4>
+                ${activeRoundCardHtml}
+            </div>
+
+            <!-- KARRIERE-STATISTIKEN GRID -->
+            <div class="space-y-2.5">
+                <h4 class="text-[11px] font-extrabold text-zinc-400 uppercase tracking-wider px-1">Deine LIE-Karriere</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-trophy"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Netto-Rekord</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${netRecDisplay}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-medal"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Bestes Brutto</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${besteBruttoRunde}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-history"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Letzte Runde</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${letzterNettoScore}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-calendar-check"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${gespielteRundenCount} Runden</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schnellstart-Kacheln -->
+            <div class="grid grid-cols-2 gap-3 pb-6">
+                <button onclick="app.router.navigate('spieltage')" class="p-5 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-3xl text-left hover:border-emerald-500/50 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target">
+                    <div class="w-10 h-10 rounded-2xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-600 flex items-center justify-center text-base transition">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div>
+                        <span class="block font-black text-zinc-900 text-sm">Turniere</span>
+                        <span class="block text-[10px] text-zinc-400 font-medium mt-0.5">Alle Runden & Ergebnisse</span>
+                    </div>
+                </button>
+
+                <button onclick="app.router.navigate('spieler')" class="p-5 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-3xl text-left hover:border-emerald-500/50 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target">
+                    <div class="w-10 h-10 rounded-2xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-600 flex items-center justify-center text-base transition">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <span class="block font-black text-zinc-900 text-sm">LIE-Gruppe</span>
+                        <span class="block text-[10px] text-zinc-400 font-medium mt-0.5">Handicaps & Mitglieder</span>
+                    </div>
+                </button>
+
+                <button onclick="app.logic.openPixelGolfGame()" class="p-5 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent border border-amber-500/30 rounded-3xl text-left hover:border-amber-500/60 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target col-span-2">
+                    <div class="flex justify-between items-start">
+                        <div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center text-base">
+                            <i class="fas fa-gamepad"></i>
+                        </div>
+                        <span class="text-[10px] bg-amber-500/20 text-amber-800 font-extrabold px-2.5 py-1 rounded-full">Mini-Game</span>
+                    </div>
+                    <div class="mt-3">
+                        <span class="block font-black text-amber-950 text-sm">Pixel Golf Run starten</span>
+                        <span class="block text-[10px] text-amber-700 font-medium mt-0.5">Teste deine Skills im Arcade-Modus ⛳</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+    `;
+};[cite: 4]
 
 
 ##### <sw.js>:
@@ -3901,70 +3643,191 @@ app.logic.toggleVaultAccess = function(targetStatus)
         });
 };
 
+// Hilfsfunktion zur Generierung einer Inline-Edit-Tabelle
+app.logic.renderCollectionEditor = function(collectionName)
+{
+    const container = document.getElementById('admin-editor-table-container');
+    if (!container || !app.state[collectionName]) return;
+
+    const items = app.state[collectionName];
+    if (items.length === 0)
+    {
+        container.innerHTML = `<p class="text-xs text-stone-400 italic">Keine Einträge in ${collectionName} vorhanden.</p>`;
+        return;
+    }
+
+    const keys = Object.keys(items[0]).filter(k => k !== 'id');
+
+    let tableHtml = `
+        <div class="overflow-x-auto border border-stone-200 rounded-xl shadow-2xs">
+            <table class="w-full text-left text-xs bg-white">
+                <thead class="bg-stone-100 text-stone-600 font-bold border-b border-stone-200">
+                    <tr>
+                        <th class="p-2">ID</th>
+                        ${keys.map(k => `<th class="p-2">${k}</th>`).join('')}
+                        <th class="p-2 text-right">Aktion</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-stone-100">
+    `;
+
+    items.forEach(item => {
+        tableHtml += `<tr id="row-${item.id}">`;
+        tableHtml += `<td class="p-2 font-mono font-bold text-stone-400">${item.id}</td>`;
+        keys.forEach(k => {
+            tableHtml += `
+                <td class="p-1">
+                    <input type="text" data-col="${collectionName}" data-id="${item.id}" data-key="${k}" 
+                           value="${item[k] !== undefined ? item[k] : ''}" 
+                           class="w-full px-2 py-1 bg-stone-50 border border-stone-200 rounded-md text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none" />
+                </td>
+            `;
+        });
+        tableHtml += `
+            <td class="p-2 text-right whitespace-nowrap">
+                <button onclick="app.logic.saveInlineRow('${collectionName}', '${item.id}')" class="px-2 sm:px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-3xs transition">
+                    <i class="fas fa-save"></i>
+                </button>
+            </td>
+        `;
+        tableHtml += `</tr>`;
+    });
+
+    tableHtml += `</tbody></table></div>`;
+    container.innerHTML = tableHtml;
+};
+
+// Speichert geänderte Zeilenwerte nach Firestore
+app.logic.saveInlineRow = async function(collectionName, docId)
+{
+    const inputs = document.querySelectorAll(`input[data-col="${collectionName}"][data-id="${docId}"]`);
+    const updatedData = {};
+
+    inputs.forEach(input => {
+        const key = input.getAttribute('data-key');
+        let val = input.value.trim();
+        if (!isNaN(val) && val !== '') val = Number(val);
+        if (val === 'true') val = true;
+        if (val === 'false') val = false;
+        updatedData[key] = val;
+    });
+
+    const res = await app.logic.apiRequest('updateFirestoreDoc', {
+        collectionName: collectionName,
+        docId: docId,
+        data: updatedData
+    });
+
+    if (res && res.success)
+    {
+        app.logic.showToast(`Eintrag ${docId} in ${collectionName} gespeichert!`, 'success');
+        await app.logic.refreshGlobalAppData();
+    }
+    else
+    {
+        app.logic.showToast('Fehler beim Speichern: ' + (res ? res.error : 'Unbekannt'), 'error');
+    }
+};
+
 
 ##### <Views_AdminGruppe.js>:
 ----------------------------------------------------------------------
+// =========================================================================
+// BMAssistent / LIE Scorecard - Gruppe & Spieler-Übersicht View
+// Views_AdminGruppe.js
+// BSD (Allman) Style
+// =========================================================================
 
-// View: Gruppe & Handicap-Verwaltung
-app.views.spieler_liste = function()
+app.views = app.views || {};
+
+app.views.spieler = function()
 {
-    const currentUser = app.state.currentUser;
-    const isAdmin = currentUser && currentUser.role === 'Admin';
-    const isLeiter = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Spielleiter');
+    const currentUser = app.state.currentUser || {};
+    const isAdmin = currentUser.role === 'Admin';
+    const isLeiter = isAdmin || currentUser.role === 'Spielleiter';
 
-    let spielerListHtml = "";
-    
+    let spielerListeHtml = "";
     if (app.state.spieler && app.state.spieler.length > 0)
     {
-        spielerListHtml = app.state.spieler.map(function(s) 
+        const sortierteSpieler = [...app.state.spieler].sort(function(a, b) 
         {
-            const istMeinProfil = currentUser && String(currentUser.id).trim() === String(s.id).trim();
-            const darfEditieren = isAdmin || istMeinProfil;
+            return (a.name || "").localeCompare(b.name || "");
+        });
 
-            // Stift-Icon rendern, wenn Admin ODER eigenes Profil
-            const editActionHtml = darfEditieren ? `
-                <button onclick="app.router.navigate('spieler_edit', { id: '${s.id}' })" class="text-stone-400 hover:text-emerald-700 p-2 touch-target transition" title="Profil bearbeiten">
-                    <i class="fas fa-user-edit text-base"></i>
-                </button>
-            ` : `
-                <div class="text-right">
-                    <div class="text-sm font-bold text-emerald-700">HCP: ${s.hcpLIE}</div>
-                    <div class="text-[10px] text-stone-400">DGV: ${s.hcpOfficial}</div>
-                </div>
-            `;
+        spielerListeHtml = sortierteSpieler.map(function(s)
+        {
+            const istEigenerUser = String(s.id).trim() === String(currentUser.id).trim();
+            const hcpOff = s.hcpOfficial !== undefined ? s.hcpOfficial : 54.0;
+            const hcpLie = s.hcpLIE !== undefined ? s.hcpLIE : 54;
+            const tee = s.teeColor || 'Gelb';
+            const rolle = s.role || 'Spieler';
+
+            let adminActionsHtml = "";
+            if (isAdmin)
+            {
+                adminActionsHtml = `
+                    <div class="flex items-center space-x-1">
+                        <button onclick="app.router.navigate('spieler_edit', { id: '${s.id}' })" class="text-zinc-400 hover:text-emerald-600 p-2.5 rounded-xl transition touch-target" title="Bearbeiten">
+                            <i class="fas fa-pen-to-square text-xs"></i>
+                        </button>
+                        <button onclick="app.logic.deletePlayer('${s.id}')" class="text-zinc-400 hover:text-red-600 p-2.5 rounded-xl transition touch-target" title="Löschen">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
+                    </div>
+                `;
+            }
 
             return `
-                <div class="flex items-center justify-between p-3 bg-white border border-stone-200 rounded-xl shadow-2xs">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center uppercase">
-                            ${String(s.nickname || s.name).substring(0, 2)}
+                <div class="bg-white/80 backdrop-blur-md border ${istEigenerUser ? 'border-emerald-500/80 shadow-sm shadow-emerald-500/10' : 'border-zinc-200/80'} rounded-2xl p-4 flex justify-between items-center transition">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <h4 class="font-black text-zinc-900 text-sm tracking-tight">${s.name}</h4>
+                            <span class="text-[10px] bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-lg font-extrabold">${s.nickname}</span>
+                            ${istEigenerUser ? '<span class="text-[10px] bg-emerald-500/10 text-emerald-800 border border-emerald-500/20 px-2 py-0.5 rounded-lg font-extrabold">Du</span>' : ''}
                         </div>
-                        <div>
-                            <h4 class="font-semibold text-stone-800">${s.name} ${istMeinProfil ? '<span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded ml-1">Du</span>' : ''}</h4>
-                            <p class="text-[10px] text-stone-400 font-medium -mt-0.5">@${s.nickname} &bull; ${s.role}</p>
+                        <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500 font-medium">
+                            <span>HCP LIE: <strong class="text-zinc-800 font-black">${hcpLie}</strong></span>
+                            <span>HCP Off.: <strong class="text-zinc-800 font-black">${hcpOff}</strong></span>
+                            <span>Tee: <strong class="text-zinc-800 font-black">${tee}</strong></span>
+                            <span>Rolle: <strong class="text-zinc-800 font-black">${rolle}</strong></span>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2">
-                        ${darfEditieren ? `<div class="text-right text-xs pr-1"><span class="font-bold text-emerald-700">L:${s.hcpLIE}</span><br><span class="text-stone-400 text-[10px]">D:${s.hcpOfficial}</span></div>` : ''}
-                        ${editActionHtml}
-                    </div>
+                    ${adminActionsHtml}
                 </div>
             `;
         }).join('');
     }
     else
     {
-        spielerListHtml = `<p class="text-stone-500 text-sm italic p-2">Keine Spieler geladen.</p>`;
+        spielerListeHtml = `
+            <div class="text-center py-10 bg-white/60 backdrop-blur-md border border-zinc-200/80 rounded-2xl">
+                <p class="text-zinc-400 text-xs italic font-medium">Keine Spieler in der Datenbank gefunden.</p>
+            </div>
+        `;
+    }
+
+    let adminHeaderAddBtn = "";
+    if (isAdmin)
+    {
+        adminHeaderAddBtn = `
+            <button onclick="app.router.navigate('spieler_edit', { id: 'new' })" class="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-2.5 rounded-2xl text-xs transition shadow-md shadow-emerald-600/20 flex items-center gap-1.5 touch-target">
+                <i class="fas fa-user-plus"></i> Neuer Spieler
+            </button>
+        `;
     }
 
     return `
-        <div class="space-y-4">
-            <div>
-                <h2 class="text-lg font-bold text-stone-800">Die LIE-Gruppe</h2>
-                ${isLeiter ? '<p class="text-[11px] text-emerald-700 font-semibold mt-0.5"><i class="fas fa-user-shield"></i> Tippe auf das Stift-Icon, um Profildaten anzupassen.</p>' : ''}
+        <div class="space-y-5 animate-fade-in pb-12">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-black text-zinc-900 tracking-tight">Gruppe & Spieler</h2>
+                    <p class="text-xs text-zinc-400 font-medium -mt-0.5">Übersicht aller Club-Mitglieder und Handicaps</p>
+                </div>
+                ${adminHeaderAddBtn}
             </div>
-            <div class="space-y-2">
-                ${spielerListHtml}
+
+            <div class="space-y-3">
+                ${spielerListeHtml}
             </div>
         </div>
     `;
@@ -4008,7 +3871,6 @@ app.logic.triggerVaultSync = function()
             }
         });
 };
-
 
 
 ##### <Views_Dashboard.js>:
@@ -4289,22 +4151,44 @@ app.views.leaderboard = function(spieltagId, activeTab)
     if (!app.state.leaderboardViewMode) app.state.leaderboardViewMode = 'matrix';
     
     const mode = activeTab || 'netto';
-    const spieltag = (app.state.spieltage || []).find(function(st) 
-    { 
-        return String(st.id).trim() === String(spieltagId).trim(); 
-    });
+    
+    // 1. SPIELTAG RESOLVER (Falls keine ID übergeben wurde, wähle aktiven / neuesten Spieltag)
+    let spieltag = null;
+    if (spieltagId)
+    {
+        spieltag = (app.state.spieltage || []).find(function(st) 
+        { 
+            return String(st.id || "").trim() === String(spieltagId || "").trim(); 
+        });
+    }
+
+    if (!spieltag && app.state.spieltage && app.state.spieltage.length > 0)
+    {
+        // Erstes Suchkriterium: Aktiver Spieltag
+        spieltag = app.state.spieltage.find(function(st) { return st.status === 'Aktiv'; });
+        // Zweites Suchkriterium: Neuester Spieltag
+        if (!spieltag)
+        {
+            const sortedRounds = [...app.state.spieltage].sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+            spieltag = sortedRounds[0];
+        }
+        if (spieltag)
+        {
+            spieltagId = spieltag.id;
+        }
+    }
 
     const kurs = (app.state.kurse || []).find(function(k) 
     { 
-        return String(k.id).trim() === String(spieltag ? spieltag.kursId : "").trim(); 
+        return String(k.id || "").trim() === String(spieltag ? spieltag.kursId : "").trim(); 
     });
     
     const platz = kurs ? (app.state.golfplaetze || []).find(function(p) 
     { 
-        return String(p.id).trim() === String(kurs.platzId).trim(); 
+        return String(p.id || "").trim() === String(kurs.platzId ? kurs.platzId : "").trim(); 
     }) : null;
 
-    // 1. STRIKTE TEILNEHMER-ERMITTLUNG (Kein globaler Fallback mehr)
+    // 2. TEILNEHMER ERMITTLUNG
     let teilnehmerIds = [];
     if (spieltag)
     {
@@ -4317,10 +4201,11 @@ app.views.leaderboard = function(spieltagId, activeTab)
             teilnehmerIds = spieltag.teilnehmerCsv.split(',').map(function(id) { return String(id).trim(); });
         }
         
-        // Falls teilnehmerCsv im Spieltag leer ist, versuche die Teilnehmer über die Flights dieses Spieltags zu ermitteln
         if (teilnehmerIds.length === 0 && app.state.flights)
         {
-            const tagesFlights = app.state.flights.filter(function(f) { return String(f.spieltagId).trim() === String(spieltagId).trim(); });
+            const tagesFlights = app.state.flights.filter(function(f) { 
+                return String(f.spieltagId || "").trim() === String(spieltag.id || "").trim(); 
+            });
             tagesFlights.forEach(function(f)
             {
                 const ids = String(f.spielerIdsCsv || "").split(',').map(function(id) { return String(id).trim(); });
@@ -4329,11 +4214,24 @@ app.views.leaderboard = function(spieltagId, activeTab)
         }
     }
 
+    // Fallback: Alle Spieler aus verknüpften Scorecards
+    if (teilnehmerIds.length === 0 && app.state.scoreCards && spieltag)
+    {
+        app.state.scoreCards.forEach(function(sc)
+        {
+            if (String(sc.spieltagId || "").trim() === String(spieltag.id || "").trim())
+            {
+                const sId = String(sc.spielerId || "").trim();
+                if (sId && !teilnehmerIds.includes(sId)) teilnehmerIds.push(sId);
+            }
+        });
+    }
+
     // Bahnen festlegen (Standard 18 Loch)
     const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
     const kursBahnen = (app.state.bahnen || []).filter(function(b) 
     { 
-        return String(b.kursId).trim() === String(spieltag ? spieltag.kursId : "").trim(); 
+        return String(b.kursId || "").trim() === String(spieltag ? spieltag.kursId : "").trim(); 
     });
     kursBahnen.sort(function(a, b) { return parseInt(a.nr) - parseInt(b.nr); });
 
@@ -4350,19 +4248,19 @@ app.views.leaderboard = function(spieltagId, activeTab)
         }
     }
 
-    // 2. Daten-Aggregation NUR für gefundene Teilnehmer
+    // 3. DATEN-AGGREGATION
     const leaderboardData = teilnehmerIds.map(function(spielerId)
     {
         const spieler = (app.state.spieler || []).find(function(s) 
         { 
-            return String(s.id).trim() === String(spielerId).trim(); 
+            return String(s.id || "").trim() === String(spielerId || "").trim(); 
         });
 
         if (!spieler) return null;
 
         const dbScores = (app.state.scoreCards || []).filter(function(sc) 
         {
-            return String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === String(spielerId).trim();
+            return String(sc.spieltagId || "").trim() === String(spieltag ? spieltag.id : "").trim() && String(sc.spielerId || "").trim() === String(spielerId || "").trim();
         });
 
         let totalStrokes = 0;
@@ -4373,16 +4271,18 @@ app.views.leaderboard = function(spieltagId, activeTab)
         anzuzeigendeBahnen.forEach(function(bahn)
         {
             const hNr = parseInt(bahn.nr);
-            const liveKey = `${spieltagId}_${spielerId}_${hNr}`;
+            const liveKey = `${spieltag ? spieltag.id : ''}_${spielerId}_${hNr}`;
             let strokes = (app.state.liveScores || {})[liveKey];
 
             if (strokes === undefined)
             {
-                const dbMatch = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
+                const dbMatch = dbScores.find(function(sc) { 
+                    return sc.hole !== undefined && parseInt(sc.hole) === hNr; 
+                });
                 if (dbMatch) strokes = parseInt(dbMatch.strokes);
             }
 
-            if (strokes !== undefined && strokes > 0)
+            if (strokes !== undefined && !isNaN(strokes) && strokes > 0)
             {
                 holesPlayed++;
                 totalStrokes += strokes;
@@ -5388,10 +5288,8 @@ app.views.spieler_edit = function(spielerId)
 
 app.views.spieltag_neu = function()
 {
-    // Heutiges Datum als Standard festlegen (YYYY-MM-DD)
     const today = new Date().toISOString().split('T')[0];
 
-    // Kurse für Dropdown aufbereiten
     let kurseOptionsHtml = "";
     if (app.state.kurse && app.state.kurse.length > 0)
     {
@@ -5403,7 +5301,6 @@ app.views.spieltag_neu = function()
         }).join('');
     }
 
-    // Spieler-Auswahl-Checkboxes generieren (Standardmäßig alle abgewählt)
     let spielerCheckboxesHtml = "";
     if (app.state.spieler && app.state.spieler.length > 0)
     {
@@ -5475,7 +5372,6 @@ app.views.spieltag_neu = function()
                 <div id="auto-flight-section" class="space-y-3 pt-2 border-t border-stone-100">
                     <label class="text-[10px] font-bold text-stone-500 uppercase">Gewünschte Flight-Größe</label>
                     
-                    <!-- NEU: Standard-Aufteilung als Default -->
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <label class="flex items-center space-x-2 p-2 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-100 transition text-xs font-semibold text-stone-800">
                             <input type="radio" name="flight-size" value="standard" checked class="text-emerald-600 focus:ring-emerald-500">

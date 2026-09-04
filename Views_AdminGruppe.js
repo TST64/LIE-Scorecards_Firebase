@@ -1,64 +1,99 @@
+// =========================================================================
+// BMAssistent / LIE Scorecard - Gruppe & Spieler-Übersicht View
+// Views_AdminGruppe.js
+// BSD (Allman) Style
+// =========================================================================
 
-// View: Gruppe & Handicap-Verwaltung
-app.views.spieler_liste = function()
+app.views = app.views || {};
+
+app.views.spieler = function()
 {
-    const currentUser = app.state.currentUser;
-    const isAdmin = currentUser && currentUser.role === 'Admin';
-    const isLeiter = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Spielleiter');
+    const currentUser = app.state.currentUser || {};
+    const isAdmin = currentUser.role === 'Admin';
+    const isLeiter = isAdmin || currentUser.role === 'Spielleiter';
 
-    let spielerListHtml = "";
-    
+    let spielerListeHtml = "";
     if (app.state.spieler && app.state.spieler.length > 0)
     {
-        spielerListHtml = app.state.spieler.map(function(s) 
+        const sortierteSpieler = [...app.state.spieler].sort(function(a, b) 
         {
-            const istMeinProfil = currentUser && String(currentUser.id).trim() === String(s.id).trim();
-            const darfEditieren = isAdmin || istMeinProfil;
+            return (a.name || "").localeCompare(b.name || "");
+        });
 
-            // Stift-Icon rendern, wenn Admin ODER eigenes Profil
-            const editActionHtml = darfEditieren ? `
-                <button onclick="app.router.navigate('spieler_edit', { id: '${s.id}' })" class="text-stone-400 hover:text-emerald-700 p-2 touch-target transition" title="Profil bearbeiten">
-                    <i class="fas fa-user-edit text-base"></i>
-                </button>
-            ` : `
-                <div class="text-right">
-                    <div class="text-sm font-bold text-emerald-700">HCP: ${s.hcpLIE}</div>
-                    <div class="text-[10px] text-stone-400">DGV: ${s.hcpOfficial}</div>
-                </div>
-            `;
+        spielerListeHtml = sortierteSpieler.map(function(s)
+        {
+            const istEigenerUser = String(s.id).trim() === String(currentUser.id).trim();
+            const hcpOff = s.hcpOfficial !== undefined ? s.hcpOfficial : 54.0;
+            const hcpLie = s.hcpLIE !== undefined ? s.hcpLIE : 54;
+            const tee = s.teeColor || 'Gelb';
+            const rolle = s.role || 'Spieler';
+
+            let adminActionsHtml = "";
+            if (isAdmin)
+            {
+                adminActionsHtml = `
+                    <div class="flex items-center space-x-1">
+                        <button onclick="app.router.navigate('spieler_edit', { id: '${s.id}' })" class="text-zinc-400 hover:text-emerald-600 p-2.5 rounded-xl transition touch-target" title="Bearbeiten">
+                            <i class="fas fa-pen-to-square text-xs"></i>
+                        </button>
+                        <button onclick="app.logic.deletePlayer('${s.id}')" class="text-zinc-400 hover:text-red-600 p-2.5 rounded-xl transition touch-target" title="Löschen">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
+                    </div>
+                `;
+            }
 
             return `
-                <div class="flex items-center justify-between p-3 bg-white border border-stone-200 rounded-xl shadow-2xs">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center uppercase">
-                            ${String(s.nickname || s.name).substring(0, 2)}
+                <div class="bg-white/80 backdrop-blur-md border ${istEigenerUser ? 'border-emerald-500/80 shadow-sm shadow-emerald-500/10' : 'border-zinc-200/80'} rounded-2xl p-4 flex justify-between items-center transition">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <h4 class="font-black text-zinc-900 text-sm tracking-tight">${s.name}</h4>
+                            <span class="text-[10px] bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-lg font-extrabold">${s.nickname}</span>
+                            ${istEigenerUser ? '<span class="text-[10px] bg-emerald-500/10 text-emerald-800 border border-emerald-500/20 px-2 py-0.5 rounded-lg font-extrabold">Du</span>' : ''}
                         </div>
-                        <div>
-                            <h4 class="font-semibold text-stone-800">${s.name} ${istMeinProfil ? '<span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded ml-1">Du</span>' : ''}</h4>
-                            <p class="text-[10px] text-stone-400 font-medium -mt-0.5">@${s.nickname} &bull; ${s.role}</p>
+                        <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500 font-medium">
+                            <span>HCP LIE: <strong class="text-zinc-800 font-black">${hcpLie}</strong></span>
+                            <span>HCP Off.: <strong class="text-zinc-800 font-black">${hcpOff}</strong></span>
+                            <span>Tee: <strong class="text-zinc-800 font-black">${tee}</strong></span>
+                            <span>Rolle: <strong class="text-zinc-800 font-black">${rolle}</strong></span>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2">
-                        ${darfEditieren ? `<div class="text-right text-xs pr-1"><span class="font-bold text-emerald-700">L:${s.hcpLIE}</span><br><span class="text-stone-400 text-[10px]">D:${s.hcpOfficial}</span></div>` : ''}
-                        ${editActionHtml}
-                    </div>
+                    ${adminActionsHtml}
                 </div>
             `;
         }).join('');
     }
     else
     {
-        spielerListHtml = `<p class="text-stone-500 text-sm italic p-2">Keine Spieler geladen.</p>`;
+        spielerListeHtml = `
+            <div class="text-center py-10 bg-white/60 backdrop-blur-md border border-zinc-200/80 rounded-2xl">
+                <p class="text-zinc-400 text-xs italic font-medium">Keine Spieler in der Datenbank gefunden.</p>
+            </div>
+        `;
+    }
+
+    let adminHeaderAddBtn = "";
+    if (isAdmin)
+    {
+        adminHeaderAddBtn = `
+            <button onclick="app.router.navigate('spieler_edit', { id: 'new' })" class="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-2.5 rounded-2xl text-xs transition shadow-md shadow-emerald-600/20 flex items-center gap-1.5 touch-target">
+                <i class="fas fa-user-plus"></i> Neuer Spieler
+            </button>
+        `;
     }
 
     return `
-        <div class="space-y-4">
-            <div>
-                <h2 class="text-lg font-bold text-stone-800">Die LIE-Gruppe</h2>
-                ${isLeiter ? '<p class="text-[11px] text-emerald-700 font-semibold mt-0.5"><i class="fas fa-user-shield"></i> Tippe auf das Stift-Icon, um Profildaten anzupassen.</p>' : ''}
+        <div class="space-y-5 animate-fade-in pb-12">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-black text-zinc-900 tracking-tight">Gruppe & Spieler</h2>
+                    <p class="text-xs text-zinc-400 font-medium -mt-0.5">Übersicht aller Club-Mitglieder und Handicaps</p>
+                </div>
+                ${adminHeaderAddBtn}
             </div>
-            <div class="space-y-2">
-                ${spielerListHtml}
+
+            <div class="space-y-3">
+                ${spielerListeHtml}
             </div>
         </div>
     `;
