@@ -9,6 +9,7 @@ app.views.dashboard = function()
     // Ermittle den Namen des aktuellen Users für das Minispiel
     const user = app.state.currentUser;
     const playerName = user ? (user.nickname || "Golfer") : "";
+    const rolle = user ? user.role : "Spieler";
     const gameUrl = playerName ? `https://game.lochihnein.de/?player=${encodeURIComponent(playerName)}` : `https://game.lochihnein.de/`;
     
     // Aktive Runde ermitteln (sofern nicht gelöscht)
