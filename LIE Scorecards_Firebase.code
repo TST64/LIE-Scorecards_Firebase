@@ -100,11 +100,7 @@ app.core = (function()
             
             const dbInstance = firebase.firestore();
             
-            // Verhindert den fetch-CORS Konflikt ohne experimentelle Flags
-            dbInstance.settings({
-                useFetchStreams: false
-            });
-
+            // Moderne Fetch Streams aktiviert (kein WebChannel-CORS-Konflikt mehr)
             app.db = dbInstance;
             console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
         }
@@ -125,6 +121,7 @@ app.core = (function()
     };
 })();
 
+app.initCore = app.core.init;
 app.initFirebase = app.core.initFirebase;
 
 
@@ -139,7 +136,7 @@ app.initFirebase = app.core.initFirebase;
 var app = app || {};
 app.logic = app.logic || {};
 
-// Globaler Daten-Refresh aus Cloud Firestore
+// Global data refresh from Cloud Firestore
 app.logic.refreshGlobalAppData = async function()
 {
     app.state = app.state || {};
@@ -157,7 +154,7 @@ app.logic.refreshGlobalAppData = async function()
     {
         if (!app.db)
         {
-            throw new Error('Firestore-Datenbankinstanz (app.db) ist nicht initialisiert.');
+            throw new Error('Firestore database instance (app.db) is not initialized.');
         }
 
         const [
@@ -248,7 +245,7 @@ app.logic.refreshGlobalAppData = async function()
     }
     catch (err)
     {
-        console.error('[Bridge] Fehler beim Laden der Firestore-Daten:', err);
+        console.error('[Bridge] Error loading Firestore data:', err);
         app.logic.showToast("Daten konnten nicht geladen werden.", "error");
     }
     finally
@@ -264,7 +261,7 @@ app.logic.refreshGlobalAppData = async function()
     }
 };
 
-// Dient als Abstraktionsschicht für Legacy-Aufrufe an Firestore
+// Abstraction layer for API requests
 app.logic.apiRequest = async function(action, payload = {})
 {
     console.log(`[Bridge Firestore Request] Action: ${action}`, payload);
@@ -377,7 +374,6 @@ app.logic.apiRequest = async function(action, payload = {})
             await app.db.collection('settings').doc('vault').set({ isUnlocked: !!payload.status }, { merge: true });
             return { success: true, isUnlocked: !!payload.status };
         }
-        // Ergänzung in App_Logic_Bridge.js
         else if (action === 'updateFirestoreDoc')
         {
             const { collectionName, docId, data } = payload;
@@ -392,59 +388,66 @@ app.logic.apiRequest = async function(action, payload = {})
         }
         else if (action === 'verifyPlayerPin')
         {
-            // PIN aus Firestore abrufen und prüfen
             const spDoc = await app.db.collection('spieler').doc(String(payload.spielerId)).get();
-            if (!spDoc.exists) {
+            if (!spDoc.exists) 
+            {
                 return { success: false, error: 'Spieler nicht gefunden' };
             }
             const spData = spDoc.data();
             
-            // Wenn in der DB noch keine PIN gesetzt ist, standardmäßig '0000' annehmen
             const dbPin = spData.pin || '0000';
             
-            if (String(dbPin).trim() === String(payload.pin).trim()) {
-                return { success: true };
-            } else {
+            if (String(dbPin).trim() === String(payload.pin).trim()) 
+            {
+                return { success: true, mustChangePin: !!spData.mustChangePin };
+            } 
+            else 
+            {
                 return { success: false, error: 'PIN inkorrekt' };
             }
         }
         else if (action === 'updatePlayerPin')
         {
-            // Neue PIN im Firestore-Dokument des Spielers speichern
-            await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: payload.newPin }, { merge: true });
+            await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: payload.newPin, mustChangePin: false }, { merge: true });
             return { success: true };
         }
         else if (action === 'requestTempPin')
         {
-            // 1. Profil aus Firestore abrufen
             const spDoc = await app.db.collection('spieler').doc(String(payload.spielerId)).get();
-            if (!spDoc.exists) {
+            if (!spDoc.exists) 
+            {
                 return { success: false, error: 'Spieler nicht gefunden' };
             }
             const spData = spDoc.data();
             
-            // 2. Temporäre 4-stellige PIN generieren
             const tempPin = Math.floor(1000 + Math.random() * 9000).toString();
             
-            // 3. Neue PIN in Firestore speichern
-            await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: tempPin }, { merge: true });
+            await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: tempPin, mustChangePin: true }, { merge: true });
             
-            // HINWEIS: E-Mail-Versand aus reinem JS ist nicht möglich. 
-            // Zur Überbrückung geben wir die PIN für dich in der Konsole aus:
-            console.log(`[DEV] Temporäre PIN für ID ${payload.spielerId} generiert: ${tempPin}`);
+            if (typeof CONFIG !== 'undefined' && CONFIG.gasUrl)
+            {
+                try
+                {
+                    const requestBody = JSON.stringify({ action: 'sendTempPinEmail', spielerId: payload.spielerId, tempPin: tempPin });
+                    await fetch(`${CONFIG.gasUrl}?data=${encodeURIComponent(requestBody)}`, { method: 'GET', mode: 'no-cors' });
+                }
+                catch (mailErr)
+                {
+                    console.warn("[Bridge] GAS email dispatch warning:", mailErr);
+                }
+            }
             
             return { success: true, tempPin: tempPin, email: spData.email };
         }
         else
         {
-            console.warn(`[Bridge] Unbehandelte Action "${action}", liefere Erfolg zurück.`);
+            console.warn(`[Bridge] Unhandled action "${action}", returning success.`);
             return { success: true };
         }
-        
     }
     catch (err)
     {
-        console.error(`[Bridge Error] bei Action "${action}":`, err);
+        console.error(`[Bridge Error] for action "${action}":`, err);
         return { success: false, error: err.message };
     }
 };
@@ -453,7 +456,7 @@ app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
 {
     app.logic.stopLivePolling();
 
-    const triggerUpdate = function()
+    const triggerValue = function()
     {
         const statusDot = document.getElementById('connection-status');
         if (statusDot)
@@ -513,12 +516,12 @@ app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
                 {
                     statusDot.className = "w-3 h-3 rounded-full bg-red-400";
                 }
-                console.warn("Polling-Update fehlgeschlagen:", err);
+                console.warn("Polling update failed:", err);
             });
     };
 
     const msInterval = (app.state.currentPollingRate || 60) * 1000;
-    app.state.pollingIntervalId = setInterval(triggerUpdate, msInterval);
+    app.state.pollingIntervalId = setInterval(triggerValue, msInterval);
 };
 
 app.logic.stopLivePolling = function()
@@ -893,7 +896,6 @@ app.logic.submitPin = function(event)
         btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Prüfe Identität...`;
     }
 
-    // PIN-Prüfung über deine bestehende Server-Bridge
     app.logic.apiRequest('verifyPlayerPin', { spielerId: spielerId, pin: pin })
         .then(function(response)
         {
@@ -915,7 +917,17 @@ app.logic.submitPin = function(event)
                 localStorage.setItem('lie_scorecard_user_id', ausgewaehlterSpieler.id);
 
                 if (app.logic.updateHeaderRoleIcon) app.logic.updateHeaderRoleIcon();
-                if (app.router && typeof app.router.navigate === 'function') app.router.navigate('dashboard');
+
+                // Force user to change PIN if they logged in with a temporary PIN
+                if (response.mustChangePin)
+                {
+                    app.logic.showToast("Bitte lege eine neue persönliche PIN fest.", "warning");
+                    if (app.router && typeof app.router.navigate === 'function') app.router.navigate('pin_aendern');
+                }
+                else
+                {
+                    if (app.router && typeof app.router.navigate === 'function') app.router.navigate('dashboard');
+                }
             }
             else
             {
@@ -958,7 +970,6 @@ app.logic.changePin = function()
         return;
     }
 
-    // Geänderte PIN an den Server senden anstatt nur einen Toast anzuzeigen
     app.logic.apiRequest('updatePlayerPin', { spielerId: app.state.currentUser.id, newPin: val1 })
         .then(function(response) {
             if (response && response.success) {
@@ -1050,7 +1061,7 @@ app.logic.deletePlayer = function(spielerId)
                 {
                     if (response && response.success)
                     {
-                        app.state.spieler = app.state.spieler.filter(function(s) { return String(s.id).trim() !== String(spielerId).trim(); });
+                        app.state.spieler = app.state.spieler.filter(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
                         app.logic.showToast("Spieler erfolgreich gelöscht.", "success");
                         app.router.navigate('spieler');
                     }
@@ -1071,7 +1082,6 @@ app.logic.logout = function()
         "standard", 
         function() 
         {
-            // Fallback für den Fall, dass du Firebase Auth nutzt (war in deinem vorherigen Code-Schnipsel)
             if (typeof firebase !== 'undefined' && firebase.auth) {
                 firebase.auth().signOut().catch(e => console.warn("Firebase signout error:", e));
             }
@@ -2109,99 +2119,86 @@ app.router.updateNavigationUI = function(viewName)
 ##### <App_Start.js>:
 ----------------------------------------------------------------------
 // =========================================================================
-// BMAssistent / LIE Scorecard - Startup Bootstrapper
+// BMAssistent / LIE Scorecard - Application Startup & Lifecycle
 // App_Start.js
 // BSD (Allman) Style
 // =========================================================================
 
 var app = app || {};
-app.isInitialized = false;
 
 app.initStart = async function()
 {
-    if (app.isInitialized) return;
-    app.isInitialized = true;
+    console.log("[App] Starting LIE Scorecard initialization...");
 
-    app.state = app.state || {};
-    app.state.liveScores = app.state.liveScores || {};
-
-    const splashImg = document.getElementById('splash-logo');
-    if (splashImg && app.logoString)
+    // 1. Initialize core systems and wait for Firebase / app.db to be ready
+    if (typeof app.initCore === 'function')
     {
-        splashImg.src = app.logoString;
+        await app.initCore();
     }
 
-    // 1. Firebase initialisieren
-    if (app.core && typeof app.core.init === 'function')
+    // 2. Load initial app data from Firestore
+    try
     {
-        app.core.init();
-    }
-
-    // 2. Daten aus Firestore laden
-    if (app.logic && typeof app.logic.refreshGlobalAppData === 'function')
-    {
-        await app.logic.refreshGlobalAppData();
-    }
-
-    // 3. Auto-Login check per Firebase Auth (statt lokalem Storage)
-    firebase.auth().onAuthStateChanged(function(user)
-    {
-        if (user && app.state.spieler && app.state.spieler.length > 0)
+        const res = await app.logic.apiRequest('getInitialAppData');
+        if (res && res.success)
         {
-            // user.uid entspricht der Spieler-ID aus unserem Custom Token
-            const restoredUser = app.state.spieler.find(function(s)
-            {
-                return String(s.id).trim() === String(user.uid).trim();
-            });
-
-            if (restoredUser)
-            {
-                app.state.currentUser = restoredUser;
-                
-                if (app.logic && typeof app.logic.updateHeaderRoleIcon === 'function')
-                {
-                    app.logic.updateHeaderRoleIcon();
-                }
-
-                // Nur auf Dashboard weiterleiten, wenn wir noch auf Login stehen
-                if (app.state.currentView === 'login' || !app.state.currentView)
-                {
-                    if (app.router && typeof app.router.navigate === 'function')
-                    {
-                        app.router.navigate('dashboard');
-                    }
-                }
-            }
+            app.state.spieler = res.spieler || [];
+            app.state.spieltage = res.spieltage || [];
+            app.state.scoreCards = res.scoreCards || [];
+            app.state.flights = res.flights || [];
+            app.state.kurse = res.kurse || [];
+            app.state.golfplaetze = res.golfplaetze || [];
+            app.state.bahnen = res.bahnen || [];
+            app.state.handicaps = res.handicaps || [];
         }
-        else
+    }
+    catch (err)
+    {
+        console.error("[App] Error loading initial app data:", err);
+    }
+
+    // 3. Check for persisted user session in localStorage
+    const savedUserId = localStorage.getItem('lie_scorecard_user_id');
+    if (savedUserId && app.state.spieler)
+    {
+        const matchedUser = app.state.spieler.find(function(s)
         {
-            // Nicht eingeloggt oder ausgeloggt
-            app.state.currentUser = null;
-            if (app.router && typeof app.router.navigate === 'function')
+            return String(s.id).trim() === String(savedUserId).trim();
+        });
+
+        if (matchedUser)
+        {
+            app.state.currentUser = matchedUser;
+            if (typeof app.logic.updateHeaderRoleIcon === 'function')
             {
-                if (app.state.currentView !== 'login')
-                {
-                    app.router.navigate('login');
-                }
+                app.logic.updateHeaderRoleIcon();
             }
             
-            const loadingEl = document.getElementById('app-loading');
-            if (loadingEl)
+            // Route to PIN change if forced, otherwise straight to dashboard
+            if (matchedUser.mustChangePin)
             {
-                loadingEl.classList.add('hidden');
+                app.router.navigate('pin_aendern');
             }
+            else
+            {
+                app.router.navigate('dashboard');
+            }
+            return;
         }
-    });
+    }
+
+    // 4. Default fallback to login view if no valid session exists
+    app.router.navigate('login');
 };
 
-if (document.readyState === 'complete' || document.readyState === 'interactive')
+// Auto-trigger startup when DOM is fully loaded
+window.addEventListener('DOMContentLoaded', function()
 {
-    app.initStart();
-}
-else
-{
-    document.addEventListener("DOMContentLoaded", app.initStart, { once: true });
-}
+    if (typeof app.initStart === 'function')
+    {
+        app.initStart();
+    }
+});
 
 
 ##### <App_View_Help.js>:
@@ -2440,8 +2437,8 @@ function sendTempPinEmail(spielerId, tempPin)
 
 window.CONFIG =
 {
-    appVersion: '2.2.0.0',
-    gasUrl: 'https://script.google.com/macros/s/AKfycbzap_OWZvJuJFRGFGqVaj_3RzgquUNBdHkI6q12hum52Xf_nLSKF9U5cmd10vSuvGowEg/exec'
+    appVersion: '3.0.2.1',
+    gasUrl: 'https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec'
 };
 
 window.firebaseConfig =
@@ -3041,7 +3038,7 @@ app.views.dashboard = function()
 // BSD (Allman) Style
 // =========================================================================
 
-const CACHE_NAME = 'lie-scorecard-v1.2.10.51';
+const CACHE_NAME = 'lie-scorecard-v1.2.10.52';
 
 const ASSETS_TO_CACHE = [
     './',
@@ -3104,17 +3101,19 @@ self.addEventListener('activate', function(event)
     );
 });
 
-// 3. Network Fetching & CORS/Firestore Bypassing
+// 3. Network Fetching & CORS/CDN Bypassing
 self.addEventListener('fetch', function(event)
 {
     const requestUrl = event.request.url;
 
-    // Firebase & Firestore RequestsNIEMALS vom Service Worker abfangen lassen!
-    // Dadurch werden die 503- und CORS-Fehler bei WebChannel / Listen-Streams vermieden.
-    if (requestUrl.includes('firestore.googleapis.com') || 
+    // Firebase, Google APIs und externe CDNs (FontAwesome etc.) NIEMALS vom Service Worker abfangen!
+    if (requestUrl.includes('firestore.googleapis.com') ||  
         requestUrl.includes('google.firestore') ||
         requestUrl.includes('firebase') ||
-        requestUrl.includes('script.google.com'))
+        requestUrl.includes('script.google.com') ||
+        requestUrl.includes('cdnjs.cloudflare.com') ||
+        requestUrl.includes('gstatic.com') ||
+        requestUrl.includes('googleapis.com'))
     {
         return;
     }
@@ -3883,9 +3882,11 @@ app.logic.triggerVaultSync = function()
 
 app.views.dashboard = function()
 {
+    // Ermittle den Namen des aktuellen Users für das Minispiel
     const user = app.state.currentUser;
-    const nickname = user ? user.nickname : "Golfer";
+    const nickname = user ? (user.nickname || "Golfer") : "";
     const rolle = user ? user.role : "Spieler";
+    const gameUrl = nickname ? `https://game.lochihnein.de/?player=${encodeURIComponent(nickname)}` : `https://game.lochihnein.de/`;
     
     // Aktive Runde ermitteln (sofern nicht gelöscht)
     const aktiveRunde = app.state.spieltage ? app.state.spieltage.find(function(st) 
@@ -4125,7 +4126,7 @@ app.views.dashboard = function()
                     </div>
                 </button>
 
-                <button onclick="app.logic.openPixelGolfGame()" class="p-4 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl text-left hover:border-amber-300 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target col-span-2 sm:col-span-1">
+                <button onclick="window.open('${gameUrl}', '_blank')" class="p-4 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl text-left hover:border-amber-300 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target col-span-2 sm:col-span-1">
                     <i class="fas fa-gamepad text-xl text-amber-600 group-hover:scale-110 transition-transform"></i>
                     <div>
                         <span class="block font-bold text-amber-950 text-sm">Pixel Golf Run</span>

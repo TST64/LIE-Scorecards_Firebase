@@ -589,3 +589,52 @@ app.logic.softDeleteSpieltag = function(spieltagId)
         }
     );
 };
+
+// Ermittelt die aktuellen Sieger und startet den Beenden-Dialog
+app.logic.finishRoundWithWinners = function(spieltagId)
+{
+    const st = app.state.spieltage.find(function(s) { return String(s.id).trim() === String(spieltagId).trim(); });
+    if (!st) return;
+
+    const teilnehmerIds = (st.teilnehmerCsv || "").split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
+    const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); });
+
+    let ergebnisse = teilnehmerIds.map(function(spielerId)
+    {
+        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === spielerId; });
+        if (!spieler) return null;
+
+        const dbScores = app.state.scoreCards.filter(function(sc) { 
+            return String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === spielerId; 
+        });
+
+        let totalStrokes = 0;
+        let totalNetto = 0;
+        let playedHoles = 0;
+
+        kursBahnen.forEach(function(bahn)
+        {
+            const hNr = parseInt(bahn.nr);
+            const match = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
+            if (match && parseInt(match.strokes) > 0)
+            {
+                const str = parseInt(match.strokes);
+                playedHoles++;
+                totalStrokes += str;
+                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, st.kursId, bahn.si);
+                totalNetto += app.logic.calculateNettoStableford(str, bahn.par, holeVorgabe);
+            }
+        });
+
+        return { name: spieler.nickname || spieler.name, strokes: totalStrokes, netto: totalNetto, holes: playedHoles };
+    }).filter(Boolean);
+
+    const mitScores = ergebnisse.filter(function(r) { return r.holes > 0; });
+    
+    // Sieger ermitteln
+    const bruttoSieger = mitScores.length > 0 ? [...mitScores].sort((a,b) => a.strokes - b.strokes)[0].name : "Keiner";
+    const nettoSieger = mitScores.length > 0 ? [...mitScores].sort((a,b) => b.netto - a.netto)[0].name : "Keiner";
+
+    // Bestehende Schließungs-Logik ausführen
+    app.logic.closeActiveSpieltag(spieltagId, bruttoSieger, nettoSieger);
+};

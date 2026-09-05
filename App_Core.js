@@ -54,7 +54,11 @@ app.core = (function()
             
             const dbInstance = firebase.firestore();
             
-            // Moderne Fetch Streams aktiviert (kein WebChannel-CORS-Konflikt mehr)
+            // Verhindert CORS- / WebChannel-Sperren bei lokaler Entwicklung (127.0.0.1 / localhost)
+            dbInstance.settings({
+                experimentalAutoDetectLongPolling: true
+            });
+            
             app.db = dbInstance;
             console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
         }

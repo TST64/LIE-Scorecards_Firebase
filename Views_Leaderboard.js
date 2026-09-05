@@ -277,6 +277,25 @@ app.views.leaderboard = function(spieltagId, activeTab)
         </div>
     `;
 
+    // Admin/Spielleiter Banner für den Rundenabschluss
+    const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
+    let closeRoundBannerHtml = "";
+
+    if (spieltag && spieltag.status === 'Aktiv' && isLeiter)
+    {
+        closeRoundBannerHtml = `
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between shadow-2xs">
+                <div class="flex items-center space-x-2 text-amber-900 text-xs">
+                    <i class="fas fa-flag-checkered text-amber-600"></i>
+                    <span class="font-bold">Match noch aktiv</span>
+                </div>
+                <button onclick="app.logic.finishRoundWithWinners('${spieltag.id}')" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-xs touch-target">
+                    Runde offiziell beenden
+                </button>
+            </div>
+        `;
+    }
+
     return `
         <div class="space-y-4">
             <div class="flex items-center justify-between">
@@ -297,6 +316,8 @@ app.views.leaderboard = function(spieltagId, activeTab)
                     </button>
                 </div>
             </div>
+
+            ${closeRoundBannerHtml}
 
             <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200">
                 <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">

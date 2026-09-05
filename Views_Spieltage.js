@@ -94,37 +94,53 @@
                // Teilnehmeranzahl ermitteln
                const teilnehmerAnzahl = st.teilnehmerCsv ? st.teilnehmerCsv.split(',').filter(Boolean).length : 0;
    
-               // SHORTCUT-BUTTON ZUR SCORE-EINGABE (nur bei laufenden Runden)
-               let scoreShortcutBtnHtml = '';
-               if (isLaufend)
-               {
-                   // Flight des aktuellen Spielers ermitteln
-                   let myFlightSeq = 1;
-                   if (currentUser && app.state.flights)
-                   {
-                       const myFlight = app.state.flights.find(function(f)
-                       {
-                           if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
-                           const ids = (f.spielerIdsCsv || "").split(',');
-                           return ids.includes(String(currentUser.id).trim());
-                       });
-   
-                       if (myFlight && myFlight.id)
-                       {
-                           const parts = myFlight.id.split('-');
-                           myFlightSeq = parseInt(parts[parts.length - 1]) || 1;
-                       }
-                   }
-   
-                   scoreShortcutBtnHtml = `
-                       <button onclick="event.stopPropagation(); app.router.navigate('score_eingabe', { id: '${st.id}', hole: 1, flightSeq: ${myFlightSeq} })" 
-                               class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target">
-                           <i class="fas fa-pen-to-square"></i>
-                           <span>Score eingeben</span>
-                       </button>
-                   `;
-               }
-   
+                // SHORTCUT-BUTTON ZUR SCORE-EINGABE & RUNDENABSCHLUSS
+                let scoreShortcutBtnHtml = '';
+                if (isLaufend)
+                {
+                    let myFlightSeq = 1;
+                    if (currentUser && app.state.flights)
+                    {
+                        const myFlight = app.state.flights.find(function(f)
+                        {
+                            if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
+                            const ids = (f.spielerIdsCsv || "").split(',');
+                            return ids.includes(String(currentUser.id).trim());
+                        });
+
+                        if (myFlight && myFlight.id)
+                        {
+                            const parts = myFlight.id.split('-');
+                            myFlightSeq = parseInt(parts[parts.length - 1]) || 1;
+                        }
+                    }
+
+                    // Button zum Beenden für Spielleiter / Admins
+                    let finishBtnHtml = '';
+                    if (isLeiter)
+                    {
+                        finishBtnHtml = `
+                            <button onclick="event.stopPropagation(); app.logic.finishRoundWithWinners('${st.id}')" 
+                                    class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target"
+                                    title="Runde beenden & HCPs berechnen">
+                                <i class="fas fa-flag-checkered"></i>
+                                <span>Beenden</span>
+                            </button>
+                        `;
+                    }
+
+                    scoreShortcutBtnHtml = `
+                        <div class="flex items-center gap-2">
+                            ${finishBtnHtml}
+                            <button onclick="event.stopPropagation(); app.router.navigate('score_eingabe', { id: '${st.id}', hole: 1, flightSeq: ${myFlightSeq} })" 
+                                    class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target">
+                                <i class="fas fa-pen-to-square"></i>
+                                <span>Score eingeben</span>
+                            </button>
+                        </div>
+                    `;
+                }
+                
                // Admin Lösch-Button
                let deleteBtnHtml = '';
                if (isLeiter)
