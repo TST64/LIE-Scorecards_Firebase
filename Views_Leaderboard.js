@@ -201,8 +201,8 @@ app.views.leaderboard = function(spieltagId, activeTab)
             <div class="flex items-center justify-between p-3 bg-white border border-zinc-200 rounded-xl shadow-xs">
                 <div class="flex items-center space-x-3">
                     <div class="w-6 h-6 rounded-md ${rankBadge} text-xs flex items-center justify-center">${index + 1}</div>
-                    <div>
-                        <h4 class="font-bold text-zinc-800 text-sm">${row.spielerObj.nickname || row.spielerObj.name}</h4>
+                    <div onclick="app.logic.showPlayerDetailModal('${spieltag ? spieltag.id : ''}', '${row.spielerObj.id}')" class="cursor-pointer hover:opacity-80 transition">
+                        <h4 class="font-bold text-zinc-800 text-sm underline decoration-emerald-500/40 underline-offset-2">${row.spielerObj.nickname || row.spielerObj.name} <i class="fas fa-chart-bar text-xs text-emerald-600 ml-1"></i></h4>
                         <p class="text-[10px] text-zinc-400 font-medium">Löcher: ${row.played}/${maxBahnen} &bull; ${subDisplay}</p>
                     </div>
                 </div>
@@ -246,8 +246,9 @@ app.views.leaderboard = function(spieltagId, activeTab)
 
         return `
             <tr class="border-b border-zinc-100 hover:bg-zinc-50/60">
-                <td class="p-2 border-r border-zinc-200 sticky left-0 z-10 bg-white font-bold text-zinc-800 text-xs min-w-[95px] whitespace-nowrap">
-                    ${row.spielerObj.nickname || row.spielerObj.name}
+                <td onclick="app.logic.showPlayerDetailModal('${spieltag ? spieltag.id : ''}', '${row.spielerObj.id}')" 
+                    class="p-2 border-r border-zinc-200 sticky left-0 z-10 bg-white font-bold text-zinc-800 text-xs min-w-[95px] whitespace-nowrap cursor-pointer hover:bg-emerald-50 transition">
+                    ${row.spielerObj.nickname || row.spielerObj.name} <i class="fas fa-chevron-right text-[9px] text-emerald-600 ml-0.5"></i>
                 </td>
                 ${scoreCells}
                 <td class="p-2 bg-emerald-50 text-center font-black text-emerald-800 text-sm border-l border-zinc-200 min-w-[45px]">${row.played > 0 ? totalResult : '-'}</td>
@@ -337,4 +338,140 @@ app.views.leaderboard = function(spieltagId, activeTab)
             </button>
         </div>
     `;
+};
+
+// Modal für die detaillierten Runden-Statistiken eines Spielers
+app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
+{
+    const spieltag = (app.state.spieltage || []).find(s => String(s.id).trim() === String(spieltagId).trim());
+    const spieler = (app.state.spieler || []).find(s => String(s.id).trim() === String(spielerId).trim());
+    if (!spieltag || !spieler) return;
+
+    const kursBahnen = (app.state.bahnen || [])
+        .filter(b => String(b.kursId).trim() === String(spieltag.kursId).trim())
+        .sort((a, b) => parseInt(a.nr) - parseInt(b.nr));
+
+    const dbScores = (app.state.scoreCards || []).filter(sc => 
+        String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === String(spielerId).trim()
+    );
+
+    let stats = { totalStrokes: 0, totalBrutto: 0, totalNetto: 0, birdies: 0, pars: 0, bogeys: 0, doublePlus: 0, ladies: 0, played: 0 };
+    
+    let rowsHtml = kursBahnen.map(bahn => {
+        const hNr = parseInt(bahn.nr);
+        const match = dbScores.find(sc => sc.hole !== undefined && parseInt(sc.hole) === hNr);
+        const strokes = match ? parseInt(match.strokes) : 0;
+        const isLady = match && (match.lady === true || match.lady === "true");
+
+        if (isLady) stats.ladies++;
+
+        if (strokes > 0) {
+            stats.played++;
+            stats.totalStrokes += strokes;
+
+            const diff = strokes - parseInt(bahn.par);
+            if (diff <= -1) stats.birdies++;
+            else if (diff === 0) stats.pars++;
+            else if (diff === 1) stats.bogeys++;
+            else stats.doublePlus++;
+
+            const vorgabe = app.logic.calculateHoleVorgabe ? app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si) : 0;
+            const nettoPkt = app.logic.calculateNettoStableford ? app.logic.calculateNettoStableford(strokes, bahn.par, vorgabe) : 0;
+            const bruttoPkt = Math.max(0, parseInt(bahn.par) - strokes + 2);
+
+            stats.totalNetto += nettoPkt;
+            stats.totalBrutto += bruttoPkt;
+
+            return `
+                <tr class="border-b border-zinc-100 text-xs">
+                    <td class="py-2 px-2 font-bold text-zinc-700 text-center">#${bahn.nr}</td>
+                    <td class="py-2 px-1 text-center text-zinc-400 font-medium">${bahn.par} <span class="text-[9px]">(${bahn.si})</span></td>
+                    <td class="py-2 px-1 text-center text-amber-700 font-semibold">+${vorgabe}</td>
+                    <td class="py-2 px-1 text-center font-bold text-zinc-900">${strokes} ${isLady ? '🍻' : ''}</td>
+                    <td class="py-2 px-1 text-center text-zinc-600">${bruttoPkt}</td>
+                    <td class="py-2 px-2 text-center font-bold text-emerald-700 bg-emerald-50/50">${nettoPkt}</td>
+                </tr>
+            `;
+        }
+
+        return `
+            <tr class="border-b border-zinc-100 text-xs text-zinc-300">
+                <td class="py-2 px-2 text-center">#${bahn.nr}</td>
+                <td class="py-2 px-1 text-center">${bahn.par}</td>
+                <td class="py-2 px-1 text-center">-</td>
+                <td class="py-2 px-1 text-center">-</td>
+                <td class="py-2 px-1 text-center">-</td>
+                <td class="py-2 px-2 text-center">-</td>
+            </tr>
+        `;
+    }).join('');
+
+    const oldModal = document.getElementById('player-detail-modal');
+    if (oldModal) oldModal.remove();
+
+    const modalHtml = `
+        <div id="player-detail-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-fade-in">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+                <!-- Modal Header -->
+                <div class="p-4 bg-emerald-800 text-white flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-base">${spieler.nickname || spieler.name}</h3>
+                        <p class="text-xs text-emerald-200">Stv: ${spieler.hcp || '36'} &bull; Löcher: ${stats.played}/${kursBahnen.length}</p>
+                    </div>
+                    <button onclick="document.getElementById('player-detail-modal').remove()" class="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-700 text-white hover:bg-emerald-600 transition">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="p-3 bg-zinc-50 border-b border-zinc-200 grid grid-cols-4 gap-2 text-center">
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Schläge</div>
+                        <div class="text-sm font-black text-zinc-800">${stats.totalStrokes}</div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Netto</div>
+                        <div class="text-sm font-black text-emerald-700">${stats.totalNetto} Pkt</div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Brutto</div>
+                        <div class="text-sm font-black text-amber-700">${stats.totalBrutto} Pkt</div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Ladies</div>
+                        <div class="text-sm font-black text-pink-600">${stats.ladies} 🍻</div>
+                    </div>
+                </div>
+
+                <!-- Score Highlights Pills -->
+                <div class="px-4 py-2 bg-white flex items-center justify-around border-b border-zinc-100 text-[11px] font-bold">
+                    <span class="text-emerald-600"><i class="fas fa-circle text-[8px] mr-1"></i>Birdies/-: ${stats.birdies}</span>
+                    <span class="text-blue-600"><i class="fas fa-circle text-[8px] mr-1"></i>Pars: ${stats.pars}</span>
+                    <span class="text-amber-600"><i class="fas fa-circle text-[8px] mr-1"></i>Bogeys: ${stats.bogeys}</span>
+                    <span class="text-red-500"><i class="fas fa-circle text-[8px] mr-1"></i>Dbl+: ${stats.doublePlus}</span>
+                </div>
+
+                <!-- Table Content -->
+                <div class="p-3 overflow-y-auto flex-1">
+                    <table class="w-full border-collapse text-left">
+                        <thead>
+                            <tr class="border-b border-zinc-200 text-[10px] text-zinc-400 uppercase font-bold">
+                                <th class="py-1 px-2 text-center">Bahn</th>
+                                <th class="py-1 px-1 text-center">Par (SI)</th>
+                                <th class="py-1 px-1 text-center">Vorg.</th>
+                                <th class="py-1 px-1 text-center">Schläge</th>
+                                <th class="py-1 px-1 text-center">Brutto</th>
+                                <th class="py-1 px-2 text-center">Netto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
