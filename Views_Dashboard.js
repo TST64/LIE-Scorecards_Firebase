@@ -224,9 +224,16 @@ app.views.dashboard = function()
                     </div>
                     <div class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs">
                         <div class="w-9 h-9 rounded-xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0"><i class="fas fa-calendar-check"></i></div>
-                        <div>
-                            <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
-                            <span class="text-sm font-black text-zinc-800 mt-1 block">${gespielteRundenCount} Runden</span>
+                        <!-- Anklickbare Turniere-Kachel (Filtert direkt auf 'Meine Runden') -->
+                        <div onclick="app.router.navigate('spieltage', 'my')" class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs cursor-pointer hover:border-emerald-500/60 hover:shadow-md transition group">
+                            <div class="w-9 h-9 rounded-xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-600 group-hover:text-emerald-700 flex items-center justify-center text-base shrink-0 transition"><i class="fas fa-calendar-check"></i></div>
+                            <div>
+                                <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
+                                <span class="text-sm font-black text-zinc-800 mt-1 block flex items-center gap-1">
+                                    ${gespielteRundenCount} Runden 
+                                    <i class="fas fa-chevron-right text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -1,19 +1,20 @@
 /* ==========================================
-   VIEWS: SPIELTAGE
+   VIEWS: SPIELTAGE (Mit 'Meine Runden' Filter)
    ========================================== */
 
-   app.views.spieltage = function()
+   app.views.spieltage = function(filterParam)
    {
        const currentUser = app.state.currentUser;
        const isLeiter = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Spielleiter');
    
-       // Filter out deleted ("istGeloescht"), canceled ("Abgebrochen"), and empty ghost rounds
+       // Filter-Modus ermitteln ('all' oder 'my')
+       let activeFilter = filterParam || app.state.spieltageFilterMode || 'all';
+       app.state.spieltageFilterMode = activeFilter;
+   
+       // 1. Alle aktiven (nicht gelöschten/abgebrochenen) Runden filtern
        const activeRounds = app.state.spieltage ? app.state.spieltage.filter(function(st) 
        {
-           if (!st || !st.id || String(st.id).trim() === "") 
-           {
-               return false;
-           }
+           if (!st || !st.id || String(st.id).trim() === "") return false;
    
            const isDel = st.istGeloescht === true || 
                          String(st.istGeloescht).toUpperCase() === "TRUE" || 
@@ -23,41 +24,72 @@
            return st.status !== 'Abgebrochen' && !isDel;
        }) : [];
    
-       // Sort by date (newest first)
-       activeRounds.sort(function(a, b) 
+       // Chronologisch sortieren (Neueste zuerst)
+       activeRounds.sort((a, b) => new Date(b.date) - new Date(a.date));
+   
+       // 2. Anzahl der eigenen Runden für den Button-Badge berechnen
+       const myRoundsCount = activeRounds.filter(st => {
+           if (!currentUser) return false;
+           const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
+           return ids.includes(String(currentUser.id).trim());
+       }).length;
+   
+       // 3. Runden basierend auf gewähltem Filter filtern
+       let roundsToDisplay = activeRounds;
+       if (activeFilter === 'my' && currentUser)
        {
-           return new Date(b.date) - new Date(a.date);
-       });
+           roundsToDisplay = activeRounds.filter(st => {
+               const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
+               return ids.includes(String(currentUser.id).trim());
+           });
+       }
    
        let html = `
-           <div class="space-y-6 max-w-4xl mx-auto pb-12">
+           <div class="space-y-5 max-w-4xl mx-auto pb-12">
                <!-- Header Section -->
-               <div class="border-b border-stone-200 pb-4">
-                   <h1 class="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">Spieltage</h1>
-                   <p class="text-xs sm:text-sm text-stone-500 mt-1">Übersicht aller aktiven und vergangenen Runden</p>
+               <div class="border-b border-stone-200 pb-3 flex justify-between items-end">
+                   <div>
+                       <h1 class="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">Spieltage</h1>
+                       <p class="text-xs sm:text-sm text-stone-500 mt-0.5">Übersicht aller aktiven und vergangenen Runden</p>
+                   </div>
+               </div>
+   
+               <!-- Filter-Schalter (Alle Runden vs. Meine Runden) -->
+               <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200 max-w-xs">
+                   <button onclick="app.router.navigate('spieltage', 'all')" 
+                           class="py-1.5 text-xs font-bold rounded-lg transition-all ${activeFilter !== 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-globe mr-1"></i> Alle Runden (${activeRounds.length})
+                   </button>
+                   <button onclick="app.router.navigate('spieltage', 'my')" 
+                           class="py-1.5 text-xs font-bold rounded-lg transition-all ${activeFilter === 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-user-check mr-1"></i> Meine Runden (${myRoundsCount})
+                   </button>
                </div>
    
                <!-- Liste der Spieltage -->
                <div class="space-y-4">
        `;
    
-       if (activeRounds.length === 0)
+       if (roundsToDisplay.length === 0)
        {
+           const emptyMsg = activeFilter === 'my' 
+               ? "Du hast bisher an keinen gespielten Runden teilgenommen." 
+               : "Es wurden noch keine Runden angelegt oder alle wurden gelöscht.";
+   
            html += `
                <div class="bg-stone-50 border border-dashed border-stone-300 rounded-xl p-8 text-center">
                    <i class="fas fa-calendar-times text-stone-400 text-3xl mb-3"></i>
-                   <p class="text-stone-600 font-medium text-sm">Keine Spieltage vorhanden</p>
-                   <p class="text-stone-400 text-xs mt-1">Es wurden noch keine Runden angelegt oder alle bisherigen wurden gelöscht.</p>
+                   <p class="text-stone-600 font-medium text-sm">Keine Spieltage gefunden</p>
+                   <p class="text-stone-400 text-xs mt-1">${emptyMsg}</p>
                </div>
            `;
        }
        else
        {
-           activeRounds.forEach(function(st)
+           roundsToDisplay.forEach(function(st)
            {
                const isLaufend = st.status === 'Aktiv';
    
-               // Status Badge Formatting
                let statusBadge = '';
                if (isLaufend)
                {
@@ -72,11 +104,9 @@
                    statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplant</span>`;
                }
    
-               // Kursname auflösen
-               const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return k.id === st.kursId; }) : null;
+               const kurs = app.state.kurse ? app.state.kurse.find(k => k.id === st.kursId) : null;
                const kursName = kurs ? kurs.name : (st.kursId || "Unbekannter Kurs");
    
-               // Formatiertes Datum
                let datumFormatted = st.date;
                try
                {
@@ -85,63 +115,38 @@
                    {
                        datumFormatted = d.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
                    }
-               }
-               catch (e)
-               {
-                   // Fallback auf Rohwert
-               }
+               } catch (e) {}
    
-               // Teilnehmeranzahl ermitteln
                const teilnehmerAnzahl = st.teilnehmerCsv ? st.teilnehmerCsv.split(',').filter(Boolean).length : 0;
    
-                // SHORTCUT-BUTTON ZUR SCORE-EINGABE & RUNDENABSCHLUSS
-                let scoreShortcutBtnHtml = '';
-                if (isLaufend)
-                {
-                    let myFlightSeq = 1;
-                    if (currentUser && app.state.flights)
-                    {
-                        const myFlight = app.state.flights.find(function(f)
-                        {
-                            if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
-                            const ids = (f.spielerIdsCsv || "").split(',');
-                            return ids.includes(String(currentUser.id).trim());
-                        });
-
-                        if (myFlight && myFlight.id)
-                        {
-                            const parts = myFlight.id.split('-');
-                            myFlightSeq = parseInt(parts[parts.length - 1]) || 1;
-                        }
-                    }
-
-                    // Button zum Beenden für Spielleiter / Admins
-                    let finishBtnHtml = '';
-                    if (isLeiter)
-                    {
-                        finishBtnHtml = `
-                            <button onclick="event.stopPropagation(); app.logic.finishRoundWithWinners('${st.id}')" 
-                                    class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target"
-                                    title="Runde beenden & HCPs berechnen">
-                                <i class="fas fa-flag-checkered"></i>
-                                <span>Beenden</span>
-                            </button>
-                        `;
-                    }
-
-                    scoreShortcutBtnHtml = `
-                        <div class="flex items-center gap-2">
-                            ${finishBtnHtml}
-                            <button onclick="event.stopPropagation(); app.router.navigate('score_eingabe', { id: '${st.id}', hole: 1, flightSeq: ${myFlightSeq} })" 
-                                    class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target">
-                                <i class="fas fa-pen-to-square"></i>
-                                <span>Score eingeben</span>
-                            </button>
-                        </div>
-                    `;
-                }
-                
-               // Admin Lösch-Button
+               let scoreShortcutBtnHtml = '';
+               if (isLaufend)
+               {
+                   let myFlightSeq = 1;
+                   if (currentUser && app.state.flights)
+                   {
+                       const myFlight = app.state.flights.find(f => {
+                           if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
+                           const ids = (f.spielerIdsCsv || "").split(',');
+                           return ids.includes(String(currentUser.id).trim());
+                       });
+   
+                       if (myFlight && myFlight.id)
+                       {
+                           const parts = myFlight.id.split('-');
+                           myFlightSeq = parseInt(parts[parts.length - 1]) || 1;
+                       }
+                   }
+   
+                   scoreShortcutBtnHtml = `
+                       <button onclick="event.stopPropagation(); app.router.navigate('score_eingabe', { id: '${st.id}', hole: 1, flightSeq: ${myFlightSeq} })" 
+                               class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target">
+                           <i class="fas fa-pen-to-square"></i>
+                           <span>Score eingeben</span>
+                       </button>
+                   `;
+               }
+   
                let deleteBtnHtml = '';
                if (isLeiter)
                {
