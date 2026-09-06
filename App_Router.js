@@ -46,6 +46,7 @@ app.router.navigate = function(viewName, params)
     app.state.spieler = app.state.spieler || [];
     app.state.spieltage = app.state.spieltage || [];
     app.state.scoreCards = app.state.scoreCards || [];
+    app.state.kalenderTermine = app.state.kalenderTermine || []; // <--- Ergänzt
     app.state.liveScores = app.state.liveScores || {};
 
     const targetView = viewName || 'login';
@@ -166,6 +167,7 @@ app.router.updateNavigationUI = function(viewName)
 
         let activeTabId = "";
         if (viewName === 'dashboard') activeTabId = 'nav-dash';
+        if (viewName === 'kalender') activeTabId = 'nav-calendar'; // <--- Ergänzt
         if (viewName === 'spieltage' || viewName === 'spieltag_neu' || viewName === 'leaderboard') activeTabId = 'nav-rounds';
         if (viewName === 'spieler' || viewName === 'spieler_edit') activeTabId = 'nav-players';
         if (viewName === 'admin') activeTabId = 'nav-admin';

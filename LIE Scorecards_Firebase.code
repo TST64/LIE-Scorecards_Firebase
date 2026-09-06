@@ -27,10 +27,10 @@ PROJEKTSTRUKTUR:
 ├── sw.js
 ├── UnitTests.js
 ├── Utils.js
-├── Vault.js
 ├── Views_Admin.js
 ├── Views_AdminGruppe.js
 ├── Views_Dashboard.js
+├── Views_Kalender.js
 ├── Views_Leaderboard.js
 ├── Views_Login.js
 ├── Views_ScoreEingabe.js
@@ -2490,7 +2490,7 @@ function sendTempPinEmail(spielerId, tempPin)
 
 window.CONFIG =
 {
-    appVersion: '3.3.2.1',
+    appVersion: '4.0.2.1',
     gasUrl: 'https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec'
 };
 
@@ -2690,7 +2690,8 @@ window.firebaseConfig =
                     "Views_Admin.js",
                     "Views_AdminGruppe.js",
                     "Views_SpielerEdit.js",
-                    "App_Start.js"
+                    "App_Start.js",
+                    "Views_Kalender.js"
                 ];
 
                 const version = (typeof CONFIG !== 'undefined' && CONFIG.appVersion) 
@@ -3395,153 +3396,6 @@ function clearTestDataBase()
 
 
 
-##### <Vault.js>:
-----------------------------------------------------------------------
-/**
- * Sichert alle beendeten Runden serialisiert in ein separates Vault-Spreadsheet
- */
-function syncToVault()
-{
-    try
-    {
-        // 1. Vault Spreadsheet öffnen (ID/URL in Script-Properties hinterlegen oder hier eintragen)
-        const props = PropertiesService.getScriptProperties();
-        const vaultUrl = props.getProperty("ssVault");
-        if (!vaultUrl) return { success: false, error: "Script-Property 'ssVault' fehlt!" };
-        
-        const ssVault = SpreadsheetApp.openByUrl(vaultUrl);
-        let tVault = ssVault.getSheetByName("Vault_Data");
-        
-        // Falls das Blatt noch nicht existiert, anlegen und Header schreiben
-        if (!tVault)
-        {
-            tVault = ssVault.insertSheet("Vault_Data");
-            tVault.appendRow([
-                "spieltagId", "datum", "jahr", "monat", "kursName", 
-                "spielerId", "spielerName", "flightSeq", "loch", "par", 
-                "si", "vorgabeLoch", "strokes", "nettoPunkte", "puts", 
-                "lady", "maxscore", "status", "syncedAt"
-            ]);
-        }
-
-        // 2. Quelldaten aus der App holen
-        const initData = getInitialAppData();
-        if (!initData.success) return initData;
-
-        const { spieltage, scoreCards, spieler, kurse, bahnen } = initData;
-
-        // Nur beendete und nicht gelöschte Spieltage sichern
-        const beendeteSpieltage = spieltage.filter(st => {
-            const isDel = st.istGeloescht === true || String(st.istGeloescht).toUpperCase() === "TRUE";
-            return st.status === "Beendet" && !isDel;
-        });
-
-        if (beendeteSpieltage.length === 0)
-        {
-            return { success: true, message: "Keine beendeten Runden zum Sichern vorhanden." };
-        }
-
-        // 3. Bestehende Daten im Vault einlesen (für überschreibungsfreie Upserts)
-        const existingVaultData = tVault.getDataRange().getValues();
-        const existingMap = {}; // Key: "spieltagId_spielerId_loch" -> Zeilenindex
-        for (let i = 1; i < existingVaultData.length; i++)
-        {
-            const key = `${existingVaultData[i][0]}_${existingVaultData[i][5]}_${existingVaultData[i][8]}`;
-            existingMap[key] = i + 1; // 1-basierte Zeile
-        }
-
-        const nowStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-        const rowsToAppend = [];
-
-        // 4. Daten zusammenstellen & serialisieren
-        beendeteSpieltage.forEach(st => {
-            const d = new Date(st.date);
-            const jahr = d.getFullYear();
-            const monat = d.getMonth() + 1;
-            
-            const kurs = kurse.find(k => String(k.id).trim() === String(st.kursId).trim());
-            const kursName = kurs ? kurs.name : "Unbekannt";
-            const kursBahnen = bahnen.filter(b => String(b.kursId).trim() === String(st.kursId).trim());
-
-            const rundenScores = scoreCards.filter(sc => String(sc.spieltagId).trim() === String(st.id).trim());
-
-            rundenScores.forEach(sc => {
-                const sp = spieler.find(s => String(s.id).trim() === String(sc.spielerId).trim());
-                const bahn = kursBahnen.find(b => parseInt(b.nr) === parseInt(sc.hole)) || { par: 4, si: 10 };
-                
-                // --- KORREKTUR: Vorgabe direkt serverseitig berechnen ---
-                let vorgabeLoch = calculateServerHoleVorgabe(sp, bahn.si);
-                let nettoPkt = 0;
-                
-                if (sc.strokes > 0)
-                {
-                    let persoenlichesPar = parseInt(bahn.par) + parseInt(vorgabeLoch);
-                    nettoPkt = Math.max(0, 2 + (persoenlichesPar - parseInt(sc.strokes)));
-                }
-
-                const vaultKey = `${st.id}_${sc.spielerId}_${sc.hole}`;
-                const rowData = [
-                    st.id, st.date, jahr, monat, kursName,
-                    sc.spielerId, sp ? (sp.nickname || sp.name) : sc.spielerId, sc.flightSeq || 1, sc.hole, bahn.par,
-                    bahn.si, vorgabeLoch, sc.strokes, nettoPkt, sc.puts || 2,
-                    sc.lady ? "TRUE" : "FALSE", sc.maxscore ? "TRUE" : "FALSE", st.status, nowStr
-                ];
-
-                if (existingMap[vaultKey])
-                {
-                    // Zeile im Vault aktualisieren
-                    tVault.getRange(existingMap[vaultKey], 1, 1, rowData.length).setValues([rowData]);
-                }
-                else
-                {
-                    // Neue Zeile vormerken
-                    rowsToAppend.push(rowData);
-                }
-            });
-        });
-
-        if (rowsToAppend.length > 0)
-        {
-            const lastRow = tVault.getLastRow();
-            tVault.getRange(lastRow + 1, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
-        }
-
-        SpreadsheetApp.flush();
-        Logger.log("vaultSync: Erfolg " + rowsToAppend.length.toString() + " Zeilen hinzugefügt");
-        return { success: true, count: rowsToAppend.length };
-    }
-    catch (err)
-    {
-        Logger.log("vaultSync: Fehler " + err.toString());
-        return { success: false, error: err.toString() };
-    }
-}
-
-/**
- * Serverseitige Hilfsfunktion zur Vorgaben-Berechnung pro Loch
- */
-function calculateServerHoleVorgabe(spieler, strokeIndex)
-{
-    if (!spieler || !spieler.hcp) return 0;
-    
-    // Spielvorgabe (SpV) ermitteln/runden
-    const hcp = parseFloat(spieler.hcp) || 0;
-    const si = parseInt(strokeIndex) || 18;
-    
-    // Grund-Vorgabe pro Loch (z. B. bei SpV 18 -> jedes Loch 1 Schuss extra)
-    let extraStrokes = Math.floor(hcp / 18);
-    let remainder = hcp % 18;
-    
-    if (si <= remainder)
-    {
-        extraStrokes += 1;
-    }
-    
-    return extraStrokes;
-}
-
-
-
 ##### <Views_Admin.js>:
 ----------------------------------------------------------------------
 /**
@@ -3578,26 +3432,18 @@ app.views.admin = function()
 
             <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs space-y-5">
                 
-                <!-- 1. DATENBANK & VAULT -->
+                <!-- 1. DATENBANK & SIEGEREHRUNG -->
                 <div class="space-y-3">
                     <h4 class="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <i class="fas fa-database text-emerald-600"></i> Datenbank & Vault
+                        <i class="fas fa-trophy text-emerald-600"></i> Siegerehrung & Freigabe
                     </h4>
                     
-                    <!-- NEU: Schalter für die Siegerehrung / Stats-Freigabe auf der Homepage -->
+                    <!-- Schalter für die Siegerehrung / Stats-Freigabe auf der Homepage -->
                     <div id="vault-toggle-container">
                         <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center justify-between animate-pulse">
-                            <span class="text-xs text-stone-400 font-semibold"><i class="fas fa-spinner fa-spin mr-1"></i> Lade Vault-Sperrstatus...</span>
+                            <span class="text-xs text-stone-400 font-semibold"><i class="fas fa-spinner fa-spin mr-1"></i> Lade Freigabestatus...</span>
                         </div>
                     </div>
-
-                    <p class="text-xs text-stone-500 leading-relaxed pt-1">
-                        Sichert den aktuellen Stand aller Tabellen serialisiert im Vault-Archivblatt.
-                    </p>
-                    <button onclick="app.logic.triggerVaultSync()" id="admin-vault-sync-btn" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3 rounded-xl transition text-xs shadow-xs flex items-center justify-center gap-2 touch-target">
-                        <i class="fas fa-box-archive"></i>
-                        <span>Daten jetzt im Vault sichern</span>
-                    </button>
                 </div>
 
                 <hr class="border-stone-100">
@@ -3885,45 +3731,6 @@ app.views.spieler = function()
     `;
 };
 
-app.logic.triggerVaultSync = function()
-{
-    const btn = document.getElementById('admin-vault-sync-btn');
-    if (btn)
-    {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-1"></i> Synchronisiere Vault...`;
-    }
-
-    app.logic.apiRequest('syncToVault')
-        .then(function(response)
-        {
-            if (response && response.success)
-            {
-                const anzahl = response.count !== undefined ? response.count : 0;
-                app.logic.showToast(`Vault-Sync erfolgreich! (${anzahl} neue/aktualisierte Datensätze)`, "success");
-            }
-            else
-            {
-                app.logic.showToast("Fehler beim Vault-Sync: " + (response ? response.error : "Unbekannt"), "error");
-            }
-
-            if (btn)
-            {
-                btn.disabled = false;
-                btn.innerHTML = `<i class="fas fa-database mr-1"></i> Daten im Vault sichern`;
-            }
-        })
-        .catch(function(err)
-        {
-            app.logic.showToast("Netzwerkfehler beim Vault-Sync", "error");
-            if (btn)
-            {
-                btn.disabled = false;
-                btn.innerHTML = `<i class="fas fa-database mr-1"></i> Daten im Vault sichern`;
-            }
-        });
-};
-
 
 ##### <Views_Dashboard.js>:
 ----------------------------------------------------------------------
@@ -4152,10 +3959,16 @@ app.views.dashboard = function()
                         </div>
                     </div>
                     <div class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs">
-                        <div class="w-9 h-9 rounded-xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0"><i class="fas fa-calendar-check"></i></div>
-                        <div>
-                            <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
-                            <span class="text-sm font-black text-zinc-800 mt-1 block">${gespielteRundenCount} Runden</span>
+                        <!-- Anklickbare Turniere-Kachel (Filtert direkt auf 'Meine Runden') -->
+                        <div onclick="app.router.navigate('spieltage', 'my')" class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs cursor-pointer hover:border-emerald-500/60 hover:shadow-md transition group">
+                            <div class="w-9 h-9 rounded-xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-600 group-hover:text-emerald-700 flex items-center justify-center text-base shrink-0 transition"><i class="fas fa-calendar-check"></i></div>
+                            <div>
+                                <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
+                                <span class="text-sm font-black text-zinc-800 mt-1 block flex items-center gap-1">
+                                    ${gespielteRundenCount} Runden 
+                                    <i class="fas fa-chevron-right text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4189,6 +4002,314 @@ app.views.dashboard = function()
             </div>
         </div>
     `;
+};
+
+
+##### <Views_Kalender.js>:
+----------------------------------------------------------------------
+// =========================================================================
+// BMAssistent / LIE Scorecard - Kalender & Termine View
+// Views_Kalender.js
+// BSD (Allman) Style
+// =========================================================================
+
+app.views = app.views || {};
+
+app.views.kalender = function()
+{
+    const currentUser = app.state.currentUser || {};
+    const isLeiter = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Spielleiter');
+    
+    // Termine aus dem app.state laden (Standard: Chronologisch sortieren)
+    const termine = [...(app.state.kalenderTermine || [])].sort((a, b) => new Date(a.datum) - new Date(b.datum));
+
+    let termineHtml = "";
+
+    if (termine.length === 0)
+    {
+        termineHtml = `
+            <div class="bg-stone-50 border border-dashed border-stone-300 rounded-2xl p-8 text-center">
+                <i class="fas fa-calendar-times text-stone-400 text-3xl mb-3"></i>
+                <p class="text-stone-600 font-bold text-sm">Keine anstehenden Termine</p>
+                <p class="text-stone-400 text-xs mt-1">Legt als Spielleiter den nächsten gemeinsamen Spieltag an!</p>
+            </div>
+        `;
+    }
+    else
+    {
+        termineHtml = termine.map(function(term)
+        {
+            const rsvps = term.rsvps || {};
+            const myStatus = currentUser.id ? rsvps[currentUser.id] : null;
+
+            // Zähler ermitteln
+            let yesCount = 0, noCount = 0, maybeCount = 0;
+            const yesNames = [], noNames = [], maybeNames = [];
+
+            Object.keys(rsvps).forEach(function(sId)
+            {
+                const spieler = (app.state.spieler || []).find(s => String(s.id).trim() === String(sId).trim());
+                const sName = spieler ? (spieler.nickname || spieler.name) : `ID ${sId}`;
+                
+                if (rsvps[sId] === 'yes') { yesCount++; yesNames.push(sName); }
+                if (rsvps[sId] === 'no') { noCount++; noNames.push(sName); }
+                if (rsvps[sId] === 'maybe') { maybeCount++; maybeNames.push(sName); }
+            });
+
+            // Datum formatieren
+            let datumFormatted = term.datum;
+            try
+            {
+                const d = new Date(term.datum);
+                if (!isNaN(d.getTime()))
+                {
+                    datumFormatted = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+                }
+            } catch (e) {}
+
+            return `
+                <div class="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+                    <!-- Header Info -->
+                    <div class="flex justify-between items-start gap-2">
+                        <div>
+                            <span class="inline-block px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200/60 rounded-md text-[10px] font-black uppercase tracking-wider mb-1">
+                                <i class="far fa-clock mr-1"></i>${term.uhrzeit || '10:00'} Uhr
+                            </span>
+                            <h3 class="text-base font-bold text-stone-800">${term.titel}</h3>
+                            <p class="text-xs text-stone-500 font-medium flex items-center gap-1 mt-0.5">
+                                <i class="fas fa-map-marker-alt text-red-500"></i> ${term.ort || 'Golfplatz'}
+                            </p>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="text-xs font-bold text-stone-700 block">${datumFormatted}</span>
+                            ${isLeiter ? `<button onclick="app.logic.deleteTermin('${term.id}')" class="text-stone-300 hover:text-red-600 transition text-xs mt-1"><i class="fas fa-trash-alt"></i></button>` : ''}
+                        </div>
+                    </div>
+
+                    ${term.beschreibung ? `<p class="text-xs text-stone-600 bg-stone-50 p-2.5 rounded-xl border border-stone-100 font-medium">${term.beschreibung}</p>` : ''}
+
+                    <!-- User RSVP Buttons -->
+                    <div class="pt-2 border-t border-stone-100">
+                        <span class="text-[10px] font-extrabold text-stone-400 uppercase tracking-wider block mb-2">Deine Rückmeldung:</span>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="app.logic.saveRsvp('${term.id}', 'yes')" 
+                                    class="py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 touch-target ${myStatus === 'yes' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">
+                                <i class="fas fa-check-circle"></i> Dabei
+                            </button>
+                            <button onclick="app.logic.saveRsvp('${term.id}', 'maybe')" 
+                                    class="py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 touch-target ${myStatus === 'maybe' ? 'bg-amber-500 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">
+                                <i class="fas fa-question-circle"></i> Unsicher
+                            </button>
+                            <button onclick="app.logic.saveRsvp('${term.id}', 'no')" 
+                                    class="py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 touch-target ${myStatus === 'no' ? 'bg-red-600 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">
+                                <i class="fas fa-times-circle"></i> Passt nicht
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- RSVP Summary Badges & Names -->
+                    <div class="bg-stone-50 p-3 rounded-xl border border-stone-100 space-y-2 text-xs">
+                        <div class="flex items-center justify-between text-stone-600 font-semibold text-[11px]">
+                            <span class="text-emerald-700 font-bold"><i class="fas fa-user-check mr-1"></i>Zusagen (${yesCount}):</span>
+                            <span>${yesNames.join(', ') || 'Noch keine'}</span>
+                        </div>
+                        ${maybeCount > 0 ? `
+                        <div class="flex items-center justify-between text-stone-600 font-semibold text-[11px]">
+                            <span class="text-amber-700 font-bold"><i class="fas fa-user-clock mr-1"></i>Unsicher (${maybeCount}):</span>
+                            <span>${maybeNames.join(', ')}</span>
+                        </div>` : ''}
+                        ${noCount > 0 ? `
+                        <div class="flex items-center justify-between text-stone-600 font-semibold text-[11px]">
+                            <span class="text-red-600 font-bold"><i class="fas fa-user-xmark mr-1"></i>Absagen (${noCount}):</span>
+                            <span>${noNames.join(', ')}</span>
+                        </div>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    let newTerminBtnHeader = "";
+    if (isLeiter)
+    {
+        newTerminBtnHeader = `
+            <button onclick="app.logic.showNewTerminModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5 touch-target">
+                <i class="fas fa-plus"></i> Neuer Termin
+            </button>
+        `;
+    }
+
+    return `
+        <div class="space-y-5 max-w-4xl mx-auto pb-12">
+            <div class="border-b border-stone-200 pb-3 flex justify-between items-end">
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">Gruppen-Kalender</h1>
+                    <p class="text-xs sm:text-sm text-stone-500 mt-0.5">Termine, Privatrunden & Turniere planen</p>
+                </div>
+                ${newTerminBtnHeader}
+            </div>
+
+            <div class="space-y-4">
+                ${termineHtml}
+            </div>
+        </div>
+    `;
+};
+
+// ==========================================
+// KALENDER LOGIK (RSVP & ADMIN-ACTIONS)
+// ==========================================
+
+// Speichert das RSVP des aktuellen Nutzers direkt in Firestore
+app.logic.saveRsvp = async function(terminId, status)
+{
+    const currentUser = app.state.currentUser;
+    if (!currentUser)
+    {
+        app.logic.showToast("Bitte zuerst einloggen!", "error");
+        return;
+    }
+
+    try
+    {
+        const fieldPath = `rsvps.${currentUser.id}`;
+        const updateObj = {};
+        updateObj[fieldPath] = status;
+
+        await app.db.collection('kalender_termine').doc(terminId).update(updateObj);
+        
+        // Lokalen State aktualisieren & Neu rendern
+        const term = (app.state.kalenderTermine || []).find(t => t.id === terminId);
+        if (term)
+        {
+            if (!term.rsvps) term.rsvps = {};
+            term.rsvps[currentUser.id] = status;
+        }
+
+        app.logic.showToast("Rückmeldung gespeichert!", "success");
+        app.router.navigate('kalender');
+    }
+    catch (err)
+    {
+        console.error("RSVP Fehler:", err);
+        app.logic.showToast("Fehler beim Speichern der Rückmeldung.", "error");
+    }
+};
+
+// Modal zum Erstellen eines neuen Termins (Spielleiter/Admins)
+app.logic.showNewTerminModal = function()
+{
+    const oldModal = document.getElementById('new-termin-modal');
+    if (oldModal) oldModal.remove();
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const modalHtml = `
+        <div id="new-termin-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-fade-in">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
+                <div class="flex justify-between items-center border-b border-stone-100 pb-2">
+                    <h3 class="font-bold text-stone-800 text-base">Neuen Termin anlegen</h3>
+                    <button onclick="document.getElementById('new-termin-modal').remove()" class="text-stone-400 hover:text-stone-600"><i class="fas fa-times"></i></button>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-stone-400 uppercase mb-1">Titel / Anlass</label>
+                        <input id="term-title" type="text" placeholder="z. B. Oktober Abschlussturnier" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] font-bold text-stone-400 uppercase mb-1">Datum</label>
+                            <input id="term-date" type="date" value="${todayStr}" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" />
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-stone-400 uppercase mb-1">Uhrzeit</label>
+                            <input id="term-time" type="time" value="11:00" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-stone-400 uppercase mb-1">Ort / Platz</label>
+                        <input id="term-location" type="text" value="Bremer Schweiz" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" />
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-stone-400 uppercase mb-1">Beschreibung (Optional)</label>
+                        <textarea id="term-desc" rows="2" placeholder="Details zur Runde..." class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600"></textarea>
+                    </div>
+                </div>
+
+                <button onclick="app.logic.createNewTerminSubmit()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition text-xs shadow-xs">
+                    Termin veröffentlichen
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
+
+// Speichert den neuen Termin in Firestore
+app.logic.createNewTerminSubmit = async function()
+{
+    const titel = document.getElementById('term-title').value.trim();
+    const datum = document.getElementById('term-date').value;
+    const uhrzeit = document.getElementById('term-time').value;
+    const ort = document.getElementById('term-location').value.trim();
+    const beschreibung = document.getElementById('term-desc').value.trim();
+
+    if (!titel || !datum)
+    {
+        app.logic.showToast("Bitte Titel und Datum ausfüllen!", "info");
+        return;
+    }
+
+    const docId = `TERM-${Date.now()}`;
+    const newTermin = {
+        id: docId,
+        titel: titel,
+        datum: datum,
+        uhrzeit: uhrzeit,
+        ort: ort,
+        beschreibung: beschreibung,
+        erstelltVon: app.state.currentUser ? app.state.currentUser.id : "101",
+        rsvps: {}
+    };
+
+    try
+    {
+        await app.db.collection('kalender_termine').doc(docId).set(newTermin);
+        if (!app.state.kalenderTermine) app.state.kalenderTermine = [];
+        app.state.kalenderTermine.push(newTermin);
+
+        document.getElementById('new-termin-modal').remove();
+        app.logic.showToast("Termin im Kalender angelegt!", "success");
+        app.router.navigate('kalender');
+    }
+    catch (e)
+    {
+        console.error("Fehler beim Erstellen des Termins:", e);
+        app.logic.showToast("Fehler beim Speichern.", "error");
+    }
+};
+
+// Termin löschen
+app.logic.deleteTermin = async function(terminId)
+{
+    if (!confirm("Möchtest du diesen Termin wirklich löschen?")) return;
+
+    try
+    {
+        await app.db.collection('kalender_termine').doc(terminId).delete();
+        app.state.kalenderTermine = (app.state.kalenderTermine || []).filter(t => t.id !== terminId);
+        app.logic.showToast("Termin gelöscht.", "success");
+        app.router.navigate('kalender');
+    }
+    catch (e)
+    {
+        app.logic.showToast("Fehler beim Löschen.", "error");
+    }
 };
 
 
@@ -4536,7 +4657,7 @@ app.views.leaderboard = function(spieltagId, activeTab)
     `;
 };
 
-// Modal für die detaillierten Runden-Statistiken eines Spielers
+// Modal für die detaillierten Runden-Statistiken eines Spielers (inkl. Putts & Striche)
 app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
 {
     const spieltag = (app.state.spieltage || []).find(s => String(s.id).trim() === String(spieltagId).trim());
@@ -4551,43 +4672,92 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
         String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === String(spielerId).trim()
     );
 
-    let stats = { totalStrokes: 0, totalBrutto: 0, totalNetto: 0, birdies: 0, pars: 0, bogeys: 0, doublePlus: 0, ladies: 0, played: 0 };
+    let stats = { 
+        totalStrokes: 0, 
+        totalBrutto: 0, 
+        totalNetto: 0, 
+        totalPutts: 0,
+        puttHolesCount: 0,
+        striche: 0, 
+        birdies: 0, 
+        pars: 0, 
+        bogeys: 0, 
+        doublePlus: 0, 
+        ladies: 0, 
+        played: 0 
+    };
     
     let rowsHtml = kursBahnen.map(bahn => {
         const hNr = parseInt(bahn.nr);
         const match = dbScores.find(sc => sc.hole !== undefined && parseInt(sc.hole) === hNr);
-        const strokes = match ? parseInt(match.strokes) : 0;
+        
+        const rawStrokes = match ? parseInt(match.strokes || 0) : 0;
+        
+        // Liest 'puts' (Firestore Key) oder 'putts' (Fallback) aus
+        const rawPutsVal = match ? (match.puts !== undefined ? match.puts : match.putts) : null;
+        const putts = (rawPutsVal !== null && rawPutsVal !== undefined && rawPutsVal !== "") ? parseInt(rawPutsVal) : null;
+
+        // Prüft auf Strich / Maxscore
+        const isStrich = match && (
+            match.maxscore === true || match.maxscore === "true" || 
+            match.isStrich === true || match.isStrich === "true" || 
+            match.strich === true || match.strokes === "Ø" || match.strokes === "0"
+        );
         const isLady = match && (match.lady === true || match.lady === "true");
 
         if (isLady) stats.ladies++;
 
-        if (strokes > 0) {
+        if (match && (rawStrokes > 0 || isStrich)) {
             stats.played++;
-            stats.totalStrokes += strokes;
-
-            const diff = strokes - parseInt(bahn.par);
-            if (diff <= -1) stats.birdies++;
-            else if (diff === 0) stats.pars++;
-            else if (diff === 1) stats.bogeys++;
-            else stats.doublePlus++;
 
             const vorgabe = app.logic.calculateHoleVorgabe ? app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si) : 0;
-            const nettoPkt = app.logic.calculateNettoStableford ? app.logic.calculateNettoStableford(strokes, bahn.par, vorgabe) : 0;
-            const bruttoPkt = Math.max(0, parseInt(bahn.par) - strokes + 2);
+            
+            if (isStrich) {
+                stats.striche++;
 
-            stats.totalNetto += nettoPkt;
-            stats.totalBrutto += bruttoPkt;
+                return `
+                    <tr class="border-b border-zinc-100 text-xs bg-zinc-50/50">
+                        <td class="py-2 px-2 font-bold text-zinc-700 text-center">#${bahn.nr}</td>
+                        <td class="py-2 px-1 text-center text-zinc-400 font-medium">${bahn.par} <span class="text-[9px]">(${bahn.si})</span></td>
+                        <td class="py-2 px-1 text-center text-amber-700 font-semibold">+${vorgabe}</td>
+                        <td class="py-2 px-1 text-center font-black text-zinc-400">Ø ${isLady ? '🍻' : ''}</td>
+                        <td class="py-2 px-1 text-center text-zinc-400">0</td>
+                        <td class="py-2 px-2 text-center font-bold text-zinc-400 bg-zinc-100/50">0</td>
+                    </tr>
+                `;
+            } else {
+                stats.totalStrokes += rawStrokes;
+                
+                if (putts !== null && !isNaN(putts)) {
+                    stats.totalPutts += putts;
+                    stats.puttHolesCount++;
+                }
 
-            return `
-                <tr class="border-b border-zinc-100 text-xs">
-                    <td class="py-2 px-2 font-bold text-zinc-700 text-center">#${bahn.nr}</td>
-                    <td class="py-2 px-1 text-center text-zinc-400 font-medium">${bahn.par} <span class="text-[9px]">(${bahn.si})</span></td>
-                    <td class="py-2 px-1 text-center text-amber-700 font-semibold">+${vorgabe}</td>
-                    <td class="py-2 px-1 text-center font-bold text-zinc-900">${strokes} ${isLady ? '🍻' : ''}</td>
-                    <td class="py-2 px-1 text-center text-zinc-600">${bruttoPkt}</td>
-                    <td class="py-2 px-2 text-center font-bold text-emerald-700 bg-emerald-50/50">${nettoPkt}</td>
-                </tr>
-            `;
+                const diff = rawStrokes - parseInt(bahn.par);
+                if (diff <= -1) stats.birdies++;
+                else if (diff === 0) stats.pars++;
+                else if (diff === 1) stats.bogeys++;
+                else stats.doublePlus++;
+
+                const nettoPkt = app.logic.calculateNettoStableford ? app.logic.calculateNettoStableford(rawStrokes, bahn.par, vorgabe) : 0;
+                const bruttoPkt = Math.max(0, parseInt(bahn.par) - rawStrokes + 2);
+
+                stats.totalNetto += nettoPkt;
+                stats.totalBrutto += bruttoPkt;
+
+                const puttsDisplay = (putts !== null && !isNaN(putts)) ? `<span class="text-[10px] text-zinc-400 font-normal ml-0.5">(${putts}P)</span>` : '';
+
+                return `
+                    <tr class="border-b border-zinc-100 text-xs">
+                        <td class="py-2 px-2 font-bold text-zinc-700 text-center">#${bahn.nr}</td>
+                        <td class="py-2 px-1 text-center text-zinc-400 font-medium">${bahn.par} <span class="text-[9px]">(${bahn.si})</span></td>
+                        <td class="py-2 px-1 text-center text-amber-700 font-semibold">+${vorgabe}</td>
+                        <td class="py-2 px-1 text-center font-bold text-zinc-900">${rawStrokes} ${puttsDisplay} ${isLady ? '🍻' : ''}</td>
+                        <td class="py-2 px-1 text-center text-zinc-600">${bruttoPkt}</td>
+                        <td class="py-2 px-2 text-center font-bold text-emerald-700 bg-emerald-50/50">${nettoPkt}</td>
+                    </tr>
+                `;
+            }
         }
 
         return `
@@ -4602,12 +4772,14 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
         `;
     }).join('');
 
+    const avgPutts = stats.puttHolesCount > 0 ? (stats.totalPutts / stats.puttHolesCount).toFixed(1) : '-';
+
     const oldModal = document.getElementById('player-detail-modal');
     if (oldModal) oldModal.remove();
 
     const modalHtml = `
         <div id="player-detail-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-fade-in">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden">
                 <!-- Modal Header -->
                 <div class="p-4 bg-emerald-800 text-white flex items-center justify-between">
                     <div>
@@ -4620,7 +4792,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                 </div>
 
                 <!-- Stats Grid -->
-                <div class="p-3 bg-zinc-50 border-b border-zinc-200 grid grid-cols-4 gap-2 text-center">
+                <div class="p-3 bg-zinc-50 border-b border-zinc-200 grid grid-cols-3 gap-2 text-center">
                     <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
                         <div class="text-[10px] text-zinc-400 uppercase font-semibold">Schläge</div>
                         <div class="text-sm font-black text-zinc-800">${stats.totalStrokes}</div>
@@ -4632,6 +4804,14 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                     <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
                         <div class="text-[10px] text-zinc-400 uppercase font-semibold">Brutto</div>
                         <div class="text-sm font-black text-amber-700">${stats.totalBrutto} Pkt</div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Putts (Ø)</div>
+                        <div class="text-sm font-black text-blue-700">${stats.totalPutts} <span class="text-[10px] text-zinc-400 font-medium">(${avgPutts})</span></div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Striche</div>
+                        <div class="text-sm font-black text-zinc-500">${stats.striche} Ø</div>
                     </div>
                     <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
                         <div class="text-[10px] text-zinc-400 uppercase font-semibold">Ladies</div>
@@ -4655,7 +4835,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                                 <th class="py-1 px-2 text-center">Bahn</th>
                                 <th class="py-1 px-1 text-center">Par (SI)</th>
                                 <th class="py-1 px-1 text-center">Vorg.</th>
-                                <th class="py-1 px-1 text-center">Schläge</th>
+                                <th class="py-1 px-1 text-center">Schläge (Putts)</th>
                                 <th class="py-1 px-1 text-center">Brutto</th>
                                 <th class="py-1 px-2 text-center">Netto</th>
                             </tr>
@@ -5293,21 +5473,22 @@ app.views.spieler_edit = function(spielerId)
 ##### <Views_Spieltage.js>:
 ----------------------------------------------------------------------
 /* ==========================================
-   VIEWS: SPIELTAGE
+   VIEWS: SPIELTAGE (Mit 'Meine Runden' Filter)
    ========================================== */
 
-   app.views.spieltage = function()
+   app.views.spieltage = function(filterParam)
    {
        const currentUser = app.state.currentUser;
        const isLeiter = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Spielleiter');
    
-       // Filter out deleted ("istGeloescht"), canceled ("Abgebrochen"), and empty ghost rounds
+       // Filter-Modus ermitteln ('all' oder 'my')
+       let activeFilter = filterParam || app.state.spieltageFilterMode || 'all';
+       app.state.spieltageFilterMode = activeFilter;
+   
+       // 1. Alle aktiven (nicht gelöschten/abgebrochenen) Runden filtern
        const activeRounds = app.state.spieltage ? app.state.spieltage.filter(function(st) 
        {
-           if (!st || !st.id || String(st.id).trim() === "") 
-           {
-               return false;
-           }
+           if (!st || !st.id || String(st.id).trim() === "") return false;
    
            const isDel = st.istGeloescht === true || 
                          String(st.istGeloescht).toUpperCase() === "TRUE" || 
@@ -5317,41 +5498,72 @@ app.views.spieler_edit = function(spielerId)
            return st.status !== 'Abgebrochen' && !isDel;
        }) : [];
    
-       // Sort by date (newest first)
-       activeRounds.sort(function(a, b) 
+       // Chronologisch sortieren (Neueste zuerst)
+       activeRounds.sort((a, b) => new Date(b.date) - new Date(a.date));
+   
+       // 2. Anzahl der eigenen Runden für den Button-Badge berechnen
+       const myRoundsCount = activeRounds.filter(st => {
+           if (!currentUser) return false;
+           const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
+           return ids.includes(String(currentUser.id).trim());
+       }).length;
+   
+       // 3. Runden basierend auf gewähltem Filter filtern
+       let roundsToDisplay = activeRounds;
+       if (activeFilter === 'my' && currentUser)
        {
-           return new Date(b.date) - new Date(a.date);
-       });
+           roundsToDisplay = activeRounds.filter(st => {
+               const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
+               return ids.includes(String(currentUser.id).trim());
+           });
+       }
    
        let html = `
-           <div class="space-y-6 max-w-4xl mx-auto pb-12">
+           <div class="space-y-5 max-w-4xl mx-auto pb-12">
                <!-- Header Section -->
-               <div class="border-b border-stone-200 pb-4">
-                   <h1 class="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">Spieltage</h1>
-                   <p class="text-xs sm:text-sm text-stone-500 mt-1">Übersicht aller aktiven und vergangenen Runden</p>
+               <div class="border-b border-stone-200 pb-3 flex justify-between items-end">
+                   <div>
+                       <h1 class="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">Spieltage</h1>
+                       <p class="text-xs sm:text-sm text-stone-500 mt-0.5">Übersicht aller aktiven und vergangenen Runden</p>
+                   </div>
+               </div>
+   
+               <!-- Filter-Schalter (Alle Runden vs. Meine Runden) -->
+               <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200 max-w-xs">
+                   <button onclick="app.router.navigate('spieltage', 'all')" 
+                           class="py-1.5 text-xs font-bold rounded-lg transition-all ${activeFilter !== 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-globe mr-1"></i> Alle Runden (${activeRounds.length})
+                   </button>
+                   <button onclick="app.router.navigate('spieltage', 'my')" 
+                           class="py-1.5 text-xs font-bold rounded-lg transition-all ${activeFilter === 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-user-check mr-1"></i> Meine Runden (${myRoundsCount})
+                   </button>
                </div>
    
                <!-- Liste der Spieltage -->
                <div class="space-y-4">
        `;
    
-       if (activeRounds.length === 0)
+       if (roundsToDisplay.length === 0)
        {
+           const emptyMsg = activeFilter === 'my' 
+               ? "Du hast bisher an keinen gespielten Runden teilgenommen." 
+               : "Es wurden noch keine Runden angelegt oder alle wurden gelöscht.";
+   
            html += `
                <div class="bg-stone-50 border border-dashed border-stone-300 rounded-xl p-8 text-center">
                    <i class="fas fa-calendar-times text-stone-400 text-3xl mb-3"></i>
-                   <p class="text-stone-600 font-medium text-sm">Keine Spieltage vorhanden</p>
-                   <p class="text-stone-400 text-xs mt-1">Es wurden noch keine Runden angelegt oder alle bisherigen wurden gelöscht.</p>
+                   <p class="text-stone-600 font-medium text-sm">Keine Spieltage gefunden</p>
+                   <p class="text-stone-400 text-xs mt-1">${emptyMsg}</p>
                </div>
            `;
        }
        else
        {
-           activeRounds.forEach(function(st)
+           roundsToDisplay.forEach(function(st)
            {
                const isLaufend = st.status === 'Aktiv';
    
-               // Status Badge Formatting
                let statusBadge = '';
                if (isLaufend)
                {
@@ -5366,11 +5578,9 @@ app.views.spieler_edit = function(spielerId)
                    statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplant</span>`;
                }
    
-               // Kursname auflösen
-               const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return k.id === st.kursId; }) : null;
+               const kurs = app.state.kurse ? app.state.kurse.find(k => k.id === st.kursId) : null;
                const kursName = kurs ? kurs.name : (st.kursId || "Unbekannter Kurs");
    
-               // Formatiertes Datum
                let datumFormatted = st.date;
                try
                {
@@ -5379,63 +5589,38 @@ app.views.spieler_edit = function(spielerId)
                    {
                        datumFormatted = d.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
                    }
-               }
-               catch (e)
-               {
-                   // Fallback auf Rohwert
-               }
+               } catch (e) {}
    
-               // Teilnehmeranzahl ermitteln
                const teilnehmerAnzahl = st.teilnehmerCsv ? st.teilnehmerCsv.split(',').filter(Boolean).length : 0;
    
-                // SHORTCUT-BUTTON ZUR SCORE-EINGABE & RUNDENABSCHLUSS
-                let scoreShortcutBtnHtml = '';
-                if (isLaufend)
-                {
-                    let myFlightSeq = 1;
-                    if (currentUser && app.state.flights)
-                    {
-                        const myFlight = app.state.flights.find(function(f)
-                        {
-                            if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
-                            const ids = (f.spielerIdsCsv || "").split(',');
-                            return ids.includes(String(currentUser.id).trim());
-                        });
-
-                        if (myFlight && myFlight.id)
-                        {
-                            const parts = myFlight.id.split('-');
-                            myFlightSeq = parseInt(parts[parts.length - 1]) || 1;
-                        }
-                    }
-
-                    // Button zum Beenden für Spielleiter / Admins
-                    let finishBtnHtml = '';
-                    if (isLeiter)
-                    {
-                        finishBtnHtml = `
-                            <button onclick="event.stopPropagation(); app.logic.finishRoundWithWinners('${st.id}')" 
-                                    class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target"
-                                    title="Runde beenden & HCPs berechnen">
-                                <i class="fas fa-flag-checkered"></i>
-                                <span>Beenden</span>
-                            </button>
-                        `;
-                    }
-
-                    scoreShortcutBtnHtml = `
-                        <div class="flex items-center gap-2">
-                            ${finishBtnHtml}
-                            <button onclick="event.stopPropagation(); app.router.navigate('score_eingabe', { id: '${st.id}', hole: 1, flightSeq: ${myFlightSeq} })" 
-                                    class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target">
-                                <i class="fas fa-pen-to-square"></i>
-                                <span>Score eingeben</span>
-                            </button>
-                        </div>
-                    `;
-                }
-                
-               // Admin Lösch-Button
+               let scoreShortcutBtnHtml = '';
+               if (isLaufend)
+               {
+                   let myFlightSeq = 1;
+                   if (currentUser && app.state.flights)
+                   {
+                       const myFlight = app.state.flights.find(f => {
+                           if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
+                           const ids = (f.spielerIdsCsv || "").split(',');
+                           return ids.includes(String(currentUser.id).trim());
+                       });
+   
+                       if (myFlight && myFlight.id)
+                       {
+                           const parts = myFlight.id.split('-');
+                           myFlightSeq = parseInt(parts[parts.length - 1]) || 1;
+                       }
+                   }
+   
+                   scoreShortcutBtnHtml = `
+                       <button onclick="event.stopPropagation(); app.router.navigate('score_eingabe', { id: '${st.id}', hole: 1, flightSeq: ${myFlightSeq} })" 
+                               class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target">
+                           <i class="fas fa-pen-to-square"></i>
+                           <span>Score eingeben</span>
+                       </button>
+                   `;
+               }
+   
                let deleteBtnHtml = '';
                if (isLeiter)
                {

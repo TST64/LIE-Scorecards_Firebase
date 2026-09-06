@@ -19,6 +19,7 @@ app.state =
     spieltage: [],
     scoreCards: [],
     flights: [],
+    kalenderTermine: [],
     tempFlights: [],
     tempZufallsFlights: [],
     tempManualFlights: {},

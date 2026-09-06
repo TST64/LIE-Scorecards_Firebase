@@ -37,7 +37,8 @@ app.logic.refreshGlobalAppData = async function()
             kurseSnap, 
             plaetzeSnap, 
             bahnenSnap,
-            handicapsSnap
+            handicapsSnap,
+            kalenderSnap // <--- Ergänzt (10. Snapshot)
         ] = await Promise.all([
             app.db.collection('spieler').get().catch(function() { return { forEach: function() {} }; }),
             app.db.collection('spieltage').get().catch(function() { return { forEach: function() {} }; }),
@@ -47,7 +48,8 @@ app.logic.refreshGlobalAppData = async function()
             app.db.collection('kurse').get().catch(function() { return { forEach: function() {} }; }),
             app.db.collection('golfplaetze').get().catch(function() { return { forEach: function() {} }; }),
             app.db.collection('bahnen').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('handicaps').get().catch(function() { return { forEach: function() {} }; })
+            app.db.collection('handicaps').get().catch(function() { return { forEach: function() {} }; }),
+            app.db.collection('kalender_termine').get().catch(function() { return { forEach: function() {} }; }) // <--- Ergänzt
         ]);
 
         const spielerData = [];
@@ -88,6 +90,11 @@ app.logic.refreshGlobalAppData = async function()
         const handicapsData = [];
         handicapsSnap.forEach(function(doc) { handicapsData.push(Object.assign({ id: doc.id }, doc.data())); });
         app.state.handicaps = handicapsData;
+
+        // <--- Ergänzt: Kalender-Daten in den State laden
+        const kalenderData = [];
+        kalenderSnap.forEach(function(doc) { kalenderData.push(Object.assign({ id: doc.id }, doc.data())); });
+        app.state.kalenderTermine = kalenderData;
 
         if (app.state.currentUser)
         {
@@ -151,7 +158,8 @@ app.logic.apiRequest = async function(action, payload = {})
                 handicaps: app.state.handicaps,
                 spieltage: app.state.spieltage,
                 scoreCards: app.state.scoreCards,
-                flights: app.state.flights
+                flights: app.state.flights,
+                kalenderTermine: app.state.kalenderTermine // <--- Ergänzt
             };
         }
         else if (action === 'saveLiveScores')
@@ -189,7 +197,7 @@ app.logic.apiRequest = async function(action, payload = {})
         else if (action === 'closeSpieltagServer')
         {
             const { spieltagId, bruttoSieger, nettoSieger, handicapUpdates } = payload;
-            
+
             await app.db.collection('spieltage').doc(String(spieltagId)).update({
                 status: 'Beendet',
                 bruttoSieger: bruttoSieger || '',
@@ -265,9 +273,9 @@ app.logic.apiRequest = async function(action, payload = {})
                 return { success: false, error: 'Spieler nicht gefunden' };
             }
             const spData = spDoc.data();
-            
+
             const dbPin = spData.pin || '0000';
-            
+
             if (String(dbPin).trim() === String(payload.pin).trim()) 
             {
                 return { success: true, mustChangePin: !!spData.mustChangePin };
@@ -290,11 +298,11 @@ app.logic.apiRequest = async function(action, payload = {})
                 return { success: false, error: 'Spieler nicht gefunden' };
             }
             const spData = spDoc.data();
-            
+
             const tempPin = Math.floor(1000 + Math.random() * 9000).toString();
-            
+
             await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: tempPin, mustChangePin: true }, { merge: true });
-            
+
             if (typeof CONFIG !== 'undefined' && CONFIG.gasUrl)
             {
                 try
@@ -307,7 +315,7 @@ app.logic.apiRequest = async function(action, payload = {})
                     console.warn("[Bridge] GAS email dispatch warning:", mailErr);
                 }
             }
-            
+
             return { success: true, tempPin: tempPin, email: spData.email };
         }
         else
@@ -403,3 +411,4 @@ app.logic.stopLivePolling = function()
         app.state.pollingIntervalId = null;
     }
 };
+

@@ -30,6 +30,7 @@ app.initStart = async function()
             app.state.golfplaetze = res.golfplaetze || [];
             app.state.bahnen = res.bahnen || [];
             app.state.handicaps = res.handicaps || [];
+            app.state.kalenderTermine = res.kalenderTermine || []; // <--- Ergänzt
         }
     }
     catch (err)
@@ -79,3 +80,4 @@ window.addEventListener('DOMContentLoaded', function()
         app.initStart();
     }
 });
+
