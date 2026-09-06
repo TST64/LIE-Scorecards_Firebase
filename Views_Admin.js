@@ -32,26 +32,18 @@ app.views.admin = function()
 
             <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs space-y-5">
                 
-                <!-- 1. DATENBANK & VAULT -->
+                <!-- 1. DATENBANK & SIEGEREHRUNG -->
                 <div class="space-y-3">
                     <h4 class="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <i class="fas fa-database text-emerald-600"></i> Datenbank & Vault
+                        <i class="fas fa-trophy text-emerald-600"></i> Siegerehrung & Freigabe
                     </h4>
                     
-                    <!-- NEU: Schalter für die Siegerehrung / Stats-Freigabe auf der Homepage -->
+                    <!-- Schalter für die Siegerehrung / Stats-Freigabe auf der Homepage -->
                     <div id="vault-toggle-container">
                         <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center justify-between animate-pulse">
-                            <span class="text-xs text-stone-400 font-semibold"><i class="fas fa-spinner fa-spin mr-1"></i> Lade Vault-Sperrstatus...</span>
+                            <span class="text-xs text-stone-400 font-semibold"><i class="fas fa-spinner fa-spin mr-1"></i> Lade Freigabestatus...</span>
                         </div>
                     </div>
-
-                    <p class="text-xs text-stone-500 leading-relaxed pt-1">
-                        Sichert den aktuellen Stand aller Tabellen serialisiert im Vault-Archivblatt.
-                    </p>
-                    <button onclick="app.logic.triggerVaultSync()" id="admin-vault-sync-btn" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3 rounded-xl transition text-xs shadow-xs flex items-center justify-center gap-2 touch-target">
-                        <i class="fas fa-box-archive"></i>
-                        <span>Daten jetzt im Vault sichern</span>
-                    </button>
                 </div>
 
                 <hr class="border-stone-100">
