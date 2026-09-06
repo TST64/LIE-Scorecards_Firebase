@@ -223,7 +223,6 @@ app.views.dashboard = function()
                         </div>
                     </div>
                     <div class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs">
-                        <div class="w-9 h-9 rounded-xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0"><i class="fas fa-calendar-check"></i></div>
                         <!-- Anklickbare Turniere-Kachel (Filtert direkt auf 'Meine Runden') -->
                         <div onclick="app.router.navigate('spieltage', 'my')" class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs cursor-pointer hover:border-emerald-500/60 hover:shadow-md transition group">
                             <div class="w-9 h-9 rounded-xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-600 group-hover:text-emerald-700 flex items-center justify-center text-base shrink-0 transition"><i class="fas fa-calendar-check"></i></div>
