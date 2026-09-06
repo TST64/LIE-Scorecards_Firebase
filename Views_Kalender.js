@@ -64,7 +64,7 @@ app.views.kalender = function()
                     <div class="flex justify-between items-start gap-2">
                         <div>
                             <span class="inline-block px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200/60 rounded-md text-[10px] font-black uppercase tracking-wider mb-1">
-                                <i class="far fa-clock mr-1"></i>${term.uhrzeit || '10:00'} Uhr
+                                <i class="far fa-clock mr-1"></i>${term.uhrzeit || '09:00'} Uhr
                             </span>
                             <h3 class="text-base font-bold text-stone-800">${term.titel}</h3>
                             <p class="text-xs text-stone-500 font-medium flex items-center gap-1 mt-0.5">
@@ -206,17 +206,38 @@ app.logic.showNewTerminModal = function()
                 <div class="space-y-3">
                     <div>
                         <label class="block text-[10px] font-bold text-stone-400 uppercase mb-1">Titel / Anlass</label>
-                        <input id="term-title" type="text" placeholder="z. B. Oktober Abschlussturnier" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" />
+                        <input 
+                            id="term-title" 
+                            type="text" 
+                            list="kalender-titel-vorschlaege" 
+                            placeholder="Titel wählen oder eingeben..." 
+                            class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" 
+                        />
+                        <datalist id="kalender-titel-vorschlaege">
+                            <option value="LIE Standard Runde"></option>
+                            <option value="LIE Auswärtsturnier"></option>
+                            <option value="LIE Abschlussturnier"></option>
+                        </datalist>
                     </div>
 
                     <div class="grid grid-cols-2 gap-2">
                         <div>
                             <label class="block text-[10px] font-bold text-stone-400 uppercase mb-1">Datum</label>
-                            <input id="term-date" type="date" value="${todayStr}" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" />
+                            <input 
+                                id="term-date" 
+                                type="date" 
+                                value="${todayStr}" 
+                                class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" 
+                            />
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-stone-400 uppercase mb-1">Uhrzeit</label>
-                            <input id="term-time" type="time" value="11:00" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" />
+                            <input 
+                                id="term-time" 
+                                type="time" 
+                                value="09:00" 
+                                class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-600" 
+                            />
                         </div>
                     </div>
 
