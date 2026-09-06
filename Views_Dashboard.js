@@ -79,6 +79,72 @@ app.views.dashboard = function()
         `;
     }
 
+    // --- ANSTEHENDE KALENDER-TERMINE BERECHNEN ---
+    const todayStr = new Date().toISOString().split('T')[0];
+    const termine = app.state.kalenderTermine || [];
+    const upcoming = termine
+        .filter(function(t) { return t.datum >= todayStr; })
+        .sort(function(a, b) { return new Date(a.datum) - new Date(b.datum); });
+
+    let upcomingEventsHtml = "";
+    if (upcoming.length === 0)
+    {
+        upcomingEventsHtml = `
+            <div class="p-4 text-center bg-zinc-50/80 border border-zinc-200 border-dashed rounded-2xl">
+                <p class="text-zinc-400 text-xs font-bold">Keine anstehenden Termine im Kalender.</p>
+            </div>
+        `;
+    }
+    else
+    {
+        upcomingEventsHtml = upcoming.map(function(term)
+        {
+            const rsvps = term.rsvps || {};
+            let yesCount = 0, noCount = 0;
+
+            Object.values(rsvps).forEach(function(val)
+            {
+                if (val === 'yes') yesCount++;
+                if (val === 'no') noCount++;
+            });
+
+            let dateStr = term.datum;
+            try
+            {
+                const d = new Date(term.datum);
+                if (!isNaN(d.getTime()))
+                {
+                    dateStr = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+                }
+            } catch (e) {}
+
+            return `
+                <div onclick="app.router.navigate('kalender')" 
+                     class="p-3 bg-white border border-zinc-200 rounded-xl flex items-center justify-between hover:border-emerald-500/60 hover:shadow-md transition cursor-pointer touch-target group">
+                    <div class="space-y-0.5">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[9px] font-black uppercase text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                                <i class="far fa-clock mr-1"></i>${dateStr} • ${term.uhrzeit || '09:00'} Uhr
+                            </span>
+                        </div>
+                        <h4 class="text-xs font-bold text-zinc-800 group-hover:text-emerald-700 transition">${term.titel}</h4>
+                        <p class="text-[10px] text-zinc-400 font-semibold flex items-center gap-1">
+                            <i class="fas fa-map-marker-alt text-red-500"></i> ${term.ort || 'Golfplatz'}
+                        </p>
+                    </div>
+
+                    <div class="text-right flex items-center gap-2.5 shrink-0">
+                        <div class="text-[10px] font-bold space-y-0.5">
+                            <span class="block text-emerald-600"><i class="fas fa-check mr-1"></i>${yesCount} Zu</span>
+                            <span class="block text-red-500"><i class="fas fa-times mr-1"></i>${noCount} Ab</span>
+                        </div>
+                        <i class="fas fa-chevron-right text-zinc-300 group-hover:text-emerald-600 transition text-xs"></i>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
     // --- KARRIERE-STATISTIKEN BERECHNEN ---
     let gespielteRundenCount = 0;
     let besterNettoScore = 0;
@@ -87,7 +153,6 @@ app.views.dashboard = function()
 
     if (user && app.state.spieltage && app.state.scoreCards)
     {
-        // Beendete Runden filtern, an denen der Nutzer teilgenommen hat
         const beendeteTeilgenommen = app.state.spieltage.filter(function(st)
         {
             if (st.status !== 'Beendet') return false;
@@ -103,7 +168,6 @@ app.views.dashboard = function()
             return ids.includes(String(user.id).trim());
         });
 
-        // Chronologisch sortieren
         beendeteTeilgenommen.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
         gespielteRundenCount = beendeteTeilgenommen.length;
 
@@ -141,7 +205,6 @@ app.views.dashboard = function()
                 }
             });
 
-            // Nur vollständig gespielte Runden werten
             if (gespielteBahnenInRunde >= maxBahnen && maxBahnen > 0)
             {
                 if (rundenNettoTotal > besterNettoScore)
@@ -166,7 +229,7 @@ app.views.dashboard = function()
     if (rolle === "Admin" || rolle === "Spielleiter")
     {
         adminHintHtml = `
-            <div class="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl flex items-start space-x-2 text.xs text-amber-900 shadow-xs">
+            <div class="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl flex items-start space-x-2 text-xs text-amber-900 shadow-xs">
                 <i class="fas fa-info-circle text-amber-600 mt-0.5"></i>
                 <div class="text-[11px] leading-relaxed">
                     <b>Hallo ${nickname}!</b> Du bist als <u>${rolle}</u> eingeloggt. Unter <b>Runden</b> kannst du neue Spieltage auslosen.
@@ -197,6 +260,19 @@ app.views.dashboard = function()
                 ${activeRoundCardHtml}
             </div>
 
+            <!-- Anstehende Termine Sektion -->
+            <div class="space-y-2">
+                <div class="flex justify-between items-center px-1">
+                    <h4 class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Anstehende Termine</h4>
+                    <button onclick="app.router.navigate('kalender')" class="text-[10px] font-bold text-emerald-600 hover:text-emerald-700">
+                        Alle anzeigen <i class="fas fa-arrow-right ml-0.5"></i>
+                    </button>
+                </div>
+                <div class="space-y-2">
+                    ${upcomingEventsHtml}
+                </div>
+            </div>
+
             <!-- KARRIERE-STATISTIKEN GRID -->
             <div class="space-y-2">
                 <h4 class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">Deine LIE-Karriere</h4>
@@ -222,17 +298,14 @@ app.views.dashboard = function()
                             <span class="text-sm font-black text-zinc-800 mt-1 block">${letzterNettoScore}</span>
                         </div>
                     </div>
-                    <div class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs">
-                        <!-- Anklickbare Turniere-Kachel (Filtert direkt auf 'Meine Runden') -->
-                        <div onclick="app.router.navigate('spieltage', 'my')" class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs cursor-pointer hover:border-emerald-500/60 hover:shadow-md transition group">
-                            <div class="w-9 h-9 rounded-xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-600 group-hover:text-emerald-700 flex items-center justify-center text-base shrink-0 transition"><i class="fas fa-calendar-check"></i></div>
-                            <div>
-                                <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
-                                <span class="text-sm font-black text-zinc-800 mt-1 block flex items-center gap-1">
-                                    ${gespielteRundenCount} Runden 
-                                    <i class="fas fa-chevron-right text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                </span>
-                            </div>
+                    <div onclick="app.router.navigate('spieltage', 'my')" class="p-3.5 bg-white border border-zinc-200 rounded-xl flex items-center space-x-3 shadow-xs cursor-pointer hover:border-emerald-500/60 hover:shadow-md transition group">
+                        <div class="w-9 h-9 rounded-xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-600 group-hover:text-emerald-700 flex items-center justify-center text-base shrink-0 transition"><i class="fas fa-calendar-check"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block flex items-center gap-1">
+                                ${gespielteRundenCount} Runden 
+                                <i class="fas fa-chevron-right text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -264,9 +337,9 @@ app.views.dashboard = function()
                         <span class="block font-black text-zinc-900 text-sm">Termine</span>
                         <span class="block text-[10px] text-zinc-400 font-medium mt-0.5">Kalender & Zu-/Absagen</span>
                     </div>
-                </button>                
+                </button>               
 
-                <button onclick="window.open('${gameUrl}', '_blank')" class="p-4 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl text-left hover:border-amber-300 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target col-span-2 sm:col-span-1">
+                <button onclick="window.open('${gameUrl}', '_blank')" class="p-4 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl text-left hover:border-amber-300 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target">
                     <i class="fas fa-gamepad text-xl text-amber-600 group-hover:scale-110 transition-transform"></i>
                     <div>
                         <span class="block font-bold text-amber-950 text-sm">Pixel Golf Run</span>
