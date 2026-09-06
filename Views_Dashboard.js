@@ -256,6 +256,16 @@ app.views.dashboard = function()
                     </div>
                 </button>
 
+                <button onclick="app.router.navigate('kalender')" class="p-5 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-3xl text-left hover:border-emerald-500/50 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target">
+                    <div class="w-10 h-10 rounded-2xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-600 flex items-center justify-center text-base transition">
+                        <i class="fas fa-calendar-days"></i>
+                    </div>
+                    <div>
+                        <span class="block font-black text-zinc-900 text-sm">Termine</span>
+                        <span class="block text-[10px] text-zinc-400 font-medium mt-0.5">Kalender & Zu-/Absagen</span>
+                    </div>
+                </button>                
+
                 <button onclick="window.open('${gameUrl}', '_blank')" class="p-4 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl text-left hover:border-amber-300 transition shadow-xs group flex flex-col justify-between min-h-[95px] touch-target col-span-2 sm:col-span-1">
                     <i class="fas fa-gamepad text-xl text-amber-600 group-hover:scale-110 transition-transform"></i>
                     <div>
