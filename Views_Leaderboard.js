@@ -340,7 +340,7 @@ app.views.leaderboard = function(spieltagId, activeTab)
     `;
 };
 
-// Modal für die detaillierten Runden-Statistiken eines Spielers
+// Modal für die detaillierten Runden-Statistiken eines Spielers (inkl. Putts & Striche)
 app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
 {
     const spieltag = (app.state.spieltage || []).find(s => String(s.id).trim() === String(spieltagId).trim());
@@ -355,43 +355,85 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
         String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === String(spielerId).trim()
     );
 
-    let stats = { totalStrokes: 0, totalBrutto: 0, totalNetto: 0, birdies: 0, pars: 0, bogeys: 0, doublePlus: 0, ladies: 0, played: 0 };
+    let stats = { 
+        totalStrokes: 0, 
+        totalBrutto: 0, 
+        totalNetto: 0, 
+        totalPutts: 0,
+        puttHolesCount: 0,
+        striche: 0, 
+        birdies: 0, 
+        pars: 0, 
+        bogeys: 0, 
+        doublePlus: 0, 
+        ladies: 0, 
+        played: 0 
+    };
     
     let rowsHtml = kursBahnen.map(bahn => {
         const hNr = parseInt(bahn.nr);
         const match = dbScores.find(sc => sc.hole !== undefined && parseInt(sc.hole) === hNr);
-        const strokes = match ? parseInt(match.strokes) : 0;
+        
+        const rawStrokes = match ? parseInt(match.strokes || 0) : 0;
+        const putts = match && match.putts !== undefined && match.putts !== null && match.putts !== "" ? parseInt(match.putts) : null;
+        const isStrich = match && (match.isStrich === true || match.isStrich === "true" || match.strich === true || match.strokes === "Ø" || match.strokes === "0");
         const isLady = match && (match.lady === true || match.lady === "true");
 
         if (isLady) stats.ladies++;
 
-        if (strokes > 0) {
+        if (match && (rawStrokes > 0 || isStrich)) {
             stats.played++;
-            stats.totalStrokes += strokes;
-
-            const diff = strokes - parseInt(bahn.par);
-            if (diff <= -1) stats.birdies++;
-            else if (diff === 0) stats.pars++;
-            else if (diff === 1) stats.bogeys++;
-            else stats.doublePlus++;
 
             const vorgabe = app.logic.calculateHoleVorgabe ? app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si) : 0;
-            const nettoPkt = app.logic.calculateNettoStableford ? app.logic.calculateNettoStableford(strokes, bahn.par, vorgabe) : 0;
-            const bruttoPkt = Math.max(0, parseInt(bahn.par) - strokes + 2);
+            
+            if (isStrich) {
+                stats.striche++;
+                const nettoPkt = 0;
+                const bruttoPkt = 0;
 
-            stats.totalNetto += nettoPkt;
-            stats.totalBrutto += bruttoPkt;
+                return `
+                    <tr class="border-b border-zinc-100 text-xs bg-zinc-50/50">
+                        <td class="py-2 px-2 font-bold text-zinc-700 text-center">#${bahn.nr}</td>
+                        <td class="py-2 px-1 text-center text-zinc-400 font-medium">${bahn.par} <span class="text-[9px]">(${bahn.si})</span></td>
+                        <td class="py-2 px-1 text-center text-amber-700 font-semibold">+${vorgabe}</td>
+                        <td class="py-2 px-1 text-center font-black text-zinc-400">Ø ${isLady ? '🍻' : ''}</td>
+                        <td class="py-2 px-1 text-center text-zinc-400">0</td>
+                        <td class="py-2 px-2 text-center font-bold text-zinc-400 bg-zinc-100/50">0</td>
+                    </tr>
+                `;
+            } else {
+                stats.totalStrokes += rawStrokes;
+                
+                if (putts !== null && !isNaN(putts)) {
+                    stats.totalPutts += putts;
+                    stats.puttHolesCount++;
+                }
 
-            return `
-                <tr class="border-b border-zinc-100 text-xs">
-                    <td class="py-2 px-2 font-bold text-zinc-700 text-center">#${bahn.nr}</td>
-                    <td class="py-2 px-1 text-center text-zinc-400 font-medium">${bahn.par} <span class="text-[9px]">(${bahn.si})</span></td>
-                    <td class="py-2 px-1 text-center text-amber-700 font-semibold">+${vorgabe}</td>
-                    <td class="py-2 px-1 text-center font-bold text-zinc-900">${strokes} ${isLady ? '🍻' : ''}</td>
-                    <td class="py-2 px-1 text-center text-zinc-600">${bruttoPkt}</td>
-                    <td class="py-2 px-2 text-center font-bold text-emerald-700 bg-emerald-50/50">${nettoPkt}</td>
-                </tr>
-            `;
+                const diff = rawStrokes - parseInt(bahn.par);
+                if (diff <= -1) stats.birdies++;
+                else if (diff === 0) stats.pars++;
+                else if (diff === 1) stats.bogeys++;
+                else stats.doublePlus++;
+
+                const nettoPkt = app.logic.calculateNettoStableford ? app.logic.calculateNettoStableford(rawStrokes, bahn.par, vorgabe) : 0;
+                const bruttoPkt = Math.max(0, parseInt(bahn.par) - rawStrokes + 2);
+
+                stats.totalNetto += nettoPkt;
+                stats.totalBrutto += bruttoPkt;
+
+                const puttsDisplay = (putts !== null && !isNaN(putts)) ? `<span class="text-[10px] text-zinc-400 font-normal ml-0.5">(${putts}P)</span>` : '';
+
+                return `
+                    <tr class="border-b border-zinc-100 text-xs">
+                        <td class="py-2 px-2 font-bold text-zinc-700 text-center">#${bahn.nr}</td>
+                        <td class="py-2 px-1 text-center text-zinc-400 font-medium">${bahn.par} <span class="text-[9px]">(${bahn.si})</span></td>
+                        <td class="py-2 px-1 text-center text-amber-700 font-semibold">+${vorgabe}</td>
+                        <td class="py-2 px-1 text-center font-bold text-zinc-900">${rawStrokes} ${puttsDisplay} ${isLady ? '🍻' : ''}</td>
+                        <td class="py-2 px-1 text-center text-zinc-600">${bruttoPkt}</td>
+                        <td class="py-2 px-2 text-center font-bold text-emerald-700 bg-emerald-50/50">${nettoPkt}</td>
+                    </tr>
+                `;
+            }
         }
 
         return `
@@ -406,12 +448,14 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
         `;
     }).join('');
 
+    const avgPutts = stats.puttHolesCount > 0 ? (stats.totalPutts / stats.puttHolesCount).toFixed(1) : '-';
+
     const oldModal = document.getElementById('player-detail-modal');
     if (oldModal) oldModal.remove();
 
     const modalHtml = `
         <div id="player-detail-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-fade-in">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden">
                 <!-- Modal Header -->
                 <div class="p-4 bg-emerald-800 text-white flex items-center justify-between">
                     <div>
@@ -423,8 +467,8 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                     </button>
                 </div>
 
-                <!-- Stats Grid -->
-                <div class="p-3 bg-zinc-50 border-b border-zinc-200 grid grid-cols-4 gap-2 text-center">
+                <!-- Stats Grid (2 Reihen für Maximale Übersicht) -->
+                <div class="p-3 bg-zinc-50 border-b border-zinc-200 grid grid-cols-3 gap-2 text-center">
                     <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
                         <div class="text-[10px] text-zinc-400 uppercase font-semibold">Schläge</div>
                         <div class="text-sm font-black text-zinc-800">${stats.totalStrokes}</div>
@@ -436,6 +480,14 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                     <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
                         <div class="text-[10px] text-zinc-400 uppercase font-semibold">Brutto</div>
                         <div class="text-sm font-black text-amber-700">${stats.totalBrutto} Pkt</div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Putts (Ø)</div>
+                        <div class="text-sm font-black text-blue-700">${stats.totalPutts} <span class="text-[10px] text-zinc-400 font-medium">(${avgPutts})</span></div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Striche</div>
+                        <div class="text-sm font-black text-zinc-500">${stats.striche} Ø</div>
                     </div>
                     <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
                         <div class="text-[10px] text-zinc-400 uppercase font-semibold">Ladies</div>
@@ -459,7 +511,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                                 <th class="py-1 px-2 text-center">Bahn</th>
                                 <th class="py-1 px-1 text-center">Par (SI)</th>
                                 <th class="py-1 px-1 text-center">Vorg.</th>
-                                <th class="py-1 px-1 text-center">Schläge</th>
+                                <th class="py-1 px-1 text-center">Schläge (Putts)</th>
                                 <th class="py-1 px-1 text-center">Brutto</th>
                                 <th class="py-1 px-2 text-center">Netto</th>
                             </tr>

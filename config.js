@@ -2,7 +2,7 @@
 
 window.CONFIG =
 {
-    appVersion: '3.2.2.1',
+    appVersion: '3.3.2.1',
     gasUrl: 'https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec'
 };
 

@@ -100,7 +100,11 @@ app.core = (function()
             
             const dbInstance = firebase.firestore();
             
-            // Moderne Fetch Streams aktiviert (kein WebChannel-CORS-Konflikt mehr)
+            // Verhindert CORS- / WebChannel-Sperren bei lokaler Entwicklung (127.0.0.1 / localhost)
+            dbInstance.settings({
+                experimentalAutoDetectLongPolling: true
+            });
+            
             app.db = dbInstance;
             console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
         }
@@ -1696,6 +1700,55 @@ app.logic.softDeleteSpieltag = function(spieltagId)
     );
 };
 
+// Ermittelt die aktuellen Sieger und startet den Beenden-Dialog
+app.logic.finishRoundWithWinners = function(spieltagId)
+{
+    const st = app.state.spieltage.find(function(s) { return String(s.id).trim() === String(spieltagId).trim(); });
+    if (!st) return;
+
+    const teilnehmerIds = (st.teilnehmerCsv || "").split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
+    const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); });
+
+    let ergebnisse = teilnehmerIds.map(function(spielerId)
+    {
+        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === spielerId; });
+        if (!spieler) return null;
+
+        const dbScores = app.state.scoreCards.filter(function(sc) { 
+            return String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === spielerId; 
+        });
+
+        let totalStrokes = 0;
+        let totalNetto = 0;
+        let playedHoles = 0;
+
+        kursBahnen.forEach(function(bahn)
+        {
+            const hNr = parseInt(bahn.nr);
+            const match = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
+            if (match && parseInt(match.strokes) > 0)
+            {
+                const str = parseInt(match.strokes);
+                playedHoles++;
+                totalStrokes += str;
+                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, st.kursId, bahn.si);
+                totalNetto += app.logic.calculateNettoStableford(str, bahn.par, holeVorgabe);
+            }
+        });
+
+        return { name: spieler.nickname || spieler.name, strokes: totalStrokes, netto: totalNetto, holes: playedHoles };
+    }).filter(Boolean);
+
+    const mitScores = ergebnisse.filter(function(r) { return r.holes > 0; });
+    
+    // Sieger ermitteln
+    const bruttoSieger = mitScores.length > 0 ? [...mitScores].sort((a,b) => a.strokes - b.strokes)[0].name : "Keiner";
+    const nettoSieger = mitScores.length > 0 ? [...mitScores].sort((a,b) => b.netto - a.netto)[0].name : "Keiner";
+
+    // Bestehende Schließungs-Logik ausführen
+    app.logic.closeActiveSpieltag(spieltagId, bruttoSieger, nettoSieger);
+};
+
 
 ##### <App_Logic_UI.js>:
 ----------------------------------------------------------------------
@@ -2437,7 +2490,7 @@ function sendTempPinEmail(spielerId, tempPin)
 
 window.CONFIG =
 {
-    appVersion: '3.0.2.1',
+    appVersion: '3.3.2.1',
     gasUrl: 'https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec'
 };
 
@@ -4344,8 +4397,8 @@ app.views.leaderboard = function(spieltagId, activeTab)
             <div class="flex items-center justify-between p-3 bg-white border border-zinc-200 rounded-xl shadow-xs">
                 <div class="flex items-center space-x-3">
                     <div class="w-6 h-6 rounded-md ${rankBadge} text-xs flex items-center justify-center">${index + 1}</div>
-                    <div>
-                        <h4 class="font-bold text-zinc-800 text-sm">${row.spielerObj.nickname || row.spielerObj.name}</h4>
+                    <div onclick="app.logic.showPlayerDetailModal('${spieltag ? spieltag.id : ''}', '${row.spielerObj.id}')" class="cursor-pointer hover:opacity-80 transition">
+                        <h4 class="font-bold text-zinc-800 text-sm underline decoration-emerald-500/40 underline-offset-2">${row.spielerObj.nickname || row.spielerObj.name} <i class="fas fa-chart-bar text-xs text-emerald-600 ml-1"></i></h4>
                         <p class="text-[10px] text-zinc-400 font-medium">Löcher: ${row.played}/${maxBahnen} &bull; ${subDisplay}</p>
                     </div>
                 </div>
@@ -4389,8 +4442,9 @@ app.views.leaderboard = function(spieltagId, activeTab)
 
         return `
             <tr class="border-b border-zinc-100 hover:bg-zinc-50/60">
-                <td class="p-2 border-r border-zinc-200 sticky left-0 z-10 bg-white font-bold text-zinc-800 text-xs min-w-[95px] whitespace-nowrap">
-                    ${row.spielerObj.nickname || row.spielerObj.name}
+                <td onclick="app.logic.showPlayerDetailModal('${spieltag ? spieltag.id : ''}', '${row.spielerObj.id}')" 
+                    class="p-2 border-r border-zinc-200 sticky left-0 z-10 bg-white font-bold text-zinc-800 text-xs min-w-[95px] whitespace-nowrap cursor-pointer hover:bg-emerald-50 transition">
+                    ${row.spielerObj.nickname || row.spielerObj.name} <i class="fas fa-chevron-right text-[9px] text-emerald-600 ml-0.5"></i>
                 </td>
                 ${scoreCells}
                 <td class="p-2 bg-emerald-50 text-center font-black text-emerald-800 text-sm border-l border-zinc-200 min-w-[45px]">${row.played > 0 ? totalResult : '-'}</td>
@@ -4420,6 +4474,25 @@ app.views.leaderboard = function(spieltagId, activeTab)
         </div>
     `;
 
+    // Admin/Spielleiter Banner für den Rundenabschluss
+    const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
+    let closeRoundBannerHtml = "";
+
+    if (spieltag && spieltag.status === 'Aktiv' && isLeiter)
+    {
+        closeRoundBannerHtml = `
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between shadow-2xs">
+                <div class="flex items-center space-x-2 text-amber-900 text-xs">
+                    <i class="fas fa-flag-checkered text-amber-600"></i>
+                    <span class="font-bold">Match noch aktiv</span>
+                </div>
+                <button onclick="app.logic.finishRoundWithWinners('${spieltag.id}')" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-xs touch-target">
+                    Runde offiziell beenden
+                </button>
+            </div>
+        `;
+    }
+
     return `
         <div class="space-y-4">
             <div class="flex items-center justify-between">
@@ -4441,6 +4514,8 @@ app.views.leaderboard = function(spieltagId, activeTab)
                 </div>
             </div>
 
+            ${closeRoundBannerHtml}
+
             <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200">
                 <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
                     <i class="fas fa-star mr-1"></i> Netto (Stableford)
@@ -4459,6 +4534,142 @@ app.views.leaderboard = function(spieltagId, activeTab)
             </button>
         </div>
     `;
+};
+
+// Modal für die detaillierten Runden-Statistiken eines Spielers
+app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
+{
+    const spieltag = (app.state.spieltage || []).find(s => String(s.id).trim() === String(spieltagId).trim());
+    const spieler = (app.state.spieler || []).find(s => String(s.id).trim() === String(spielerId).trim());
+    if (!spieltag || !spieler) return;
+
+    const kursBahnen = (app.state.bahnen || [])
+        .filter(b => String(b.kursId).trim() === String(spieltag.kursId).trim())
+        .sort((a, b) => parseInt(a.nr) - parseInt(b.nr));
+
+    const dbScores = (app.state.scoreCards || []).filter(sc => 
+        String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === String(spielerId).trim()
+    );
+
+    let stats = { totalStrokes: 0, totalBrutto: 0, totalNetto: 0, birdies: 0, pars: 0, bogeys: 0, doublePlus: 0, ladies: 0, played: 0 };
+    
+    let rowsHtml = kursBahnen.map(bahn => {
+        const hNr = parseInt(bahn.nr);
+        const match = dbScores.find(sc => sc.hole !== undefined && parseInt(sc.hole) === hNr);
+        const strokes = match ? parseInt(match.strokes) : 0;
+        const isLady = match && (match.lady === true || match.lady === "true");
+
+        if (isLady) stats.ladies++;
+
+        if (strokes > 0) {
+            stats.played++;
+            stats.totalStrokes += strokes;
+
+            const diff = strokes - parseInt(bahn.par);
+            if (diff <= -1) stats.birdies++;
+            else if (diff === 0) stats.pars++;
+            else if (diff === 1) stats.bogeys++;
+            else stats.doublePlus++;
+
+            const vorgabe = app.logic.calculateHoleVorgabe ? app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si) : 0;
+            const nettoPkt = app.logic.calculateNettoStableford ? app.logic.calculateNettoStableford(strokes, bahn.par, vorgabe) : 0;
+            const bruttoPkt = Math.max(0, parseInt(bahn.par) - strokes + 2);
+
+            stats.totalNetto += nettoPkt;
+            stats.totalBrutto += bruttoPkt;
+
+            return `
+                <tr class="border-b border-zinc-100 text-xs">
+                    <td class="py-2 px-2 font-bold text-zinc-700 text-center">#${bahn.nr}</td>
+                    <td class="py-2 px-1 text-center text-zinc-400 font-medium">${bahn.par} <span class="text-[9px]">(${bahn.si})</span></td>
+                    <td class="py-2 px-1 text-center text-amber-700 font-semibold">+${vorgabe}</td>
+                    <td class="py-2 px-1 text-center font-bold text-zinc-900">${strokes} ${isLady ? '🍻' : ''}</td>
+                    <td class="py-2 px-1 text-center text-zinc-600">${bruttoPkt}</td>
+                    <td class="py-2 px-2 text-center font-bold text-emerald-700 bg-emerald-50/50">${nettoPkt}</td>
+                </tr>
+            `;
+        }
+
+        return `
+            <tr class="border-b border-zinc-100 text-xs text-zinc-300">
+                <td class="py-2 px-2 text-center">#${bahn.nr}</td>
+                <td class="py-2 px-1 text-center">${bahn.par}</td>
+                <td class="py-2 px-1 text-center">-</td>
+                <td class="py-2 px-1 text-center">-</td>
+                <td class="py-2 px-1 text-center">-</td>
+                <td class="py-2 px-2 text-center">-</td>
+            </tr>
+        `;
+    }).join('');
+
+    const oldModal = document.getElementById('player-detail-modal');
+    if (oldModal) oldModal.remove();
+
+    const modalHtml = `
+        <div id="player-detail-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-fade-in">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+                <!-- Modal Header -->
+                <div class="p-4 bg-emerald-800 text-white flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-base">${spieler.nickname || spieler.name}</h3>
+                        <p class="text-xs text-emerald-200">Stv: ${spieler.hcp || '36'} &bull; Löcher: ${stats.played}/${kursBahnen.length}</p>
+                    </div>
+                    <button onclick="document.getElementById('player-detail-modal').remove()" class="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-700 text-white hover:bg-emerald-600 transition">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="p-3 bg-zinc-50 border-b border-zinc-200 grid grid-cols-4 gap-2 text-center">
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Schläge</div>
+                        <div class="text-sm font-black text-zinc-800">${stats.totalStrokes}</div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Netto</div>
+                        <div class="text-sm font-black text-emerald-700">${stats.totalNetto} Pkt</div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Brutto</div>
+                        <div class="text-sm font-black text-amber-700">${stats.totalBrutto} Pkt</div>
+                    </div>
+                    <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
+                        <div class="text-[10px] text-zinc-400 uppercase font-semibold">Ladies</div>
+                        <div class="text-sm font-black text-pink-600">${stats.ladies} 🍻</div>
+                    </div>
+                </div>
+
+                <!-- Score Highlights Pills -->
+                <div class="px-4 py-2 bg-white flex items-center justify-around border-b border-zinc-100 text-[11px] font-bold">
+                    <span class="text-emerald-600"><i class="fas fa-circle text-[8px] mr-1"></i>Birdies/-: ${stats.birdies}</span>
+                    <span class="text-blue-600"><i class="fas fa-circle text-[8px] mr-1"></i>Pars: ${stats.pars}</span>
+                    <span class="text-amber-600"><i class="fas fa-circle text-[8px] mr-1"></i>Bogeys: ${stats.bogeys}</span>
+                    <span class="text-red-500"><i class="fas fa-circle text-[8px] mr-1"></i>Dbl+: ${stats.doublePlus}</span>
+                </div>
+
+                <!-- Table Content -->
+                <div class="p-3 overflow-y-auto flex-1">
+                    <table class="w-full border-collapse text-left">
+                        <thead>
+                            <tr class="border-b border-zinc-200 text-[10px] text-zinc-400 uppercase font-bold">
+                                <th class="py-1 px-2 text-center">Bahn</th>
+                                <th class="py-1 px-1 text-center">Par (SI)</th>
+                                <th class="py-1 px-1 text-center">Vorg.</th>
+                                <th class="py-1 px-1 text-center">Schläge</th>
+                                <th class="py-1 px-1 text-center">Brutto</th>
+                                <th class="py-1 px-2 text-center">Netto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
 
@@ -5177,37 +5388,53 @@ app.views.spieler_edit = function(spielerId)
                // Teilnehmeranzahl ermitteln
                const teilnehmerAnzahl = st.teilnehmerCsv ? st.teilnehmerCsv.split(',').filter(Boolean).length : 0;
    
-               // SHORTCUT-BUTTON ZUR SCORE-EINGABE (nur bei laufenden Runden)
-               let scoreShortcutBtnHtml = '';
-               if (isLaufend)
-               {
-                   // Flight des aktuellen Spielers ermitteln
-                   let myFlightSeq = 1;
-                   if (currentUser && app.state.flights)
-                   {
-                       const myFlight = app.state.flights.find(function(f)
-                       {
-                           if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
-                           const ids = (f.spielerIdsCsv || "").split(',');
-                           return ids.includes(String(currentUser.id).trim());
-                       });
-   
-                       if (myFlight && myFlight.id)
-                       {
-                           const parts = myFlight.id.split('-');
-                           myFlightSeq = parseInt(parts[parts.length - 1]) || 1;
-                       }
-                   }
-   
-                   scoreShortcutBtnHtml = `
-                       <button onclick="event.stopPropagation(); app.router.navigate('score_eingabe', { id: '${st.id}', hole: 1, flightSeq: ${myFlightSeq} })" 
-                               class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target">
-                           <i class="fas fa-pen-to-square"></i>
-                           <span>Score eingeben</span>
-                       </button>
-                   `;
-               }
-   
+                // SHORTCUT-BUTTON ZUR SCORE-EINGABE & RUNDENABSCHLUSS
+                let scoreShortcutBtnHtml = '';
+                if (isLaufend)
+                {
+                    let myFlightSeq = 1;
+                    if (currentUser && app.state.flights)
+                    {
+                        const myFlight = app.state.flights.find(function(f)
+                        {
+                            if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
+                            const ids = (f.spielerIdsCsv || "").split(',');
+                            return ids.includes(String(currentUser.id).trim());
+                        });
+
+                        if (myFlight && myFlight.id)
+                        {
+                            const parts = myFlight.id.split('-');
+                            myFlightSeq = parseInt(parts[parts.length - 1]) || 1;
+                        }
+                    }
+
+                    // Button zum Beenden für Spielleiter / Admins
+                    let finishBtnHtml = '';
+                    if (isLeiter)
+                    {
+                        finishBtnHtml = `
+                            <button onclick="event.stopPropagation(); app.logic.finishRoundWithWinners('${st.id}')" 
+                                    class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target"
+                                    title="Runde beenden & HCPs berechnen">
+                                <i class="fas fa-flag-checkered"></i>
+                                <span>Beenden</span>
+                            </button>
+                        `;
+                    }
+
+                    scoreShortcutBtnHtml = `
+                        <div class="flex items-center gap-2">
+                            ${finishBtnHtml}
+                            <button onclick="event.stopPropagation(); app.router.navigate('score_eingabe', { id: '${st.id}', hole: 1, flightSeq: ${myFlightSeq} })" 
+                                    class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 touch-target">
+                                <i class="fas fa-pen-to-square"></i>
+                                <span>Score eingeben</span>
+                            </button>
+                        </div>
+                    `;
+                }
+                
                // Admin Lösch-Button
                let deleteBtnHtml = '';
                if (isLeiter)
