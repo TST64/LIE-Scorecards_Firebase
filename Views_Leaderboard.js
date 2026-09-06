@@ -375,8 +375,17 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
         const match = dbScores.find(sc => sc.hole !== undefined && parseInt(sc.hole) === hNr);
         
         const rawStrokes = match ? parseInt(match.strokes || 0) : 0;
-        const putts = match && match.putts !== undefined && match.putts !== null && match.putts !== "" ? parseInt(match.putts) : null;
-        const isStrich = match && (match.isStrich === true || match.isStrich === "true" || match.strich === true || match.strokes === "Ø" || match.strokes === "0");
+        
+        // Liest 'puts' (Firestore Key) oder 'putts' (Fallback) aus
+        const rawPutsVal = match ? (match.puts !== undefined ? match.puts : match.putts) : null;
+        const putts = (rawPutsVal !== null && rawPutsVal !== undefined && rawPutsVal !== "") ? parseInt(rawPutsVal) : null;
+
+        // Prüft auf Strich / Maxscore
+        const isStrich = match && (
+            match.maxscore === true || match.maxscore === "true" || 
+            match.isStrich === true || match.isStrich === "true" || 
+            match.strich === true || match.strokes === "Ø" || match.strokes === "0"
+        );
         const isLady = match && (match.lady === true || match.lady === "true");
 
         if (isLady) stats.ladies++;
@@ -388,8 +397,6 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
             
             if (isStrich) {
                 stats.striche++;
-                const nettoPkt = 0;
-                const bruttoPkt = 0;
 
                 return `
                     <tr class="border-b border-zinc-100 text-xs bg-zinc-50/50">
@@ -467,7 +474,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                     </button>
                 </div>
 
-                <!-- Stats Grid (2 Reihen für Maximale Übersicht) -->
+                <!-- Stats Grid -->
                 <div class="p-3 bg-zinc-50 border-b border-zinc-200 grid grid-cols-3 gap-2 text-center">
                     <div class="bg-white p-2 rounded-xl border border-zinc-200 shadow-2xs">
                         <div class="text-[10px] text-zinc-400 uppercase font-semibold">Schläge</div>
