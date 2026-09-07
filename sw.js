@@ -4,7 +4,7 @@
 // BSD (Allman) Style
 // =========================================================================
 
-const CACHE_NAME = 'lie-scorecard-v1.2.10.52';
+const CACHE_NAME = 'lie-scorecard-v4.2.2.1';
 
 const ASSETS_TO_CACHE = [
     './',
