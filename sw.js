@@ -4,9 +4,16 @@
 // BSD (Allman) Style
 // =========================================================================
 
-const CACHE_NAME = 'lie-scorecard-v4.2.2.1';
+importScripts('config.js');
 
-const ASSETS_TO_CACHE = [
+// Dynamische Cache-Benennung über die Version aus der config.js
+var currentVersion = (typeof CONFIG !== 'undefined' && (CONFIG.version || CONFIG.appVersion)) 
+    ? (CONFIG.version || CONFIG.appVersion) 
+    : '4.2.3';
+
+var CACHE_NAME = 'lie-scorecard-v' + currentVersion;
+
+var ASSETS_TO_CACHE = [
     './',
     './index.html',
     './config.js',
@@ -28,7 +35,8 @@ const ASSETS_TO_CACHE = [
     './Views_Leaderboard.js',
     './Views_Admin.js',
     './Views_AdminGruppe.js',
-    './Views_SpielerEdit.js'
+    './Views_SpielerEdit.js',
+    './Views_Kalender.js' // <--- Ergänzt: Damit die Kalender-Ansicht geladen wird!
 ];
 
 // 1. Installation: Statische Ressourcen cachen
@@ -56,6 +64,7 @@ self.addEventListener('activate', function(event)
                 {
                     if (cache !== CACHE_NAME)
                     {
+                        console.log('[Service Worker] Lösche alten Cache:', cache);
                         return caches.delete(cache);
                     }
                 })
@@ -70,7 +79,7 @@ self.addEventListener('activate', function(event)
 // 3. Network Fetching & CORS/CDN Bypassing
 self.addEventListener('fetch', function(event)
 {
-    const requestUrl = event.request.url;
+    var requestUrl = event.request.url;
 
     // Firebase, Google APIs und externe CDNs (FontAwesome etc.) NIEMALS vom Service Worker abfangen!
     if (requestUrl.includes('firestore.googleapis.com') ||  
@@ -120,14 +129,15 @@ self.addEventListener('fetch', function(event)
                     return networkResponse;
                 }
 
-                const responseToCache = networkResponse.clone();
+                var responseToCache = networkResponse.clone();
                 caches.open(CACHE_NAME).then(function(cache)
                 {
                     cache.put(event.request, responseToCache);
                 });
 
                 return networkResponse;
-            });
+            }
+            );
         })
     );
 });
