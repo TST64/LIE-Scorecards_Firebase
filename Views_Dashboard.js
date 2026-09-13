@@ -83,8 +83,9 @@ app.views.dashboard = function()
     const todayStr = new Date().toISOString().split('T')[0];
     const termine = app.state.kalenderTermine || [];
     const upcoming = termine
-        .filter(function(t) { return t.datum >= todayStr; })
-        .sort(function(a, b) { return new Date(a.datum) - new Date(b.datum); });
+        .filter(function(t) { return !t.istGeloescht && t.datum >= todayStr; }) // <--- Soft-Delete Filter
+        .sort(function(a, b) { return new Date(a.datum) - new Date(b.datum); })
+        .slice(0, 3); // <--- Beschränkung auf max. 3 Termine
 
     let upcomingEventsHtml = "";
     if (upcoming.length === 0)

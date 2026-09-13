@@ -6,32 +6,101 @@
 
 app.views.spieltag_neu = function()
 {
-    const today = new Date().toISOString().split('T')[0];
+    // Prefill-Daten aus Kalender auslesen
+    const prefill = app.state.neuerSpieltagVorausgefuellt || {};
+    const zugesagteSpieler = prefill.vorausgewaehlteSpieler || [];
+    const prefillOrt = prefill.ort || "";
+
+    // Kalender-ID temporär sichern & Prefill-State zurücksetzen
+    app.state.tempKalenderId = prefill.kalenderId || null;
+    app.state.neuerSpieltagVorausgefuellt = null;
+
+    // Datum ermitteln (Prefill vs. Heute)
+    const today = prefill.datum || new Date().toISOString().split('T')[0];
+
+    // Platz-/Kurs-Abgleich anhand des Ortsnamens aus dem Kalender
+    let matchedKursId = null;
+    if (prefillOrt && app.state.kurse && app.state.kurse.length > 0)
+    {
+        const gefundenerKurs = app.state.kurse.find(
+            function(k)
+            {
+                const platz = (app.state.golfplaetze || []).find(
+                    function(p)
+                    {
+                        return String(p.id) === String(k.platzId);
+                    }
+                );
+                const platzName = platz ? platz.name.toLowerCase() : "";
+                const kursName = k.name.toLowerCase();
+                const suchOrt = prefillOrt.toLowerCase();
+
+                return platzName.includes(suchOrt) || suchOrt.includes(platzName) || kursName.includes(suchOrt);
+            }
+        );
+
+        if (gefundenerKurs)
+        {
+            matchedKursId = gefundenerKurs.id;
+        }
+    }
 
     let kurseOptionsHtml = "";
     if (app.state.kurse && app.state.kurse.length > 0)
     {
-        kurseOptionsHtml = app.state.kurse.map(function(k)
-        {
-            const platz = app.state.golfplaetze ? app.state.golfplaetze.find(function(p) { return String(p.id) === String(k.platzId); }) : null;
-            const platzName = platz ? platz.name : "";
-            return `<option value="${k.id}">${platzName} - ${k.name}</option>`;
-        }).join('');
+        kurseOptionsHtml = app.state.kurse.map(
+            function(k)
+            {
+                const platz = app.state.golfplaetze ? app.state.golfplaetze.find(
+                    function(p)
+                    {
+                        return String(p.id) === String(k.platzId);
+                    }
+                ) : null;
+                const platzName = platz ? platz.name : "";
+                const isSelected = matchedKursId 
+                    ? String(k.id) === String(matchedKursId)
+                    : false;
+
+                return `<option value="${k.id}" ${isSelected ? 'selected' : ''}>${platzName} - ${k.name}</option>`;
+            }
+        ).join('');
     }
 
     let spielerCheckboxesHtml = "";
     if (app.state.spieler && app.state.spieler.length > 0)
     {
-        spielerCheckboxesHtml = app.state.spieler.map(function(s)
-        {
-            return `
-                <label class="flex items-center space-x-3 p-2 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-100 transition">
-                    <input type="checkbox" name="teilnehmer" value="${s.id}" onchange="app.logic.renderAvailablePlayerChips()" class="w-4 h-4 text-emerald-600 rounded border-stone-300 focus:ring-emerald-500">
-                    <span class="text-xs font-semibold text-stone-800">${s.name} (${s.nickname})</span>
-                </label>
-            `;
-        }).join('');
+        spielerCheckboxesHtml = app.state.spieler.map(
+            function(s)
+            {
+                const isChecked = zugesagteSpieler.some(
+                    function(zId)
+                    {
+                        return String(zId).trim() === String(s.id).trim();
+                    }
+                );
+
+                return `
+                    <label class="flex items-center space-x-3 p-2 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-100 transition">
+                        <input type="checkbox" name="teilnehmer" value="${s.id}" ${isChecked ? 'checked' : ''} onchange="app.logic.renderAvailablePlayerChips()" class="w-4 h-4 text-emerald-600 rounded border-stone-300 focus:ring-emerald-500">
+                        <span class="text-xs font-semibold text-stone-800">${s.name} (${s.nickname})</span>
+                    </label>
+                `;
+            }
+        ).join('');
     }
+
+    // Automatische Chip-Aktualisierung nach DOM-Rendering anstoßen
+    setTimeout(
+        function()
+        {
+            if (typeof app.logic.renderAvailablePlayerChips === 'function')
+            {
+                app.logic.renderAvailablePlayerChips();
+            }
+        },
+        50
+    );
 
     return `
         <div class="space-y-5 pb-12">

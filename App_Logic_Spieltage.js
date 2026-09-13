@@ -196,7 +196,8 @@ app.logic.saveManualFlights = function()
         status: "Aktiv",
         teilnehmerCsv: gewaehlteIds.join(','),
         bruttoSieger: "",
-        nettoSieger: ""
+        nettoSieger: "",
+        kalenderId: app.state.tempKalenderId || null
     };
 
     const flightsPayload = [];
@@ -220,6 +221,7 @@ app.logic.saveManualFlights = function()
             {
                 app.state.spieltage.push(spieltagObj);
                 flightsPayload.forEach(function(f) { app.state.flights.push(f); });
+                app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und manuelle Flights angelegt!", "success");
                 app.router.navigate('spieltage');
@@ -356,7 +358,8 @@ app.logic.saveZufallsFlights = function()
         status: "Aktiv",
         teilnehmerCsv: gewaehlteIds.join(','),
         bruttoSieger: "",
-        nettoSieger: ""
+        nettoSieger: "",
+        kalenderId: app.state.tempKalenderId || null
     };
 
     const flightsPayload = app.state.tempZufallsFlights.map(function(flightIds, index)
@@ -375,6 +378,7 @@ app.logic.saveZufallsFlights = function()
             {
                 app.state.spieltage.push(spieltagObj);
                 flightsPayload.forEach(function(f) { app.state.flights.push(f); });
+                app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und Flights generiert!", "success");
                 app.router.navigate('spieltage');

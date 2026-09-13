@@ -38,70 +38,203 @@ app.logic.refreshGlobalAppData = async function()
             plaetzeSnap, 
             bahnenSnap,
             handicapsSnap,
-            kalenderSnap // <--- Ergänzt (10. Snapshot)
+            kalenderSnap
         ] = await Promise.all([
-            app.db.collection('spieler').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('spieltage').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('scorecards').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('scores').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('flights').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('kurse').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('golfplaetze').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('bahnen').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('handicaps').get().catch(function() { return { forEach: function() {} }; }),
-            app.db.collection('kalender_termine').get().catch(function() { return { forEach: function() {} }; }) // <--- Ergänzt
+            app.db.collection('spieler').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            app.db.collection('spieltage').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            app.db.collection('scorecards').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            app.db.collection('scores').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            app.db.collection('flights').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            app.db.collection('kurse').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            app.db.collection('golfplaetze').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            app.db.collection('bahnen').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            app.db.collection('handicaps').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            app.db.collection('kalender_termine').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            )
         ]);
 
         const spielerData = [];
-        spielerSnap.forEach(function(doc) { spielerData.push(Object.assign({ id: doc.id }, doc.data())); });
+        spielerSnap.forEach(
+            function(doc) 
+            { 
+                spielerData.push(Object.assign({ id: doc.id }, doc.data())); 
+            }
+        );
         app.state.spieler = spielerData;
 
         const spieltageData = [];
-        spieltageSnap.forEach(function(doc) { spieltageData.push(Object.assign({ id: doc.id }, doc.data())); });
+        spieltageSnap.forEach(
+            function(doc) 
+            { 
+                spieltageData.push(Object.assign({ id: doc.id }, doc.data())); 
+            }
+        );
         app.state.spieltage = spieltageData;
 
         const scoresMap = {};
-        scorecardsSnap.forEach(function(doc) { 
-            const data = Object.assign({ id: doc.id }, doc.data());
-            if (data.id) scoresMap[data.id] = data;
-        });
-        scoresSnap.forEach(function(doc) { 
-            const data = Object.assign({ id: doc.id }, doc.data());
-            if (data.id) scoresMap[data.id] = data;
-        });
+        scorecardsSnap.forEach(
+            function(doc) 
+            { 
+                const data = Object.assign({ id: doc.id }, doc.data());
+                if (data.id) 
+                {
+                    scoresMap[data.id] = data;
+                }
+            }
+        );
+        scoresSnap.forEach(
+            function(doc) 
+            { 
+                const data = Object.assign({ id: doc.id }, doc.data());
+                if (data.id) 
+                {
+                    scoresMap[data.id] = data;
+                }
+            }
+        );
         app.state.scoreCards = Object.values(scoresMap);
 
         const flightsData = [];
-        flightsSnap.forEach(function(doc) { flightsData.push(Object.assign({ id: doc.id }, doc.data())); });
+        flightsSnap.forEach(
+            function(doc) 
+            { 
+                flightsData.push(Object.assign({ id: doc.id }, doc.data())); 
+            }
+        );
         app.state.flights = flightsData;
 
         const kurseData = [];
-        kurseSnap.forEach(function(doc) { kurseData.push(Object.assign({ id: doc.id }, doc.data())); });
+        kurseSnap.forEach(
+            function(doc) 
+            { 
+                kurseData.push(Object.assign({ id: doc.id }, doc.data())); 
+            }
+        );
         app.state.kurse = kurseData;
 
         const plaetzeData = [];
-        plaetzeSnap.forEach(function(doc) { plaetzeData.push(Object.assign({ id: doc.id }, doc.data())); });
+        plaetzeSnap.forEach(
+            function(doc) 
+            { 
+                plaetzeData.push(Object.assign({ id: doc.id }, doc.data())); 
+            }
+        );
         app.state.golfplaetze = plaetzeData;
 
         const bahnenData = [];
-        bahnenSnap.forEach(function(doc) { bahnenData.push(Object.assign({ id: doc.id }, doc.data())); });
+        bahnenSnap.forEach(
+            function(doc) 
+            { 
+                bahnenData.push(Object.assign({ id: doc.id }, doc.data())); 
+            }
+        );
         app.state.bahnen = bahnenData;
 
         const handicapsData = [];
-        handicapsSnap.forEach(function(doc) { handicapsData.push(Object.assign({ id: doc.id }, doc.data())); });
+        handicapsSnap.forEach(
+            function(doc) 
+            { 
+                handicapsData.push(Object.assign({ id: doc.id }, doc.data())); 
+            }
+        );
         app.state.handicaps = handicapsData;
 
-        // <--- Ergänzt: Kalender-Daten in den State laden
         const kalenderData = [];
-        kalenderSnap.forEach(function(doc) { kalenderData.push(Object.assign({ id: doc.id }, doc.data())); });
+        kalenderSnap.forEach(
+            function(doc) 
+            { 
+                kalenderData.push(Object.assign({ id: doc.id }, doc.data())); 
+            }
+        );
         app.state.kalenderTermine = kalenderData;
 
         if (app.state.currentUser)
         {
-            const freshUserMatch = app.state.spieler.find(function(s) 
-            { 
-                return String(s.id).trim() === String(app.state.currentUser.id).trim(); 
-            });
+            const freshUserMatch = app.state.spieler.find(
+                function(s) 
+                { 
+                    return String(s.id).trim() === String(app.state.currentUser.id).trim(); 
+                }
+            );
             if (freshUserMatch)
             {
                 app.state.currentUser = freshUserMatch;
@@ -128,14 +261,17 @@ app.logic.refreshGlobalAppData = async function()
     }
     finally
     {
-        setTimeout(function()
-        {
-            if (btn && icon)
+        setTimeout(
+            function()
             {
-                btn.disabled = false;
-                icon.classList.remove('fa-spin');
-            }
-        }, 300);
+                if (btn && icon)
+                {
+                    btn.disabled = false;
+                    icon.classList.remove('fa-spin');
+                }
+            }, 
+            300
+        );
     }
 };
 
@@ -149,7 +285,8 @@ app.logic.apiRequest = async function(action, payload = {})
         if (action === 'getInitialAppData')
         {
             await app.logic.refreshGlobalAppData();
-            return {
+            return (
+            {
                 success: true,
                 spieler: app.state.spieler,
                 golfplaetze: app.state.golfplaetze,
@@ -159,8 +296,8 @@ app.logic.apiRequest = async function(action, payload = {})
                 spieltage: app.state.spieltage,
                 scoreCards: app.state.scoreCards,
                 flights: app.state.flights,
-                kalenderTermine: app.state.kalenderTermine // <--- Ergänzt
-            };
+                kalenderTermine: app.state.kalenderTermine
+            });
         }
         else if (action === 'saveLiveScores')
         {
@@ -168,14 +305,19 @@ app.logic.apiRequest = async function(action, payload = {})
             if (Array.isArray(scoresArray))
             {
                 const batch = app.db.batch();
-                scoresArray.forEach(function(sc)
-                {
-                    const docRef = app.db.collection('scorecards').doc(String(sc.id));
-                    batch.set(docRef, sc, { merge: true });
-                });
+                scoresArray.forEach(
+                    function(sc)
+                    {
+                        const docRef = app.db.collection('scorecards').doc(String(sc.id));
+                        batch.set(docRef, sc, { merge: true });
+                    }
+                );
                 await batch.commit();
             }
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'createNewSpieltag')
         {
@@ -185,20 +327,26 @@ app.logic.apiRequest = async function(action, payload = {})
             await app.db.collection('spieltage').doc(String(stObj.id)).set(stObj);
 
             const batch = app.db.batch();
-            flights.forEach(function(f)
-            {
-                const fRef = app.db.collection('flights').doc(String(f.id));
-                batch.set(fRef, f);
-            });
+            flights.forEach(
+                function(f)
+                {
+                    const fRef = app.db.collection('flights').doc(String(f.id));
+                    batch.set(fRef, f);
+                }
+            );
             await batch.commit();
 
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'closeSpieltagServer')
         {
             const { spieltagId, bruttoSieger, nettoSieger, handicapUpdates } = payload;
 
-            await app.db.collection('spieltage').doc(String(spieltagId)).update({
+            await app.db.collection('spieltage').doc(String(spieltagId)).update(
+            {
                 status: 'Beendet',
                 bruttoSieger: bruttoSieger || '',
                 nettoSieger: nettoSieger || ''
@@ -207,70 +355,107 @@ app.logic.apiRequest = async function(action, payload = {})
             if (handicapUpdates && handicapUpdates.length > 0)
             {
                 const batch = app.db.batch();
-                handicapUpdates.forEach(function(upd)
-                {
-                    const spRef = app.db.collection('spieler').doc(String(upd.spielerId));
-                    batch.update(spRef, { hcpLIE: parseInt(upd.newHcpLie) });
-                });
+                handicapUpdates.forEach(
+                    function(upd)
+                    {
+                        const spRef = app.db.collection('spieler').doc(String(upd.spielerId));
+                        batch.update(spRef, { hcpLIE: parseInt(upd.newHcpLie) });
+                    }
+                );
                 await batch.commit();
             }
 
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'cancelSpieltagServer')
         {
-            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update({
+            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update(
+            {
                 status: 'Abgebrochen'
             });
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'softDeleteSpieltagServer')
         {
-            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update({
+            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update(
+            {
                 istGeloescht: true
             });
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'savePlayerServer')
         {
             const sp = payload;
             await app.db.collection('spieler').doc(String(sp.id)).set(sp, { merge: true });
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'deletePlayerServer')
         {
             await app.db.collection('spieler').doc(String(payload.spielerId)).delete();
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'getVaultLockStatus')
         {
             const doc = await app.db.collection('settings').doc('vault').get();
             const data = doc.exists ? doc.data() : {};
-            return { success: true, isUnlocked: !!data.isUnlocked };
+            return (
+            { 
+                success: true, 
+                isUnlocked: !!data.isUnlocked 
+            });
         }
         else if (action === 'toggleVaultLock')
         {
             await app.db.collection('settings').doc('vault').set({ isUnlocked: !!payload.status }, { merge: true });
-            return { success: true, isUnlocked: !!payload.status };
+            return (
+            { 
+                success: true, 
+                isUnlocked: !!payload.status 
+            });
         }
         else if (action === 'updateFirestoreDoc')
         {
             const { collectionName, docId, data } = payload;
             await app.db.collection(collectionName).doc(String(docId)).set(data, { merge: true });
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'deleteFirestoreDoc')
         {
             const { collectionName, docId } = payload;
             await app.db.collection(collectionName).doc(String(docId)).delete();
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'verifyPlayerPin')
         {
             const spDoc = await app.db.collection('spieler').doc(String(payload.spielerId)).get();
             if (!spDoc.exists) 
             {
-                return { success: false, error: 'Spieler nicht gefunden' };
+                return (
+                { 
+                    success: false, 
+                    error: 'Spieler nicht gefunden' 
+                });
             }
             const spData = spDoc.data();
 
@@ -278,24 +463,39 @@ app.logic.apiRequest = async function(action, payload = {})
 
             if (String(dbPin).trim() === String(payload.pin).trim()) 
             {
-                return { success: true, mustChangePin: !!spData.mustChangePin };
+                return (
+                { 
+                    success: true, 
+                    mustChangePin: !!spData.mustChangePin 
+                });
             } 
             else 
             {
-                return { success: false, error: 'PIN inkorrekt' };
+                return (
+                { 
+                    success: false, 
+                    error: 'PIN inkorrekt' 
+                });
             }
         }
         else if (action === 'updatePlayerPin')
         {
             await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: payload.newPin, mustChangePin: false }, { merge: true });
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
         else if (action === 'requestTempPin')
         {
             const spDoc = await app.db.collection('spieler').doc(String(payload.spielerId)).get();
             if (!spDoc.exists) 
             {
-                return { success: false, error: 'Spieler nicht gefunden' };
+                return (
+                { 
+                    success: false, 
+                    error: 'Spieler nicht gefunden' 
+                });
             }
             const spData = spDoc.data();
 
@@ -316,18 +516,30 @@ app.logic.apiRequest = async function(action, payload = {})
                 }
             }
 
-            return { success: true, tempPin: tempPin, email: spData.email };
+            return (
+            { 
+                success: true, 
+                tempPin: tempPin, 
+                email: spData.email 
+            });
         }
         else
         {
             console.warn(`[Bridge] Unhandled action "${action}", returning success.`);
-            return { success: true };
+            return (
+            { 
+                success: true 
+            });
         }
     }
     catch (err)
     {
         console.error(`[Bridge Error] for action "${action}":`, err);
-        return { success: false, error: err.message };
+        return (
+        { 
+            success: false, 
+            error: err.message 
+        });
     }
 };
 
@@ -344,59 +556,69 @@ app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
         }
 
         app.db.collection('scorecards').get()
-            .then(function(snapshot)
-            {
-                if (statusDot)
+            .then(
+                function(snapshot)
                 {
-                    statusDot.className = "w-3 h-3 rounded-full bg-emerald-400";
-                }
-
-                const freshScores = [];
-                snapshot.forEach(function(doc)
-                {
-                    const d = doc.data();
-                    if (String(d.spieltagId).trim() === String(spieltagId).trim())
+                    if (statusDot)
                     {
-                        freshScores.push(Object.assign({ id: doc.id }, d));
+                        statusDot.className = "w-3 h-3 rounded-full bg-emerald-400";
                     }
-                });
 
-                const otherRoundScores = app.state.scoreCards.filter(function(sc)
-                {
-                    return String(sc.spieltagId).trim() !== String(spieltagId).trim();
-                });
-                app.state.scoreCards = otherRoundScores.concat(freshScores);
-
-                const container = document.getElementById('app-container');
-                if (container)
-                {
-                    if (app.state.currentView === 'leaderboard')
-                    {
-                        const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
-                        container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
-                    }
-                    else if (app.state.currentView === 'score_eingabe' && holeNr)
-                    {
-                        const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(function(k)
+                    const freshScores = [];
+                    snapshot.forEach(
+                        function(doc)
                         {
-                            return k.startsWith(spieltagId + "_");
-                        }).length;
+                            const d = doc.data();
+                            if (String(d.spieltagId).trim() === String(spieltagId).trim())
+                            {
+                                freshScores.push(Object.assign({ id: doc.id }, d));
+                            }
+                        }
+                    );
 
-                        if (ungesicherteAenderungen === 0)
+                    const otherRoundScores = app.state.scoreCards.filter(
+                        function(sc)
                         {
-                            container.innerHTML = app.views.score_eingabe(spieltagId, holeNr, flightSeq);
+                            return String(sc.spieltagId).trim() !== String(spieltagId).trim();
+                        }
+                    );
+                    app.state.scoreCards = otherRoundScores.concat(freshScores);
+
+                    const container = document.getElementById('app-container');
+                    if (container)
+                    {
+                        if (app.state.currentView === 'leaderboard')
+                        {
+                            const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
+                            container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
+                        }
+                        else if (app.state.currentView === 'score_eingabe' && holeNr)
+                        {
+                            const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(
+                                function(k)
+                                {
+                                    return k.startsWith(spieltagId + "_");
+                                }
+                            ).length;
+
+                            if (ungesicherteAenderungen === 0)
+                            {
+                                container.innerHTML = app.views.score_eingabe(spieltagId, holeNr, flightSeq);
+                            }
                         }
                     }
                 }
-            })
-            .catch(function(err)
-            {
-                if (statusDot)
+            )
+            .catch(
+                function(err)
                 {
-                    statusDot.className = "w-3 h-3 rounded-full bg-red-400";
+                    if (statusDot)
+                    {
+                        statusDot.className = "w-3 h-3 rounded-full bg-red-400";
+                    }
+                    console.warn("Polling update failed:", err);
                 }
-                console.warn("Polling update failed:", err);
-            });
+            );
     };
 
     const msInterval = (app.state.currentPollingRate || 60) * 1000;
