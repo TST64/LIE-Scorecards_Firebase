@@ -11,113 +11,178 @@ app.views.kalender = function()
     const currentUser = app.state.currentUser || {};
     const isLeiter = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Spielleiter');
     
-    // Termine aus dem app.state laden (Standard: Chronologisch sortieren)
-    const termine = [...(app.state.kalenderTermine || [])].sort((a, b) => new Date(a.datum) - new Date(b.datum));
+    // Aktiven Tab ermitteln (Default: 'anstehend')
+    app.state.kalenderTab = app.state.kalenderTab || 'anstehend';
+    const aktiverTab = app.state.kalenderTab;
+
+    // Stichtag berechnen (erst ab Folgetag gilt ein Termin als vergangen)
+    const heute00 = new Date();
+    heute00.setHours(0, 0, 0, 0);
+
+    const alleTermine = app.state.kalenderTermine || [];
+    
+    // 1. Soft-deleted Termine filtern
+    const aktiveTermine = alleTermine.filter(
+        function(t)
+        {
+            return !t.istGeloescht;
+        }
+    );
+
+    // 2. Absteigend sortieren (neueste / am weitesten in der Zukunft oben)
+    aktiveTermine.sort(
+        function(a, b)
+        {
+            return new Date(b.datum) - new Date(a.datum);
+        }
+    );
+
+    // 3. Nach Tab filtern
+    const gefilterteTermine = aktiveTermine.filter(
+        function(t)
+        {
+            const terminDatum = new Date(t.datum);
+            if (aktiverTab === 'anstehend')
+            {
+                return terminDatum >= heute00;
+            }
+            else
+            {
+                return terminDatum < heute00;
+            }
+        }
+    );
 
     let termineHtml = "";
 
-    if (termine.length === 0)
+    if (gefilterteTermine.length === 0)
     {
         termineHtml = `
             <div class="bg-stone-50 border border-dashed border-stone-300 rounded-2xl p-8 text-center">
                 <i class="fas fa-calendar-times text-stone-400 text-3xl mb-3"></i>
-                <p class="text-stone-600 font-bold text-sm">Keine anstehenden Termine</p>
-                <p class="text-stone-400 text-xs mt-1">Legt als Spielleiter den nächsten gemeinsamen Spieltag an!</p>
+                <p class="text-stone-600 font-bold text-sm">Keine ${aktiverTab === 'anstehend' ? 'anstehenden' : 'vergangenen'} Termine</p>
+                <p class="text-stone-400 text-xs mt-1">${aktiverTab === 'anstehend' ? 'Legt als Spielleiter den nächsten gemeinsamen Spieltag an!' : 'Es sind bisher keine vergangenen Termine vorhanden.'}</p>
             </div>
         `;
     }
     else
     {
-        termineHtml = termine.map(function(term)
-        {
-            const rsvps = term.rsvps || {};
-            const myStatus = currentUser.id ? rsvps[currentUser.id] : null;
-
-            // Zähler ermitteln
-            let yesCount = 0, noCount = 0, maybeCount = 0;
-            const yesNames = [], noNames = [], maybeNames = [];
-
-            Object.keys(rsvps).forEach(function(sId)
+        termineHtml = gefilterteTermine.map(
+            function(term)
             {
-                const spieler = (app.state.spieler || []).find(s => String(s.id).trim() === String(sId).trim());
-                const sName = spieler ? (spieler.nickname || spieler.name) : `ID ${sId}`;
-                
-                if (rsvps[sId] === 'yes') { yesCount++; yesNames.push(sName); }
-                if (rsvps[sId] === 'no') { noCount++; noNames.push(sName); }
-                if (rsvps[sId] === 'maybe') { maybeCount++; maybeNames.push(sName); }
-            });
+                const rsvps = term.rsvps || {};
+                const myStatus = currentUser.id ? rsvps[currentUser.id] : null;
 
-            // Datum formatieren
-            let datumFormatted = term.datum;
-            try
-            {
-                const d = new Date(term.datum);
-                if (!isNaN(d.getTime()))
+                // Zähler ermitteln
+                let yesCount = 0, noCount = 0, maybeCount = 0;
+                const yesNames = [], noNames = [], maybeNames = [];
+
+                Object.keys(rsvps).forEach(
+                    function(sId)
+                    {
+                        const spieler = (app.state.spieler || []).find(
+                            function(s)
+                            {
+                                return String(s.id).trim() === String(sId).trim();
+                            }
+                        );
+                        const sName = spieler ? (spieler.nickname || spieler.name) : `ID ${sId}`;
+                        
+                        if (rsvps[sId] === 'yes') { yesCount++; yesNames.push(sName); }
+                        if (rsvps[sId] === 'no') { noCount++; noNames.push(sName); }
+                        if (rsvps[sId] === 'maybe') { maybeCount++; maybeNames.push(sName); }
+                    }
+                );
+
+                // Datum formatieren
+                let datumFormatted = term.datum;
+                try
                 {
-                    datumFormatted = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+                    const d = new Date(term.datum);
+                    if (!isNaN(d.getTime()))
+                    {
+                        datumFormatted = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+                    }
                 }
-            } catch (e) {}
+                catch (e) {}
 
-            return `
-                <div class="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-                    <!-- Header Info -->
-                    <div class="flex justify-between items-start gap-2">
-                        <div>
-                            <span class="inline-block px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200/60 rounded-md text-[10px] font-black uppercase tracking-wider mb-1">
-                                <i class="far fa-clock mr-1"></i>${term.uhrzeit || '09:00'} Uhr
-                            </span>
-                            <h3 class="text-base font-bold text-stone-800">${term.titel}</h3>
-                            <p class="text-xs text-stone-500 font-medium flex items-center gap-1 mt-0.5">
-                                <i class="fas fa-map-marker-alt text-red-500"></i> ${term.ort || 'Golfplatz'}
-                            </p>
-                        </div>
-                        <div class="text-right shrink-0">
-                            <span class="text-xs font-bold text-stone-700 block">${datumFormatted}</span>
-                            ${isLeiter ? `<button onclick="app.logic.deleteTermin('${term.id}')" class="text-stone-300 hover:text-red-600 transition text-xs mt-1"><i class="fas fa-trash-alt"></i></button>` : ''}
-                        </div>
-                    </div>
-
-                    ${term.beschreibung ? `<p class="text-xs text-stone-600 bg-stone-50 p-2.5 rounded-xl border border-stone-100 font-medium">${term.beschreibung}</p>` : ''}
-
-                    <!-- User RSVP Buttons -->
-                    <div class="pt-2 border-t border-stone-100">
-                        <span class="text-[10px] font-extrabold text-stone-400 uppercase tracking-wider block mb-2">Deine Rückmeldung:</span>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button onclick="app.logic.saveRsvp('${term.id}', 'yes')" 
-                                    class="py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 touch-target ${myStatus === 'yes' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">
-                                <i class="fas fa-check-circle"></i> Dabei
-                            </button>
-                            <button onclick="app.logic.saveRsvp('${term.id}', 'maybe')" 
-                                    class="py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 touch-target ${myStatus === 'maybe' ? 'bg-amber-500 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">
-                                <i class="fas fa-question-circle"></i> Unsicher
-                            </button>
-                            <button onclick="app.logic.saveRsvp('${term.id}', 'no')" 
-                                    class="py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 touch-target ${myStatus === 'no' ? 'bg-red-600 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">
-                                <i class="fas fa-times-circle"></i> Passt nicht
+                // Spieltag erstellen Button (nur für Spielleiter bei anstehenden Terminen)
+                let spieltagBtn = "";
+                if (isLeiter && aktiverTab === 'anstehend')
+                {
+                    spieltagBtn = `
+                        <div class="pt-3 border-t border-stone-100 mt-3">
+                            <button onclick="app.logic.createSpieltagFromTermin('${term.id}')" 
+                                    class="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 font-bold py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 touch-target">
+                                <i class="fas fa-play-circle text-emerald-600"></i> Spieltag aus diesem Termin erstellen
                             </button>
                         </div>
-                    </div>
+                    `;
+                }
 
-                    <!-- RSVP Summary Badges & Names -->
-                    <div class="bg-stone-50 p-3 rounded-xl border border-stone-100 space-y-2 text-xs">
-                        <div class="flex items-center justify-between text-stone-600 font-semibold text-[11px]">
-                            <span class="text-emerald-700 font-bold"><i class="fas fa-user-check mr-1"></i>Zusagen (${yesCount}):</span>
-                            <span>${yesNames.join(', ') || 'Noch keine'}</span>
+                return `
+                    <div class="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+                        <!-- Header Info -->
+                        <div class="flex justify-between items-start gap-2">
+                            <div>
+                                <span class="inline-block px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200/60 rounded-md text-[10px] font-black uppercase tracking-wider mb-1">
+                                    <i class="far fa-clock mr-1"></i>${term.uhrzeit || '09:00'} Uhr
+                                </span>
+                                <h3 class="text-base font-bold text-stone-800">${term.titel}</h3>
+                                <p class="text-xs text-stone-500 font-medium flex items-center gap-1 mt-0.5">
+                                    <i class="fas fa-map-marker-alt text-red-500"></i> ${term.ort || 'Golfplatz'}
+                                </p>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <span class="text-xs font-bold text-stone-700 block">${datumFormatted}</span>
+                                ${isLeiter ? `<button onclick="app.logic.deleteTermin('${term.id}')" class="text-stone-300 hover:text-red-600 transition text-xs mt-1"><i class="fas fa-trash-alt"></i></button>` : ''}
+                            </div>
                         </div>
-                        ${maybeCount > 0 ? `
-                        <div class="flex items-center justify-between text-stone-600 font-semibold text-[11px]">
-                            <span class="text-amber-700 font-bold"><i class="fas fa-user-clock mr-1"></i>Unsicher (${maybeCount}):</span>
-                            <span>${maybeNames.join(', ')}</span>
-                        </div>` : ''}
-                        ${noCount > 0 ? `
-                        <div class="flex items-center justify-between text-stone-600 font-semibold text-[11px]">
-                            <span class="text-red-600 font-bold"><i class="fas fa-user-xmark mr-1"></i>Absagen (${noCount}):</span>
-                            <span>${noNames.join(', ')}</span>
-                        </div>` : ''}
+
+                        ${term.beschreibung ? `<p class="text-xs text-stone-600 bg-stone-50 p-2.5 rounded-xl border border-stone-100 font-medium">${term.beschreibung}</p>` : ''}
+
+                        <!-- User RSVP Buttons -->
+                        <div class="pt-2 border-t border-stone-100">
+                            <span class="text-[10px] font-extrabold text-stone-400 uppercase tracking-wider block mb-2">Deine Rückmeldung:</span>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button onclick="app.logic.saveRsvp('${term.id}', 'yes')" 
+                                        class="py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 touch-target ${myStatus === 'yes' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">
+                                    <i class="fas fa-check-circle"></i> Dabei
+                                </button>
+                                <button onclick="app.logic.saveRsvp('${term.id}', 'maybe')" 
+                                        class="py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 touch-target ${myStatus === 'maybe' ? 'bg-amber-500 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">
+                                    <i class="fas fa-question-circle"></i> Unsicher
+                                </button>
+                                <button onclick="app.logic.saveRsvp('${term.id}', 'no')" 
+                                        class="py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 touch-target ${myStatus === 'no' ? 'bg-red-600 text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">
+                                    <i class="fas fa-times-circle"></i> Passt nicht
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- RSVP Summary Badges & Names -->
+                        <div class="bg-stone-50 p-3 rounded-xl border border-stone-100 space-y-2 text-xs">
+                            <div class="flex items-center justify-between text-stone-600 font-semibold text-[11px]">
+                                <span class="text-emerald-700 font-bold"><i class="fas fa-user-check mr-1"></i>Zusagen (${yesCount}):</span>
+                                <span>${yesNames.join(', ') || 'Noch keine'}</span>
+                            </div>
+                            ${maybeCount > 0 ? `
+                            <div class="flex items-center justify-between text-stone-600 font-semibold text-[11px]">
+                                <span class="text-amber-700 font-bold"><i class="fas fa-user-clock mr-1"></i>Unsicher (${maybeCount}):</span>
+                                <span>${maybeNames.join(', ')}</span>
+                            </div>` : ''}
+                            ${noCount > 0 ? `
+                            <div class="flex items-center justify-between text-stone-600 font-semibold text-[11px]">
+                                <span class="text-red-600 font-bold"><i class="fas fa-user-xmark mr-1"></i>Absagen (${noCount}):</span>
+                                <span>${noNames.join(', ')}</span>
+                            </div>` : ''}
+                        </div>
+
+                        ${spieltagBtn}
                     </div>
-                </div>
-            `;
-        }).join('');
+                `;
+            }
+        ).join('');
     }
 
     let newTerminBtnHeader = "";
@@ -130,6 +195,19 @@ app.views.kalender = function()
         `;
     }
 
+    const tabsHtml = `
+        <div class="flex bg-stone-100 p-1 rounded-xl text-xs font-bold gap-1 mb-4">
+            <button onclick="app.logic.switchKalenderTab('anstehend')" 
+                    class="flex-1 py-2 rounded-lg text-center transition ${aktiverTab === 'anstehend' ? 'bg-emerald-600 text-white shadow-xs' : 'text-stone-600 hover:bg-stone-200'}">
+                <i class="fas fa-calendar-alt mr-1"></i> Anstehende Runden
+            </button>
+            <button onclick="app.logic.switchKalenderTab('vergangen')" 
+                    class="flex-1 py-2 rounded-lg text-center transition ${aktiverTab === 'vergangen' ? 'bg-emerald-600 text-white shadow-xs' : 'text-stone-600 hover:bg-stone-200'}">
+                <i class="fas fa-history mr-1"></i> Vergangene Runden
+            </button>
+        </div>
+    `;
+
     return `
         <div class="space-y-5 max-w-4xl mx-auto pb-12">
             <div class="border-b border-stone-200 pb-3 flex justify-between items-end">
@@ -139,6 +217,8 @@ app.views.kalender = function()
                 </div>
                 ${newTerminBtnHeader}
             </div>
+
+            ${tabsHtml}
 
             <div class="space-y-4">
                 ${termineHtml}
@@ -150,6 +230,49 @@ app.views.kalender = function()
 // ==========================================
 // KALENDER LOGIK (RSVP & ADMIN-ACTIONS)
 // ==========================================
+
+// Umschalten der Tabs (Anstehend vs. Vergangen)
+app.logic.switchKalenderTab = function(tabName)
+{
+    app.state.kalenderTab = tabName;
+    app.router.navigate('kalender');
+};
+
+// Spieltag aus Termin vorausfüllen und navigieren
+app.logic.createSpieltagFromTermin = function(terminId)
+{
+    const term = (app.state.kalenderTermine || []).find(
+        function(t)
+        {
+            return t.id === terminId;
+        }
+    );
+
+    if (!term)
+    {
+        app.logic.showToast("Termin konnte nicht gefunden werden.", "error");
+        return;
+    }
+
+    const rsvps = term.rsvps || {};
+    const zugesagteSpieler = Object.keys(rsvps).filter(
+        function(sId)
+        {
+            return rsvps[sId] === 'yes';
+        }
+    );
+
+    app.state.neuerSpieltagVorausgefuellt = 
+    {
+        kalenderId: term.id,
+        datum: term.datum,
+        ort: term.ort || '',
+        vorausgewaehlteSpieler: zugesagteSpieler
+    };
+
+    app.logic.showToast("Zusagen für Spieltag übernommen!", "info");
+    app.router.navigate('spieltag-neu');
+};
 
 // Speichert das RSVP des aktuellen Nutzers direkt in Firestore
 app.logic.saveRsvp = async function(terminId, status)
@@ -170,10 +293,19 @@ app.logic.saveRsvp = async function(terminId, status)
         await app.db.collection('kalender_termine').doc(terminId).update(updateObj);
         
         // Lokalen State aktualisieren & Neu rendern
-        const term = (app.state.kalenderTermine || []).find(t => t.id === terminId);
+        const term = (app.state.kalenderTermine || []).find(
+            function(t)
+            {
+                return t.id === terminId;
+            }
+        );
+
         if (term)
         {
-            if (!term.rsvps) term.rsvps = {};
+            if (!term.rsvps)
+            {
+                term.rsvps = {};
+            }
             term.rsvps[currentUser.id] = status;
         }
 
@@ -191,7 +323,10 @@ app.logic.saveRsvp = async function(terminId, status)
 app.logic.showNewTerminModal = function()
 {
     const oldModal = document.getElementById('new-termin-modal');
-    if (oldModal) oldModal.remove();
+    if (oldModal)
+    {
+        oldModal.remove();
+    }
 
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -278,7 +413,8 @@ app.logic.createNewTerminSubmit = async function()
     }
 
     const docId = `TERM-${Date.now()}`;
-    const newTermin = {
+    const newTermin = 
+    {
         id: docId,
         titel: titel,
         datum: datum,
@@ -286,13 +422,17 @@ app.logic.createNewTerminSubmit = async function()
         ort: ort,
         beschreibung: beschreibung,
         erstelltVon: app.state.currentUser ? app.state.currentUser.id : "101",
-        rsvps: {}
+        rsvps: {},
+        istGeloescht: false
     };
 
     try
     {
         await app.db.collection('kalender_termine').doc(docId).set(newTermin);
-        if (!app.state.kalenderTermine) app.state.kalenderTermine = [];
+        if (!app.state.kalenderTermine)
+        {
+            app.state.kalenderTermine = [];
+        }
         app.state.kalenderTermine.push(newTermin);
 
         document.getElementById('new-termin-modal').remove();
@@ -306,20 +446,40 @@ app.logic.createNewTerminSubmit = async function()
     }
 };
 
-// Termin löschen
+// Soft-Delete eines Termins in Firestore
 app.logic.deleteTermin = async function(terminId)
 {
-    if (!confirm("Möchtest du diesen Termin wirklich löschen?")) return;
+    if (!confirm("Möchtest du diesen Termin wirklich löschen?"))
+    {
+        return;
+    }
 
     try
     {
-        await app.db.collection('kalender_termine').doc(terminId).delete();
-        app.state.kalenderTermine = (app.state.kalenderTermine || []).filter(t => t.id !== terminId);
+        await app.db.collection('kalender_termine').doc(terminId).update(
+        {
+            istGeloescht: true,
+            geaendertAm: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        const term = (app.state.kalenderTermine || []).find(
+            function(t)
+            {
+                return t.id === terminId;
+            }
+        );
+
+        if (term)
+        {
+            term.istGeloescht = true;
+        }
+
         app.logic.showToast("Termin gelöscht.", "success");
         app.router.navigate('kalender');
     }
     catch (e)
     {
+        console.error("Fehler beim Löschen:", e);
         app.logic.showToast("Fehler beim Löschen.", "error");
     }
 };
