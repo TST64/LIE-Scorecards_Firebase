@@ -634,3 +634,41 @@ app.logic.stopLivePolling = function()
     }
 };
 
+app.logic.getGolfWeather = function(callback)
+{
+    if (!navigator.geolocation)
+    {
+        if (typeof app.logic.showToast === 'function')
+        {
+            app.logic.showToast("GPS wird vom Browser nicht unterstützt.", "warning");
+        }
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        async function(position)
+        {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,rain,wind_speed_10m,wind_direction_10m,weather_code&wind_speed_unit=ms_kmh&timezone=auto`;
+
+            try
+            {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (typeof callback === 'function')
+                {
+                    callback(data.current);
+                }
+            }
+            catch (err)
+            {
+                console.error("[Wetter API] Fehler beim Abrufen:", err);
+            }
+        },
+        function(err)
+        {
+            console.warn("[GPS] Standort-Zugriff abgelehnt oder nicht verfügbar:", err);
+        }
+    );
+};

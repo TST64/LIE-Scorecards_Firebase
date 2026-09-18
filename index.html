@@ -58,6 +58,9 @@
             </div>
 
             <div class="flex items-center space-x-3">
+                <button onclick="app.router.navigate('wetter')" class="text-amber-300 hover:text-amber-200 p-1 touch-target text-base transition focus:outline-none" title="Platzwetter anzeigen">
+                    <i class="fas fa-cloud-sun"></i>
+                </button>
                 <button id="global-refresh-btn" onclick="app.logic.refreshGlobalAppData()" class="text-white p-1 touch-target text-base opacity-80 hover:opacity-100 transition focus:outline-none" title="Daten aktualisieren">
                     <i id="global-refresh-icon" class="fas fa-sync-alt"></i>
                 </button>
@@ -97,7 +100,7 @@
                 <span class="text-[10px] font-semibold mt-0.5">Runden</span>
             </button>
             <button id="nav-calendar" onclick="app.router.navigate('kalender')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
-                <i class="fas fa-calendar-alt text-base"></i>
+                <i class="fas fa-calendar-days text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Kalender</span>
             </button>
             <button id="nav-players" onclick="app.router.navigate('spieler')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
@@ -186,7 +189,8 @@
                     "Views_AdminGruppe.js",
                     "Views_SpielerEdit.js",
                     "App_Start.js",
-                    "Views_Kalender.js"
+                    "Views_Kalender.js",
+                    "Views_Wetter.js"
                 ];
 
                 const version = (typeof CONFIG !== 'undefined' && CONFIG.appVersion) 

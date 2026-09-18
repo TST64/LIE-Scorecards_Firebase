@@ -1,12 +1,12 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Dashboard Ansicht (Kompakt)
+// BMAssistent / LIE Scorecard - Dashboard Ansicht (Inkl. Wetter-Kachel)
 // Views_Dashboard.js
 // BSD (Allman) Style
 // =========================================================================
 
 app.views.dashboard = function()
 {
-    // Ermittle den Namen des aktuellen Users für das Minispiel
+    // Ermittle den Namen des aktuellen Users
     const user = app.state.currentUser;
     const nickname = user ? (user.nickname || "Golfer") : "";
     const rolle = user ? user.role : "Spieler";
@@ -70,7 +70,6 @@ app.views.dashboard = function()
     }
     else
     {
-        // Schlanke "Kein aktives Match"-Zeile
         activeRoundCardHtml = `
             <div class="p-2.5 px-3 bg-zinc-50/80 border border-zinc-200 border-dashed rounded-xl flex items-center justify-center gap-2 text-center">
                 <i class="fas fa-golf-ball text-zinc-400 text-xs"></i>
@@ -83,9 +82,9 @@ app.views.dashboard = function()
     const todayStr = new Date().toISOString().split('T')[0];
     const termine = app.state.kalenderTermine || [];
     const upcoming = termine
-        .filter(function(t) { return !t.istGeloescht && t.datum >= todayStr; }) // <--- Soft-Delete Filter
+        .filter(function(t) { return !t.istGeloescht && t.datum >= todayStr; })
         .sort(function(a, b) { return new Date(a.datum) - new Date(b.datum); })
-        .slice(0, 3); // <--- Beschränkung auf max. 3 Termine
+        .slice(0, 3);
 
     let upcomingEventsHtml = "";
     if (upcoming.length === 0)
@@ -312,25 +311,15 @@ app.views.dashboard = function()
                 </div>
             </div>
 
-            <!-- SCHNELLSTART-KACHELN (KOMPAKT) -->
+            <!-- SCHNELLSTART-KACHELN (INKL. WETTER) -->
             <div class="grid grid-cols-2 gap-2.5">
-                <button onclick="app.router.navigate('spieltage')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
-                    <div class="w-8 h-8 rounded-lg bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-700 flex items-center justify-center text-sm shrink-0 transition">
-                        <i class="fas fa-calendar-alt"></i>
+                <button onclick="app.router.navigate('wetter')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm shrink-0 transition">
+                        <i class="fas fa-cloud-sun"></i>
                     </div>
                     <div class="truncate">
-                        <span class="block font-bold text-zinc-800 text-xs truncate">Turniere</span>
-                        <span class="block text-[9px] text-zinc-400 font-medium truncate">Alle Runden</span>
-                    </div>
-                </button>
-
-                <button onclick="app.router.navigate('spieler')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
-                    <div class="w-8 h-8 rounded-lg bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-700 flex items-center justify-center text-sm shrink-0 transition">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div class="truncate">
-                        <span class="block font-bold text-zinc-800 text-xs truncate">LIE-Gruppe</span>
-                        <span class="block text-[9px] text-zinc-400 font-medium truncate">Handicaps</span>
+                        <span class="block font-bold text-zinc-800 text-xs truncate">Platzwetter</span>
+                        <span class="block text-[9px] text-zinc-400 font-medium truncate">Wind & Prognose</span>
                     </div>
                 </button>
 
@@ -341,6 +330,16 @@ app.views.dashboard = function()
                     <div class="truncate">
                         <span class="block font-bold text-zinc-800 text-xs truncate">Termine</span>
                         <span class="block text-[9px] text-zinc-400 font-medium truncate">Zu-/Absagen</span>
+                    </div>
+                </button>
+
+                <button onclick="app.router.navigate('spieltage')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
+                    <div class="w-8 h-8 rounded-lg bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-700 flex items-center justify-center text-sm shrink-0 transition">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="truncate">
+                        <span class="block font-bold text-zinc-800 text-xs truncate">Turniere</span>
+                        <span class="block text-[9px] text-zinc-400 font-medium truncate">Alle Runden</span>
                     </div>
                 </button>
 

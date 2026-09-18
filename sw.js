@@ -1,3 +1,4 @@
+
 // =========================================================================
 // BMAssistent / LIE Scorecard - Service Worker
 // sw.js
@@ -9,7 +10,7 @@ importScripts('config.js');
 // Dynamische Cache-Benennung über die Version aus der config.js
 var currentVersion = (typeof CONFIG !== 'undefined' && (CONFIG.version || CONFIG.appVersion)) 
     ? (CONFIG.version || CONFIG.appVersion) 
-    : '4.2.3';
+    : '4.4.2.1';
 
 var CACHE_NAME = 'lie-scorecard-v' + currentVersion;
 
@@ -36,7 +37,8 @@ var ASSETS_TO_CACHE = [
     './Views_Admin.js',
     './Views_AdminGruppe.js',
     './Views_SpielerEdit.js',
-    './Views_Kalender.js' // <--- Ergänzt: Damit die Kalender-Ansicht geladen wird!
+    './Views_Kalender.js',
+    './Views_Wetter.js'
 ];
 
 // 1. Installation: Statische Ressourcen cachen
@@ -81,14 +83,15 @@ self.addEventListener('fetch', function(event)
 {
     var requestUrl = event.request.url;
 
-    // Firebase, Google APIs und externe CDNs (FontAwesome etc.) NIEMALS vom Service Worker abfangen!
+    // Firebase, Google APIs, Open-Meteo und externe CDNs NIEMALS vom Service Worker abfangen!
     if (requestUrl.includes('firestore.googleapis.com') ||  
         requestUrl.includes('google.firestore') ||
         requestUrl.includes('firebase') ||
         requestUrl.includes('script.google.com') ||
         requestUrl.includes('cdnjs.cloudflare.com') ||
         requestUrl.includes('gstatic.com') ||
-        requestUrl.includes('googleapis.com'))
+        requestUrl.includes('googleapis.com') ||
+        requestUrl.includes('open-meteo.com'))
     {
         return;
     }
@@ -136,8 +139,7 @@ self.addEventListener('fetch', function(event)
                 });
 
                 return networkResponse;
-            }
-            );
+            });
         })
     );
 });
