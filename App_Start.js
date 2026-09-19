@@ -81,3 +81,22 @@ window.addEventListener('DOMContentLoaded', function()
     }
 });
 
+// Saison-Datum aus Config laden
+app.db.collection('config').doc('saison').get().then(
+    function(doc)
+    {
+        if (doc.exists)
+        {
+            app.state.saisonStartDatum = doc.data().saisonStartDatum || '2026-10-01';
+        }
+        else
+        {
+            app.state.saisonStartDatum = '2026-10-01';
+        }
+    }
+).catch(
+    function()
+    {
+        app.state.saisonStartDatum = '2026-10-01';
+    }
+);

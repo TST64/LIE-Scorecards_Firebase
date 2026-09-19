@@ -1,4 +1,3 @@
-
 // =========================================================================
 // BMAssistent / LIE Scorecard - Service Worker
 // sw.js
@@ -7,10 +6,10 @@
 
 importScripts('config.js');
 
-// Dynamische Cache-Benennung über die Version aus der config.js
+// Cache-Version aus der config.js
 var currentVersion = (typeof CONFIG !== 'undefined' && (CONFIG.version || CONFIG.appVersion)) 
     ? (CONFIG.version || CONFIG.appVersion) 
-    : '4.4.2.1';
+    : '4.7.0.0';
 
 var CACHE_NAME = 'lie-scorecard-v' + currentVersion;
 
@@ -30,6 +29,7 @@ var ASSETS_TO_CACHE = [
     './App_View_Help.js',
     './Views_Login.js',
     './Views_Dashboard.js',
+    './Views_LiveDashboard.js',
     './Views_Spieltage.js',
     './Views_SpieltagNeu.js',
     './Views_ScoreEingabe.js',
@@ -41,7 +41,6 @@ var ASSETS_TO_CACHE = [
     './Views_Wetter.js'
 ];
 
-// 1. Installation: Statische Ressourcen cachen
 self.addEventListener('install', function(event)
 {
     event.waitUntil(
@@ -55,7 +54,6 @@ self.addEventListener('install', function(event)
     );
 });
 
-// 2. Aktivierung: Alte Caches aufräumen
 self.addEventListener('activate', function(event)
 {
     event.waitUntil(
@@ -78,12 +76,10 @@ self.addEventListener('activate', function(event)
     );
 });
 
-// 3. Network Fetching & CORS/CDN Bypassing
 self.addEventListener('fetch', function(event)
 {
     var requestUrl = event.request.url;
 
-    // Firebase, Google APIs, Open-Meteo und externe CDNs NIEMALS vom Service Worker abfangen!
     if (requestUrl.includes('firestore.googleapis.com') ||  
         requestUrl.includes('google.firestore') ||
         requestUrl.includes('firebase') ||
@@ -96,7 +92,6 @@ self.addEventListener('fetch', function(event)
         return;
     }
 
-    // Nur GET-Requests cachen
     if (event.request.method !== 'GET')
     {
         return;
@@ -107,7 +102,6 @@ self.addEventListener('fetch', function(event)
         {
             if (cachedResponse)
             {
-                // Zuerst Cache ausliefern, im Hintergrund frisches Asset laden (Stale-While-Revalidate)
                 fetch(event.request).then(function(networkResponse)
                 {
                     if (networkResponse && networkResponse.status === 200)
@@ -117,10 +111,7 @@ self.addEventListener('fetch', function(event)
                             cache.put(event.request, networkResponse);
                         });
                     }
-                }).catch(function()
-                {
-                    // Network silent fail (Offline-Betrieb)
-                });
+                }).catch(function() {});
 
                 return cachedResponse;
             }

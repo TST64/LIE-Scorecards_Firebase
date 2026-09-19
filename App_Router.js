@@ -167,11 +167,11 @@ app.router.updateNavigationUI = function(viewName)
 
         let activeTabId = "";
         if (viewName === 'dashboard') activeTabId = 'nav-dash';
+        if (viewName === 'live_dashboard') activeTabId = 'nav-stats';
         if (viewName === 'kalender') activeTabId = 'nav-calendar';
         if (viewName === 'spieltage' || viewName === 'spieltag_neu' || viewName === 'leaderboard') activeTabId = 'nav-rounds';
         if (viewName === 'spieler' || viewName === 'spieler_edit') activeTabId = 'nav-players';
         if (viewName === 'admin') activeTabId = 'nav-admin';
-        if (viewName === 'help') activeTabId = 'nav-help';
 
         const activeBtn = document.getElementById(activeTabId);
         if (activeBtn)

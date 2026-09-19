@@ -58,7 +58,10 @@
             </div>
 
             <div class="flex items-center space-x-3">
-                <button onclick="app.router.navigate('wetter')" class="text-amber-300 hover:text-amber-200 p-1 touch-target text-base transition focus:outline-none" title="Platzwetter anzeigen">
+                <button onclick="app.router.navigate('live_dashboard')" class="text-amber-300 hover:text-amber-200 p-1 touch-target text-base transition focus:outline-none" title="Saison Live-Dashboard">
+                    <i class="fas fa-chart-line"></i>
+                </button>
+                <button onclick="app.router.navigate('wetter')" class="text-emerald-200 hover:text-white p-1 touch-target text-base transition focus:outline-none" title="Platzwetter anzeigen">
                     <i class="fas fa-cloud-sun"></i>
                 </button>
                 <button id="global-refresh-btn" onclick="app.logic.refreshGlobalAppData()" class="text-white p-1 touch-target text-base opacity-80 hover:opacity-100 transition focus:outline-none" title="Daten aktualisieren">
@@ -95,21 +98,21 @@
                 <i class="fas fa-home text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Home</span>
             </button>
+            <button id="nav-stats" onclick="app.router.navigate('live_dashboard')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
+                <i class="fas fa-chart-bar text-base"></i>
+                <span class="text-[10px] font-semibold mt-0.5">Stats</span>
+            </button>
             <button id="nav-rounds" onclick="app.router.navigate('spieltage')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-calendar-alt text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Runden</span>
             </button>
-            <button id="nav-calendar" onclick="app.router.navigate('kalender')" class="nav-btn flex flex-col items-center text-stone-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+            <button id="nav-calendar" onclick="app.router.navigate('kalender')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
                 <i class="fas fa-calendar-days text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Kalender</span>
             </button>
             <button id="nav-players" onclick="app.router.navigate('spieler')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-users text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Gruppe</span>
-            </button>
-            <button id="nav-help" onclick="app.router.navigate('help')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
-                <i class="fas fa-question-circle text-base"></i>
-                <span class="text-[10px] font-semibold mt-0.5">Hilfe</span>
             </button>
             <button id="nav-admin" onclick="app.router.navigate('admin')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-amber-600 transition px-2 py-1 touch-target hidden">
                 <i class="fas fa-user-shield text-base"></i>
@@ -141,25 +144,6 @@
         </div>
     </div>
 
-    <!-- Pixel Golf Run Mini-Game Modal -->
-    <div id="pixel-golf-modal" class="fixed inset-0 z-50 bg-stone-900/90 backdrop-blur-xs hidden flex flex-col p-0 sm:p-4">
-        <div class="bg-white w-full h-full sm:max-w-4xl sm:h-[90vh] sm:rounded-2xl mx-auto my-auto flex flex-col shadow-2xl border border-stone-200 overflow-hidden">
-            <!-- Header -->
-            <div class="bg-emerald-800 text-white px-4 py-2.5 flex justify-between items-center shrink-0">
-                <h3 class="font-bold text-sm tracking-wide flex items-center gap-2">
-                    <i class="fas fa-gamepad text-amber-400"></i> Pixel Golf Run
-                </h3>
-                <button onclick="app.logic.closePixelGolfGame()" class="text-white opacity-80 hover:opacity-100 touch-target text-lg">
-                    <i class="fas fa-times-circle"></i>
-                </button>
-            </div>
-            <!-- Game Frame -->
-            <div class="flex-1 w-full h-full bg-black overflow-hidden">
-                <iframe id="pixel-golf-iframe" src="about:blank" class="w-full h-full border-0" allow="autoplay"></iframe>
-            </div>
-        </div>
-    </div>
-
     <!-- Dynamisches Skript-Laden -->
     <script>
         (function() 
@@ -181,6 +165,7 @@
                     "App_Logic_UI.js",
                     "Views_Login.js",
                     "Views_Dashboard.js",
+                    "Views_LiveDashboard.js",
                     "Views_Spieltage.js",
                     "Views_SpieltagNeu.js",
                     "Views_ScoreEingabe.js",
