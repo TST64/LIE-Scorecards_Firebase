@@ -55,7 +55,7 @@ app.views.live_dashboard = function()
         }
     );
 
-    // 2. Putt König (Durchschnitt der verbleibenden Runden, max. Beste 10)
+    // 2. Putt König (Durchschnitt der Runden mit Putt-Erfassung, max. Beste 10)
     const kpiPutts = activeSpieler.map(
         function(sp)
         {
@@ -77,19 +77,26 @@ app.views.live_dashboard = function()
                     scs.forEach(
                         function(sc)
                         {
-                            const puttsVal = parseInt(sc.putts);
-                            if (!isNaN(puttsVal) && puttsVal > 0)
+                            // Prüfe alle möglichen Eigenschaftsnamen (putts, putt)
+                            const rawPutt = sc.putts !== undefined ? sc.putts : sc.putt;
+                            
+                            if (rawPutt !== undefined && rawPutt !== null && String(rawPutt).trim() !== "")
                             {
-                                roundPuttSum += puttsVal;
-                                holesCount++;
+                                const puttsVal = parseInt(rawPutt);
+                                // >= 0 erlaubt explizit auch 0 Putts (Chip-in!)
+                                if (!isNaN(puttsVal) && puttsVal >= 0)
+                                {
+                                    roundPuttSum += puttsVal;
+                                    holesCount++;
+                                }
                             }
                         }
                     );
 
                     if (holesCount > 0)
                     {
-                        // Bei 9-Loch-Runden hochrechnen auf 18-Loch Äquivalent für fairen Vergleich
-                        const normPutts = holesCount <= 9 ? (roundPuttSum / holesCount) * 18 : roundPuttSum;
+                        // Hochrechnung auf 18 Löcher für fairen Vergleich
+                        const normPutts = (roundPuttSum / holesCount) * 18;
                         rundenPutts.push(normPutts);
                     }
                 }
@@ -148,7 +155,7 @@ app.views.live_dashboard = function()
 
                             if (strokes > 0 && bahn)
                             {
-                                if (strokes <= par - 1) birdies++; // Birdie oder besser (Eagle/Albatros)
+                                if (strokes <= par - 1) birdies++; // Birdie oder besser
                                 if (strokes === par) pars++;
                             }
 
@@ -192,7 +199,6 @@ app.views.live_dashboard = function()
                                     ? app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe) 
                                     : (strokes > 0 ? 1 : 0);
 
-                                // Ein Strich liegt vor, wenn 0 Schläge getippt wurden ODER 0 Netto-Punkte erzielt wurden
                                 if (strokes === 0 || netto === 0)
                                 {
                                     strichCountLast10++;
