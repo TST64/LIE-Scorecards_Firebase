@@ -6,11 +6,8 @@
 
 importScripts('config.js');
 
-// Cache-Version aus der config.js
-var currentVersion = (typeof CONFIG !== 'undefined' && (CONFIG.version || CONFIG.appVersion)) 
-    ? (CONFIG.version || CONFIG.appVersion) 
-    : '4.7.0.3';
-
+// Liest die Version direkt und zentral aus der config.js
+var currentVersion = CONFIG.appVersion;
 var CACHE_NAME = 'lie-scorecard-v' + currentVersion;
 
 var ASSETS_TO_CACHE = [
