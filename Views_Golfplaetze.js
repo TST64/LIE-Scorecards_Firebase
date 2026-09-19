@@ -151,8 +151,8 @@ app.views.golfplaetze = function()
             </div>
 
             <!-- MODAL: GOLFPLATZ EDIT / NEU -->
-            <div id="golfplatz-edit-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4 overflow-y-auto">
-                <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-zinc-100 max-h-[85vh] flex flex-col my-auto">
+            <div id="golfplatz-edit-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-3 sm:p-4">
+                <div class="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-zinc-100 h-[85vh] max-h-[85vh] flex flex-col my-auto">
                     <div class="flex justify-between items-center border-b border-zinc-100 pb-3 shrink-0">
                         <h3 id="golfplatz-modal-title" class="font-black text-zinc-900 text-base">Golfclub bearbeiten</h3>
                         <button onclick="app.logic.closeGolfplatzModal()" class="text-zinc-400 hover:text-zinc-600 touch-target">
@@ -160,7 +160,7 @@ app.views.golfplaetze = function()
                         </button>
                     </div>
 
-                    <form id="golfplatz-form" onsubmit="app.logic.saveGolfplatzForm(event)" class="space-y-4 overflow-y-auto pr-1 pt-1">
+                    <form id="golfplatz-form" onsubmit="app.logic.saveGolfplatzForm(event)" class="space-y-4 overflow-y-auto pr-1 pt-2 flex-1 min-h-0">
                         <input type="hidden" id="modal-platz-id" value="">
 
                         <!-- STAMMDATEN -->
@@ -251,7 +251,7 @@ app.views.golfplaetze = function()
                                 <span class="text-[10px] font-bold text-zinc-400">SI = Vorgabenrang</span>
                             </div>
 
-                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1 bg-zinc-50 rounded-2xl border border-zinc-200">
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 p-1 bg-zinc-50 rounded-2xl border border-zinc-200">
                                 ${Array.from({ length: 18 }).map((_, idx) => {
                                     const holeNr = idx + 1;
                                     return `
@@ -284,8 +284,8 @@ app.views.golfplaetze = function()
             </div>
 
             <!-- MODAL: VORGABETABELLE ANZEIGEN -->
-            <div id="vorgabetabelle-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4 overflow-y-auto">
-                <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-zinc-100 max-h-[85vh] flex flex-col my-auto">
+            <div id="vorgabetabelle-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-3 sm:p-4">
+                <div class="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-zinc-100 h-[85vh] max-h-[85vh] flex flex-col my-auto">
                     <!-- FIXED HEADER -->
                     <div class="flex justify-between items-center border-b border-zinc-100 pb-3 shrink-0">
                         <div>
@@ -297,8 +297,8 @@ app.views.golfplaetze = function()
                         </button>
                     </div>
 
-                    <!-- SCROLLABLE CONTENT -->
-                    <div id="vorgabetabelle-content" class="space-y-4 overflow-y-auto pr-1 pt-2">
+                    <!-- SCROLLABLE CONTENT (MAXIMIZED VERTICAL SPACE) -->
+                    <div id="vorgabetabelle-content" class="space-y-4 overflow-y-auto pr-1 pt-3 flex-1 min-h-0">
                         <!-- Dynamischer Inhalt -->
                     </div>
                 </div>
@@ -595,14 +595,14 @@ app.logic.openVorgabetabelleModal = function(platzId)
 
                 return `
                     <tr class="border-b border-zinc-100 text-xs">
-                        <td class="py-2 px-3 font-bold text-zinc-800 flex items-center gap-1.5">
+                        <td class="py-2.5 px-3 font-bold text-zinc-800 flex items-center gap-1.5">
                             <i class="fas fa-user-circle text-emerald-600"></i>
                             ${sp.nickname || sp.name}
                         </td>
-                        <td class="py-2 px-2 text-center font-semibold text-zinc-500">${hcp.toFixed(1)}</td>
-                        <td class="py-2 px-2 font-black text-amber-900 text-center bg-amber-50/60">+${chGelb}</td>
-                        <td class="py-2 px-2 font-black text-red-900 text-center bg-red-50/60">+${chHerrenRot}</td>
-                        <td class="py-2 px-2 font-black text-rose-900 text-center bg-rose-50/60">+${chDamenRot}</td>
+                        <td class="py-2.5 px-2 text-center font-semibold text-zinc-500">${hcp.toFixed(1)}</td>
+                        <td class="py-2.5 px-2 font-black text-amber-900 text-center bg-amber-50/60">+${chGelb}</td>
+                        <td class="py-2.5 px-2 font-black text-red-900 text-center bg-red-50/60">+${chHerrenRot}</td>
+                        <td class="py-2.5 px-2 font-black text-rose-900 text-center bg-rose-50/60">+${chDamenRot}</td>
                     </tr>
                 `;
             }
@@ -611,15 +611,15 @@ app.logic.openVorgabetabelleModal = function(platzId)
 
     container.innerHTML = `
         <div class="grid grid-cols-3 gap-1.5 text-center text-xs">
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-2">
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5">
                 <span class="block text-[9px] font-black text-amber-900 uppercase">Herren Gelb</span>
                 <span class="font-bold text-zinc-800 text-[10px] block mt-0.5">CR ${crHerrenGelb} / SR ${slopeHerrenGelb}</span>
             </div>
-            <div class="bg-red-50 border border-red-200 rounded-xl p-2">
+            <div class="bg-red-50 border border-red-200 rounded-xl p-2.5">
                 <span class="block text-[9px] font-black text-red-900 uppercase">Herren Rot</span>
                 <span class="font-bold text-zinc-800 text-[10px] block mt-0.5">CR ${crHerrenRot} / SR ${slopeHerrenRot}</span>
             </div>
-            <div class="bg-rose-50 border border-rose-200 rounded-xl p-2">
+            <div class="bg-rose-50 border border-rose-200 rounded-xl p-2.5">
                 <span class="block text-[9px] font-black text-rose-800 uppercase">Damen Rot</span>
                 <span class="font-bold text-zinc-800 text-[10px] block mt-0.5">CR ${crDamenRot} / SR ${slopeDamenRot}</span>
             </div>
@@ -632,11 +632,11 @@ app.logic.openVorgabetabelleModal = function(platzId)
                     <table class="w-full">
                         <thead>
                             <tr class="bg-zinc-200/70 text-[9px] font-extrabold text-zinc-500 uppercase">
-                                <th class="py-1.5 px-3 text-left">Spieler</th>
-                                <th class="py-1.5 px-2 text-center">HCP</th>
-                                <th class="py-1.5 px-2 text-center text-amber-900">H. Gelb</th>
-                                <th class="py-1.5 px-2 text-center text-red-900">H. Rot</th>
-                                <th class="py-1.5 px-2 text-center text-rose-900">D. Rot</th>
+                                <th class="py-2 px-3 text-left">Spieler</th>
+                                <th class="py-2 px-2 text-center">HCP</th>
+                                <th class="py-2 px-2 text-center text-amber-900">H. Gelb</th>
+                                <th class="py-2 px-2 text-center text-red-900">H. Rot</th>
+                                <th class="py-2 px-2 text-center text-rose-900">D. Rot</th>
                             </tr>
                         </thead>
                         <tbody>
