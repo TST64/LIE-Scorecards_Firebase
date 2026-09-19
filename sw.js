@@ -6,8 +6,10 @@
 
 importScripts('config.js');
 
-// Liest die Version direkt und zentral aus der config.js
-var currentVersion = CONFIG.appVersion;
+var currentVersion = (typeof CONFIG !== 'undefined' && CONFIG.appVersion) 
+    ? CONFIG.appVersion 
+    : '4.8.0.0';
+
 var CACHE_NAME = 'lie-scorecard-v' + currentVersion;
 
 var ASSETS_TO_CACHE = [
@@ -35,7 +37,8 @@ var ASSETS_TO_CACHE = [
     './Views_AdminGruppe.js',
     './Views_SpielerEdit.js',
     './Views_Kalender.js',
-    './Views_Wetter.js'
+    './Views_Wetter.js',
+    './Views_Golfplaetze.js'
 ];
 
 self.addEventListener('install', function(event)
