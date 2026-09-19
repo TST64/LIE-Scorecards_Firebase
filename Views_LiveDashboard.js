@@ -9,16 +9,30 @@ app.views = app.views || {};
 app.views.live_dashboard = function()
 {
     const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
-    const saisonStart = app.state.saisonStartDatum || '2026-10-01';
+    
+    // Falls noch kein Saison-Datum in Firestore gesetzt wurde, nehmen wir alle bisherigen Runden (2025-2026)
+    const saisonStart = app.state.saisonStartDatum || '2020-01-01';
 
-    // Runden für die aktuelle Saison filtern
+    // Runden für die aktuelle Saison / Historie filtern
     const saisonRunden = (app.state.spieltage || []).filter(
         function(st)
         {
-            if (!st || st.status !== 'Beendet') return false;
-            const isDel = st.istGeloescht === true || String(st.istGeloescht).toUpperCase() === "TRUE";
+            if (!st) return false;
+            
+            const isDel = st.istGeloescht === true || 
+                          String(st.istGeloescht).toUpperCase() === "TRUE" || 
+                          st.istGelöscht === true || 
+                          String(st.istGelöscht).toUpperCase() === "TRUE";
             if (isDel) return false;
-            return (st.date >= saisonStart);
+
+            // Tolerante Status-Prüfung (Beendet / beendet / Abgeschlossen)
+            const statusNorm = String(st.status || '').toLowerCase().trim();
+            const isDone = (statusNorm === 'beendet' || statusNorm === 'abgeschlossen');
+
+            // Datum-Filter
+            const dateOk = st.date ? (st.date >= saisonStart) : true;
+
+            return isDone && dateOk;
         }
     );
 
@@ -41,7 +55,7 @@ app.views.live_dashboard = function()
         }
     );
 
-    // 2. Putt König (Beste 10 Runden der Saison, Schnitt aufsteigend)
+    // 2. Putt König (Durchschnitt der verbleibenden Runden, max. Beste 10)
     const kpiPutts = activeSpieler.map(
         function(sp)
         {
@@ -52,35 +66,40 @@ app.views.live_dashboard = function()
                     const scs = (app.state.scoreCards || []).filter(
                         function(sc)
                         {
-                            return String(sc.spieltagId) === String(st.id) && String(sc.spielerId) === String(sp.id);
+                            return String(sc.spieltagId).trim() === String(st.id).trim() && 
+                                   String(sc.spielerId).trim() === String(sp.id).trim();
                         }
                     );
+
                     let roundPuttSum = 0;
                     let holesCount = 0;
+
                     scs.forEach(
                         function(sc)
                         {
-                            if (sc.putts !== undefined && parseInt(sc.putts) > 0)
+                            const puttsVal = parseInt(sc.putts);
+                            if (!isNaN(puttsVal) && puttsVal > 0)
                             {
-                                roundPuttSum += parseInt(sc.putts);
+                                roundPuttSum += puttsVal;
                                 holesCount++;
                             }
                         }
                     );
-                    if (holesCount >= 9)
+
+                    if (holesCount > 0)
                     {
-                        // Bei 9-Loch auf 18 hochrechnen für Vergleichbarkeit
-                        const normPutts = holesCount === 9 ? roundPuttSum * 2 : roundPuttSum;
+                        // Bei 9-Loch-Runden hochrechnen auf 18-Loch Äquivalent für fairen Vergleich
+                        const normPutts = holesCount <= 9 ? (roundPuttSum / holesCount) * 18 : roundPuttSum;
                         rundenPutts.push(normPutts);
                     }
                 }
             );
 
-            rundenPutts.sort((a, b) => a - b); // Beste (wenigste) Putts zuerst
+            rundenPutts.sort((a, b) => a - b); // Wenigste (beste) Putts zuerst
             const top10 = rundenPutts.slice(0, 10);
             const avg = top10.length > 0 ? (top10.reduce((a, b) => a + b, 0) / top10.length).toFixed(1) : null;
 
-            return { spieler: sp, avgPutts: avg, count: top10.length };
+            return { spieler: sp, avgPutts: avg, count: rundenPutts.length };
         }
     ).filter(item => item.avgPutts !== null).sort((a, b) => parseFloat(a.avgPutts) - parseFloat(b.avgPutts));
 
@@ -94,7 +113,7 @@ app.views.live_dashboard = function()
             let strichCountLast10 = 0;
             let rundenGespielt = 0;
 
-            // Runden des Spielers chronologisch sortieren
+            // Runden des Spielers chronologisch sortieren (neueste zuerst)
             const spRunden = saisonRunden.filter(
                 function(st)
                 {
@@ -111,7 +130,8 @@ app.views.live_dashboard = function()
                     const scs = (app.state.scoreCards || []).filter(
                         function(sc)
                         {
-                            return String(sc.spieltagId) === String(st.id) && String(sc.spielerId) === String(sp.id);
+                            return String(sc.spieltagId).trim() === String(st.id).trim() && 
+                                   String(sc.spielerId).trim() === String(sp.id).trim();
                         }
                     );
 
@@ -120,23 +140,27 @@ app.views.live_dashboard = function()
                         {
                             const strokes = parseInt(sc.strokes) || 0;
                             const holeNr = parseInt(sc.hole);
-                            const bahn = (app.state.bahnen || []).find(b => String(b.kursId) === String(st.kursId) && parseInt(b.nr) === holeNr);
+                            const bahn = (app.state.bahnen || []).find(
+                                b => String(b.kursId).trim() === String(st.kursId).trim() && parseInt(b.nr) === holeNr
+                            );
+
                             const par = bahn ? parseInt(bahn.par) : 4;
 
                             if (strokes > 0 && bahn)
                             {
-                                if (strokes === par - 1) birdies++;
+                                if (strokes <= par - 1) birdies++; // Birdie oder besser (Eagle/Albatros)
                                 if (strokes === par) pars++;
                             }
 
-                            if (sc.ladies) ladies += parseInt(sc.ladies) || 0;
-                            if (sc.lady) ladies += parseInt(sc.lady) || 0;
+                            // Lady-Biere ermitteln
+                            const ladyVal = parseInt(sc.ladies) || parseInt(sc.lady) || 0;
+                            if (ladyVal > 0) ladies += ladyVal;
                         }
                     );
                 }
             );
 
-            // Stricher (Letzte 10 Runden)
+            // Stricher (Letzte 10 gespielte Runden auswerten)
             const last10Runden = spRunden.slice(0, 10);
             last10Runden.forEach(
                 function(st)
@@ -144,7 +168,8 @@ app.views.live_dashboard = function()
                     const scs = (app.state.scoreCards || []).filter(
                         function(sc)
                         {
-                            return String(sc.spieltagId) === String(st.id) && String(sc.spielerId) === String(sp.id);
+                            return String(sc.spieltagId).trim() === String(st.id).trim() && 
+                                   String(sc.spielerId).trim() === String(sp.id).trim();
                         }
                     );
 
@@ -153,12 +178,21 @@ app.views.live_dashboard = function()
                         {
                             const strokes = parseInt(sc.strokes) || 0;
                             const holeNr = parseInt(sc.hole);
-                            const bahn = (app.state.bahnen || []).find(b => String(b.kursId) === String(st.kursId) && parseInt(b.nr) === holeNr);
+                            const bahn = (app.state.bahnen || []).find(
+                                b => String(b.kursId).trim() === String(st.kursId).trim() && parseInt(b.nr) === holeNr
+                            );
 
                             if (bahn)
                             {
-                                const holeVorgabe = app.logic.calculateHoleVorgabe ? app.logic.calculateHoleVorgabe(sp, st.kursId, bahn.si) : 1;
-                                const netto = app.logic.calculateNettoStableford ? app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe) : 0;
+                                const holeVorgabe = (app.logic && typeof app.logic.calculateHoleVorgabe === 'function') 
+                                    ? app.logic.calculateHoleVorgabe(sp, st.kursId, bahn.si) 
+                                    : 1;
+
+                                const netto = (app.logic && typeof app.logic.calculateNettoStableford === 'function') 
+                                    ? app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe) 
+                                    : (strokes > 0 ? 1 : 0);
+
+                                // Ein Strich liegt vor, wenn 0 Schläge getippt wurden ODER 0 Netto-Punkte erzielt wurden
                                 if (strokes === 0 || netto === 0)
                                 {
                                     strichCountLast10++;
@@ -180,7 +214,7 @@ app.views.live_dashboard = function()
         }
     );
 
-    // Sortierungen
+    // Ranglisten Sortierungen
     const kpiBirdies = [...kpiStats].sort((a, b) => b.birdies - a.birdies);
     const kpiPars = [...kpiStats].sort((a, b) => b.pars - a.pars);
     const kpiLadies = [...kpiStats].sort((a, b) => b.ladies - a.ladies);
@@ -208,7 +242,7 @@ app.views.live_dashboard = function()
                     <span class="text-zinc-900 font-black">${valueStr}</span>
                 </div>
                 <div class="w-full bg-zinc-100 rounded-full h-2.5 overflow-hidden">
-                    <div class="${colorClass} h-2.5 rounded-full transition-all duration-500" style="width: ${Math.max(percent, 4)}%"></div>
+                    <div class="${colorClass} h-2.5 rounded-full transition-all duration-500" style="width: ${Math.max(percent, 5)}%"></div>
                 </div>
             </div>
         `;
@@ -217,6 +251,8 @@ app.views.live_dashboard = function()
     // =====================================================================
     // HTML STRUCTURE
     // =====================================================================
+
+    const displayStartDatum = (saisonStart === '2020-01-01') ? 'Saison 2025/2026 (Alle Runden)' : `Saison ab ${saisonStart}`;
 
     return `
         <div class="space-y-6 max-w-4xl mx-auto pb-12 animate-fade-in">
@@ -228,7 +264,7 @@ app.views.live_dashboard = function()
                     </button>
                     <div>
                         <h2 class="text-lg font-black text-zinc-900 tracking-tight">Saison Live-Dashboard</h2>
-                        <p class="text-xs text-zinc-400 font-medium -mt-0.5">Saisonstart: ${saisonStart}</p>
+                        <p class="text-xs text-zinc-400 font-medium -mt-0.5">${displayStartDatum}</p>
                     </div>
                 </div>
                 ${isAdmin ? `
@@ -251,8 +287,7 @@ app.views.live_dashboard = function()
                     <div class="space-y-2.5">
                         ${kpiHandicap.map((sp, i) => {
                             const hcp = parseFloat(sp.hcpLIE) || 26;
-                            // Progress bar: 26 HCP = 10%, 0 HCP = 100%
-                            const pct = Math.min(100, Math.max(10, ((30 - hcp) / 30) * 100));
+                            const pct = Math.min(100, Math.max(10, ((36 - hcp) / 36) * 100));
                             return renderChartRow(i + 1, sp.nickname || sp.name, hcp.toFixed(1), pct, "bg-emerald-600");
                         }).join('')}
                     </div>
@@ -265,11 +300,11 @@ app.views.live_dashboard = function()
                         <h3 class="font-extrabold text-xs text-zinc-900 uppercase tracking-wider">2. Putt-König (Ø Best 10)</h3>
                     </div>
                     <div class="space-y-2.5">
-                        ${kpiPutts.length === 0 ? '<p class="text-xs text-zinc-400">Noch keine Putt-Daten vorhanden</p>' : 
+                        ${kpiPutts.length === 0 ? '<p class="text-xs text-zinc-400 py-2">Noch keine Putt-Daten in den Scorekarten erfasst</p>' : 
                             kpiPutts.map((item, i) => {
-                                const maxPutts = 40;
+                                const maxPutts = 45;
                                 const pct = Math.max(10, ((maxPutts - parseFloat(item.avgPutts)) / maxPutts) * 100);
-                                return renderChartRow(i + 1, item.spieler.nickname || item.spieler.name, `${item.avgPutts} Putts`, pct, "bg-amber-500");
+                                return renderChartRow(i + 1, item.spieler.nickname || item.spieler.name, `${item.avgPutts} Ø (${item.count} R.)`, pct, "bg-amber-500");
                             }).join('')
                         }
                     </div>
