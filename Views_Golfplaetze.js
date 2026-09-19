@@ -1,5 +1,5 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Golfplätze & Vorgabetabellen
+// BMAssistent / LIE Scorecard - Golfplätze, Bahnen & Erweitere WHS-Tabellen
 // Views_Golfplaetze.js
 // BSD (Allman) Style
 // =========================================================================
@@ -43,7 +43,7 @@ app.views.golfplaetze = function()
                     kurseBadgeHtml = kurse.map(
                         function(k)
                         {
-                            return `<span class="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold">${k.name || 'Standard Kurs'} (${k.bahnAnzahl || 18} Bahnen)</span>`;
+                            return `<span class="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold">${k.name || '18-Loch Platz'} (${k.parTotal ? 'Par ' + k.parTotal : '18 Bahnen'})</span>`;
                         }
                     ).join(' ');
                 }
@@ -134,7 +134,7 @@ app.views.golfplaetze = function()
                     </button>
                     <div>
                         <h2 class="text-lg font-black text-zinc-900 tracking-tight">Golfplätze & Clubs</h2>
-                        <p class="text-xs text-zinc-400 font-medium -mt-0.5">Kontaktdaten, Adressen & WHS-Vorgaben</p>
+                        <p class="text-xs text-zinc-400 font-medium -mt-0.5">Kontaktdaten, Abschläge (CR/Slope) & Stroke Index</p>
                     </div>
                 </div>
                 ${isAdmin ? `
@@ -152,7 +152,7 @@ app.views.golfplaetze = function()
 
             <!-- MODAL: GOLFPLATZ EDIT / NEU -->
             <div id="golfplatz-edit-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
-                <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-zinc-100 max-h-[90vh] overflow-y-auto">
+                <div class="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl border border-zinc-100 max-h-[90vh] overflow-y-auto">
                     <div class="flex justify-between items-center border-b border-zinc-100 pb-3">
                         <h3 id="golfplatz-modal-title" class="font-black text-zinc-900 text-base">Golfclub bearbeiten</h3>
                         <button onclick="app.logic.closeGolfplatzModal()" class="text-zinc-400 hover:text-zinc-600 touch-target">
@@ -160,61 +160,114 @@ app.views.golfplaetze = function()
                         </button>
                     </div>
 
-                    <form id="golfplatz-form" onsubmit="app.logic.saveGolfplatzForm(event)" class="space-y-3">
+                    <form id="golfplatz-form" onsubmit="app.logic.saveGolfplatzForm(event)" class="space-y-4">
                         <input type="hidden" id="modal-platz-id" value="">
 
-                        <div>
-                            <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Club-Name *</label>
-                            <input type="text" id="modal-platz-name" required class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="z.B. Golf-Club Bremer Schweiz e.V.">
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Adresse</label>
-                            <input type="text" id="modal-platz-adresse" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="Straße, PLZ Ort">
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Telefonnummer</label>
-                                <input type="tel" id="modal-platz-telefon" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="0421 681321">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">E-Mail Adresse</label>
-                                <input type="email" id="modal-platz-email" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="info@golfclub-bremerschweiz.de">
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Homepage URL</label>
-                            <input type="url" id="modal-platz-website" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="https://www.golfclub-bremerschweiz.de">
-                        </div>
-
-                        <!-- KURS-DATEN (Slope & CR) -->
-                        <div class="pt-2 border-t border-zinc-100 space-y-3">
+                        <!-- STAMMDATEN -->
+                        <div class="space-y-3">
                             <h4 class="font-extrabold text-xs text-zinc-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <i class="fas fa-flag text-emerald-700"></i> Kurs & Vorgabewerte
+                                <i class="fas fa-building text-emerald-700"></i> Club-Stammdaten
                             </h4>
 
-                            <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Club-Name *</label>
+                                <input type="text" id="modal-platz-name" required class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="z.B. Golf-Club Bremer Schweiz e.V.">
+                            </div>
+
+                            <div>
+                                <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Adresse</label>
+                                <input type="text" id="modal-platz-adresse" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="Straße, PLZ Ort">
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
-                                    <label class="block text-[10px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Herren Gelb CR</label>
-                                    <input type="number" step="0.1" id="modal-kurs-cr-herren" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2 text-xs font-semibold text-zinc-800" placeholder="71.2">
+                                    <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Telefonnummer</label>
+                                    <input type="tel" id="modal-platz-telefon" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800" placeholder="0421 681321">
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Herren Gelb Slope</label>
-                                    <input type="number" id="modal-kurs-slope-herren" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2 text-xs font-semibold text-zinc-800" placeholder="125">
+                                    <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">E-Mail</label>
+                                    <input type="email" id="modal-platz-email" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800" placeholder="info@club.de">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Website</label>
+                                    <input type="url" id="modal-platz-website" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800" placeholder="https://www.club.de">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ABSCHLÄGE (CR & SLOPE WERTE) -->
+                        <div class="pt-3 border-t border-zinc-100 space-y-3">
+                            <h4 class="font-extrabold text-xs text-zinc-900 uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fas fa-flag text-emerald-700"></i> Abschläge (CR & Slope Werte)
+                            </h4>
+
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                <div class="bg-zinc-100 p-2 rounded-xl space-y-1">
+                                    <span class="block text-[10px] font-black text-zinc-700 uppercase">Herren Weiß</span>
+                                    <input type="number" step="0.1" id="modal-cr-herren-weiss" class="w-full bg-white border border-zinc-200 rounded-lg p-1.5 text-xs font-bold" placeholder="CR 71.2">
+                                    <input type="number" id="modal-slope-herren-weiss" class="w-full bg-white border border-zinc-200 rounded-lg p-1.5 text-xs font-bold" placeholder="SR 127">
+                                </div>
+
+                                <div class="bg-amber-50 p-2 rounded-xl space-y-1 border border-amber-200/60">
+                                    <span class="block text-[10px] font-black text-amber-900 uppercase">Herren Gelb</span>
+                                    <input type="number" step="0.1" id="modal-cr-herren-gelb" class="w-full bg-white border border-amber-200 rounded-lg p-1.5 text-xs font-bold" placeholder="CR 71.2">
+                                    <input type="number" id="modal-slope-herren-gelb" class="w-full bg-white border border-amber-200 rounded-lg p-1.5 text-xs font-bold" placeholder="SR 125">
+                                </div>
+
+                                <div class="bg-red-50 p-2 rounded-xl space-y-1 border border-red-200/60">
+                                    <span class="block text-[10px] font-black text-red-900 uppercase">Herren Rot</span>
+                                    <input type="number" step="0.1" id="modal-cr-herren-rot" class="w-full bg-white border border-red-200 rounded-lg p-1.5 text-xs font-bold" placeholder="CR 67.1">
+                                    <input type="number" id="modal-slope-herren-rot" class="w-full bg-white border border-red-200 rounded-lg p-1.5 text-xs font-bold" placeholder="SR 113">
+                                </div>
+
+                                <div class="bg-orange-50 p-2 rounded-xl space-y-1 border border-orange-200/60">
+                                    <span class="block text-[10px] font-black text-orange-900 uppercase">Herren Orange</span>
+                                    <input type="number" step="0.1" id="modal-cr-herren-orange" class="w-full bg-white border border-orange-200 rounded-lg p-1.5 text-xs font-bold" placeholder="CR 62.4">
+                                    <input type="number" id="modal-slope-herren-orange" class="w-full bg-white border border-orange-200 rounded-lg p-1.5 text-xs font-bold" placeholder="SR 105">
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-[10px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Damen Rot CR</label>
-                                    <input type="number" step="0.1" id="modal-kurs-cr-damen" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2 text-xs font-semibold text-zinc-800" placeholder="72.4">
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                                <div class="bg-rose-50 p-2 rounded-xl space-y-1 border border-rose-200/60">
+                                    <span class="block text-[10px] font-black text-rose-900 uppercase">Damen Rot</span>
+                                    <input type="number" step="0.1" id="modal-cr-damen-rot" class="w-full bg-white border border-rose-200 rounded-lg p-1.5 text-xs font-bold" placeholder="CR 72.4">
+                                    <input type="number" id="modal-slope-damen-rot" class="w-full bg-white border border-rose-200 rounded-lg p-1.5 text-xs font-bold" placeholder="SR 120">
                                 </div>
-                                <div>
-                                    <label class="block text-[10px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Damen Rot Slope</label>
-                                    <input type="number" id="modal-kurs-slope-damen" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2 text-xs font-semibold text-zinc-800" placeholder="120">
+
+                                <div class="bg-orange-50 p-2 rounded-xl space-y-1 border border-orange-200/60">
+                                    <span class="block text-[10px] font-black text-orange-900 uppercase">Damen Orange</span>
+                                    <input type="number" step="0.1" id="modal-cr-damen-orange" class="w-full bg-white border border-orange-200 rounded-lg p-1.5 text-xs font-bold" placeholder="CR 66.4">
+                                    <input type="number" id="modal-slope-damen-orange" class="w-full bg-white border border-orange-200 rounded-lg p-1.5 text-xs font-bold" placeholder="SR 110">
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- BAHNEN 1 BIS 18 (PAR & SI) -->
+                        <div class="pt-3 border-t border-zinc-100 space-y-3">
+                            <div class="flex justify-between items-center">
+                                <h4 class="font-extrabold text-xs text-zinc-900 uppercase tracking-wider flex items-center gap-1.5">
+                                    <i class="fas fa-list-ol text-emerald-700"></i> Bahnen 1–18 (Par & Stroke Index)
+                                </h4>
+                                <span class="text-[10px] font-bold text-zinc-400">SI = Vorgabenrang</span>
+                            </div>
+
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1 bg-zinc-50 rounded-2xl border border-zinc-200">
+                                ${Array.from({ length: 18 }).map((_, idx) => {
+                                    const holeNr = idx + 1;
+                                    return `
+                                        <div class="bg-white p-2 rounded-xl border border-zinc-200 space-y-1 shadow-2xs">
+                                            <span class="block text-[10px] font-black text-emerald-800 text-center border-b border-zinc-100 pb-0.5">Bahn ${holeNr}</span>
+                                            <div class="flex items-center gap-1">
+                                                <span class="text-[9px] font-extrabold text-zinc-400">PAR</span>
+                                                <input type="number" id="modal-hole-par-${holeNr}" class="w-full bg-zinc-50 rounded text-center text-xs font-bold p-1" value="4" min="3" max="5">
+                                            </div>
+                                            <div class="flex items-center gap-1">
+                                                <span class="text-[9px] font-extrabold text-zinc-400">SI</span>
+                                                <input type="number" id="modal-hole-si-${holeNr}" class="w-full bg-zinc-50 rounded text-center text-xs font-bold p-1" value="${holeNr}" min="1" max="18">
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
                             </div>
                         </div>
 
@@ -232,7 +285,7 @@ app.views.golfplaetze = function()
 
             <!-- MODAL: VORGABETABELLE ANZEIGEN -->
             <div id="vorgabetabelle-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
-                <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-zinc-100 max-h-[90vh] overflow-y-auto">
+                <div class="bg-white rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl border border-zinc-100 max-h-[90vh] overflow-y-auto">
                     <div class="flex justify-between items-center border-b border-zinc-100 pb-3">
                         <div>
                             <h3 id="vorgabe-modal-platzname" class="font-black text-zinc-900 text-base">Vorgabetabelle</h3>
@@ -283,11 +336,6 @@ app.logic.openGolfplatzEditModal = function(platzId)
     const inputEmail = document.getElementById('modal-platz-email');
     const inputWebsite = document.getElementById('modal-platz-website');
 
-    const inputCrHerren = document.getElementById('modal-kurs-cr-herren');
-    const inputSlopeHerren = document.getElementById('modal-kurs-slope-herren');
-    const inputCrDamen = document.getElementById('modal-kurs-cr-damen');
-    const inputSlopeDamen = document.getElementById('modal-kurs-slope-damen');
-
     if (!modal) return;
 
     if (platzId)
@@ -303,10 +351,31 @@ app.logic.openGolfplatzEditModal = function(platzId)
         if (inputEmail) inputEmail.value = platz ? (platz.email || '') : '';
         if (inputWebsite) inputWebsite.value = platz ? (platz.website || '') : '';
 
-        if (inputCrHerren) inputCrHerren.value = kurs ? (kurs.crHerren || 71.2) : 71.2;
-        if (inputSlopeHerren) inputSlopeHerren.value = kurs ? (kurs.slopeHerren || 125) : 125;
-        if (inputCrDamen) inputCrDamen.value = kurs ? (kurs.crDamen || 72.4) : 72.4;
-        if (inputSlopeDamen) inputSlopeDamen.value = kurs ? (kurs.slopeDamen || 120) : 120;
+        // Abschläge setzen
+        document.getElementById('modal-cr-herren-weiss').value = kurs ? (kurs.crHerrenWeiss || 71.2) : 71.2;
+        document.getElementById('modal-slope-herren-weiss').value = kurs ? (kurs.slopeHerrenWeiss || 127) : 127;
+        document.getElementById('modal-cr-herren-gelb').value = kurs ? (kurs.crHerrenGelb || 71.2) : 71.2;
+        document.getElementById('modal-slope-herren-gelb').value = kurs ? (kurs.slopeHerrenGelb || 125) : 125;
+        document.getElementById('modal-cr-herren-rot').value = kurs ? (kurs.crHerrenRot || 67.1) : 67.1;
+        document.getElementById('modal-slope-herren-rot').value = kurs ? (kurs.slopeHerrenRot || 113) : 113;
+        document.getElementById('modal-cr-herren-orange').value = kurs ? (kurs.crHerrenOrange || 62.4) : 62.4;
+        document.getElementById('modal-slope-herren-orange').value = kurs ? (kurs.slopeHerrenOrange || 105) : 105;
+
+        document.getElementById('modal-cr-damen-rot').value = kurs ? (kurs.crDamenRot || 72.4) : 72.4;
+        document.getElementById('modal-slope-damen-rot').value = kurs ? (kurs.slopeDamenRot || 120) : 120;
+        document.getElementById('modal-cr-damen-orange').value = kurs ? (kurs.crDamenOrange || 66.4) : 66.4;
+        document.getElementById('modal-slope-damen-orange').value = kurs ? (kurs.slopeDamenOrange || 110) : 110;
+
+        // Bahnen laden (falls vorhanden)
+        const bahnen = (app.state.bahnen || []).filter(function(b) { return kurs && String(b.kursId) === String(kurs.id); });
+        for (let i = 1; i <= 18; i++)
+        {
+            const bMatch = bahnen.find(function(b) { return parseInt(b.nr) === i; });
+            const inputPar = document.getElementById(`modal-hole-par-${i}`);
+            const inputSi = document.getElementById(`modal-hole-si-${i}`);
+            if (inputPar) inputPar.value = bMatch ? bMatch.par : 4;
+            if (inputSi) inputSi.value = bMatch ? bMatch.si : i;
+        }
     }
     else
     {
@@ -328,10 +397,28 @@ app.logic.openGolfplatzEditModal = function(platzId)
         if (inputEmail) inputEmail.value = "";
         if (inputWebsite) inputWebsite.value = "";
 
-        if (inputCrHerren) inputCrHerren.value = "71.2";
-        if (inputSlopeHerren) inputSlopeHerren.value = "125";
-        if (inputCrDamen) inputCrDamen.value = "72.4";
-        if (inputSlopeDamen) inputSlopeDamen.value = "120";
+        // Standard-Defaults (z.B. Bremer Schweiz)
+        document.getElementById('modal-cr-herren-weiss').value = "71.2";
+        document.getElementById('modal-slope-herren-weiss').value = "127";
+        document.getElementById('modal-cr-herren-gelb').value = "71.2";
+        document.getElementById('modal-slope-herren-gelb').value = "125";
+        document.getElementById('modal-cr-herren-rot').value = "67.1";
+        document.getElementById('modal-slope-herren-rot').value = "113";
+        document.getElementById('modal-cr-herren-orange').value = "62.4";
+        document.getElementById('modal-slope-herren-orange').value = "105";
+
+        document.getElementById('modal-cr-damen-rot').value = "72.4";
+        document.getElementById('modal-slope-damen-rot').value = "120";
+        document.getElementById('modal-cr-damen-orange').value = "66.4";
+        document.getElementById('modal-slope-damen-orange').value = "110";
+
+        for (let i = 1; i <= 18; i++)
+        {
+            const inputPar = document.getElementById(`modal-hole-par-${i}`);
+            const inputSi = document.getElementById(`modal-hole-si-${i}`);
+            if (inputPar) inputPar.value = 4;
+            if (inputSi) inputSi.value = i;
+        }
     }
 
     modal.classList.remove('hidden');
@@ -353,11 +440,6 @@ app.logic.saveGolfplatzForm = async function(event)
     const telefon = document.getElementById('modal-platz-telefon').value.trim();
     const email = document.getElementById('modal-platz-email').value.trim();
     const website = document.getElementById('modal-platz-website').value.trim();
-
-    const crHerren = parseFloat(document.getElementById('modal-kurs-cr-herren').value) || 71.2;
-    const slopeHerren = parseInt(document.getElementById('modal-kurs-slope-herren').value) || 125;
-    const crDamen = parseFloat(document.getElementById('modal-kurs-cr-damen').value) || 72.4;
-    const slopeDamen = parseInt(document.getElementById('modal-kurs-slope-damen').value) || 120;
 
     if (!name) return;
 
@@ -386,29 +468,76 @@ app.logic.saveGolfplatzForm = async function(event)
 
         const bestehenderKurs = (app.state.kurse || []).find(function(k) { return String(k.platzId) === String(docRefId); });
 
+        // Par-Summe berechnen
+        let totalPar = 0;
+        for (let i = 1; i <= 18; i++)
+        {
+            totalPar += parseInt(document.getElementById(`modal-hole-par-${i}`).value) || 4;
+        }
+
         const dataKurs = {
             platzId: docRefId,
             name: "18-Loch Platz",
             bahnAnzahl: 18,
-            parTotal: 71,
-            crHerren: crHerren,
-            slopeHerren: slopeHerren,
-            crDamen: crDamen,
-            slopeDamen: slopeDamen
+            parTotal: totalPar,
+            
+            crHerrenWeiss: parseFloat(document.getElementById('modal-cr-herren-weiss').value) || 71.2,
+            slopeHerrenWeiss: parseInt(document.getElementById('modal-slope-herren-weiss').value) || 127,
+            crHerrenGelb: parseFloat(document.getElementById('modal-cr-herren-gelb').value) || 71.2,
+            slopeHerrenGelb: parseInt(document.getElementById('modal-slope-herren-gelb').value) || 125,
+            crHerrenRot: parseFloat(document.getElementById('modal-cr-herren-rot').value) || 67.1,
+            slopeHerrenRot: parseInt(document.getElementById('modal-slope-herren-rot').value) || 113,
+            crHerrenOrange: parseFloat(document.getElementById('modal-cr-herren-orange').value) || 62.4,
+            slopeHerrenOrange: parseInt(document.getElementById('modal-slope-herren-orange').value) || 105,
+
+            crDamenRot: parseFloat(document.getElementById('modal-cr-damen-rot').value) || 72.4,
+            slopeDamenRot: parseInt(document.getElementById('modal-slope-damen-rot').value) || 120,
+            crDamenOrange: parseFloat(document.getElementById('modal-cr-damen-orange').value) || 66.4,
+            slopeDamenOrange: parseInt(document.getElementById('modal-slope-damen-orange').value) || 110
         };
 
+        let kursId = null;
         if (bestehenderKurs)
         {
             await app.db.collection('kurse').doc(bestehenderKurs.id).update(dataKurs);
+            kursId = bestehenderKurs.id;
         }
         else
         {
-            await app.db.collection('kurse').add(dataKurs);
+            const newKursRef = await app.db.collection('kurse').add(dataKurs);
+            kursId = newKursRef.id;
+        }
+
+        // Bahnen 1 bis 18 speichern
+        for (let i = 1; i <= 18; i++)
+        {
+            const holePar = parseInt(document.getElementById(`modal-hole-par-${i}`).value) || 4;
+            const holeSi = parseInt(document.getElementById(`modal-hole-si-${i}`).value) || i;
+
+            const existingBahn = (app.state.bahnen || []).find(
+                function(b) { return String(b.kursId) === String(kursId) && parseInt(b.nr) === i; }
+            );
+
+            const bahnData = {
+                kursId: kursId,
+                nr: i,
+                par: holePar,
+                si: holeSi
+            };
+
+            if (existingBahn)
+            {
+                await app.db.collection('bahnen').doc(existingBahn.id).update(bahnData);
+            }
+            else
+            {
+                await app.db.collection('bahnen').add(bahnData);
+            }
         }
 
         if (typeof app.logic.showToast === 'function')
         {
-            app.logic.showToast("Golfclub-Daten wurden gespeichert!", "success");
+            app.logic.showToast("Golfclub & Bahnen wurden gespeichert!", "success");
         }
 
         app.logic.closeGolfplatzModal();
@@ -427,7 +556,7 @@ app.logic.saveGolfplatzForm = async function(event)
     }
 };
 
-// Vorgabetabelle mit Gruppen-Personalisierung und WHS-Standard
+// Modal: Vorgabetabelle für alle Abschlagfarben & Spieler anzeigen
 app.logic.openVorgabetabelleModal = function(platzId)
 {
     const modal = document.getElementById('vorgabetabelle-modal');
@@ -443,10 +572,15 @@ app.logic.openVorgabetabelleModal = function(platzId)
     if (titlePlatz) titlePlatz.innerText = platz ? platz.name : "Vorgabetabelle";
     if (titleKurs) titleKurs.innerText = kurs ? `${kurs.name} (Par ${kurs.parTotal || 71})` : "18-Loch Kurs";
 
-    const crHerren = kurs ? (kurs.crHerren || 71.2) : 71.2;
-    const slopeHerren = kurs ? (kurs.slopeHerren || 125) : 125;
-    const crDamen = kurs ? (kurs.crDamen || 72.4) : 72.4;
-    const slopeDamen = kurs ? (kurs.slopeDamen || 120) : 120;
+    const crHerrenGelb = kurs ? (kurs.crHerrenGelb || 71.2) : 71.2;
+    const slopeHerrenGelb = kurs ? (kurs.slopeHerrenGelb || 125) : 125;
+    
+    const crHerrenRot = kurs ? (kurs.crHerrenRot || 67.1) : 67.1;
+    const slopeHerrenRot = kurs ? (kurs.slopeHerrenRot || 113) : 113;
+
+    const crDamenRot = kurs ? (kurs.crDamenRot || 72.4) : 72.4;
+    const slopeDamenRot = kurs ? (kurs.slopeDamenRot || 120) : 120;
+
     const parTotal = kurs ? (kurs.parTotal || 71) : 71;
 
     // 1. Personalisiere Ansicht für eure Spieler-Gruppe
@@ -459,9 +593,11 @@ app.logic.openVorgabetabelleModal = function(platzId)
             function(sp)
             {
                 const hcp = parseFloat(sp.hcpLIE) || 26.0;
-                // Exakte WHS-Formel anwenden
-                const chHerren = Math.round(hcp * (slopeHerren / 113) + (crHerren - parTotal));
-                const chDamen = Math.round(hcp * (slopeDamen / 113) + (crDamen - parTotal));
+
+                // WHS-Formel anwenden
+                const chGelb = Math.round(hcp * (slopeHerrenGelb / 113) + (crHerrenGelb - parTotal));
+                const chHerrenRot = Math.round(hcp * (slopeHerrenRot / 113) + (crHerrenRot - parTotal));
+                const chDamenRot = Math.round(hcp * (slopeDamenRot / 113) + (crDamenRot - parTotal));
 
                 return `
                     <tr class="border-b border-zinc-100 text-xs">
@@ -470,8 +606,9 @@ app.logic.openVorgabetabelleModal = function(platzId)
                             ${sp.nickname || sp.name}
                         </td>
                         <td class="py-2 px-2 text-center font-semibold text-zinc-500">${hcp.toFixed(1)}</td>
-                        <td class="py-2 px-2 font-black text-amber-900 text-center bg-amber-50/50">+${chHerren}</td>
-                        <td class="py-2 px-2 font-black text-rose-900 text-center bg-rose-50/50">+${chDamen}</td>
+                        <td class="py-2 px-2 font-black text-amber-900 text-center bg-amber-50/60">+${chGelb}</td>
+                        <td class="py-2 px-2 font-black text-red-900 text-center bg-red-50/60">+${chHerrenRot}</td>
+                        <td class="py-2 px-2 font-black text-rose-900 text-center bg-rose-50/60">+${chDamenRot}</td>
                     </tr>
                 `;
             }
@@ -479,14 +616,18 @@ app.logic.openVorgabetabelleModal = function(platzId)
     }
 
     container.innerHTML = `
-        <div class="grid grid-cols-2 gap-2 text-center text-xs">
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5">
-                <span class="block text-[9px] font-black text-amber-800 uppercase">Herren Gelb</span>
-                <span class="font-bold text-zinc-800 mt-0.5 block">CR ${crHerren} &bull; Slope ${slopeHerren}</span>
+        <div class="grid grid-cols-3 gap-1.5 text-center text-xs">
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-2">
+                <span class="block text-[9px] font-black text-amber-900 uppercase">Herren Gelb</span>
+                <span class="font-bold text-zinc-800 text-[10px] block mt-0.5">CR ${crHerrenGelb} / SR ${slopeHerrenGelb}</span>
             </div>
-            <div class="bg-rose-50 border border-rose-200 rounded-xl p-2.5">
-                <span class="block text-[9px] font-black text-rose-800 uppercase">Damen Rot</span>
-                <span class="font-bold text-zinc-800 mt-0.5 block">CR ${crDamen} &bull; Slope ${slopeDamen}</span>
+            <div class="bg-red-50 border border-red-200 rounded-xl p-2">
+                <span class="block text-[9px] font-black text-red-900 uppercase">Herren Rot</span>
+                <span class="font-bold text-zinc-800 text-[10px] block mt-0.5">CR ${crHerrenRot} / SR ${slopeHerrenRot}</span>
+            </div>
+            <div class="bg-rose-50 border border-rose-200 rounded-xl p-2">
+                <span class="block text-[9px] font-black text-rose-900 uppercase">Damen Rot</span>
+                <span class="font-bold text-zinc-800 text-[10px] block mt-0.5">CR ${crDamenRot} / SR ${slopeDamenRot}</span>
             </div>
         </div>
 
@@ -499,8 +640,9 @@ app.logic.openVorgabetabelleModal = function(platzId)
                             <tr class="bg-zinc-200/70 text-[9px] font-extrabold text-zinc-500 uppercase">
                                 <th class="py-1.5 px-3 text-left">Spieler</th>
                                 <th class="py-1.5 px-2 text-center">HCP</th>
-                                <th class="py-1.5 px-2 text-center text-amber-900">Gelb</th>
-                                <th class="py-1.5 px-2 text-center text-rose-900">Rot</th>
+                                <th class="py-1.5 px-2 text-center text-amber-900">H. Gelb</th>
+                                <th class="py-1.5 px-2 text-center text-red-900">H. Rot</th>
+                                <th class="py-1.5 px-2 text-center text-rose-900">D. Rot</th>
                             </tr>
                         </thead>
                         <tbody>
