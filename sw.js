@@ -9,7 +9,7 @@ importScripts('config.js');
 // Cache-Version aus der config.js
 var currentVersion = (typeof CONFIG !== 'undefined' && (CONFIG.version || CONFIG.appVersion)) 
     ? (CONFIG.version || CONFIG.appVersion) 
-    : '4.7.0.2';
+    : '4.7.0.3';
 
 var CACHE_NAME = 'lie-scorecard-v' + currentVersion;
 

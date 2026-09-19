@@ -1,228 +1,157 @@
-/**
- * Views_Admin.js
- * Admin-Sonderfunktionen & System-Tools
- * BSD (Allman) Style
- */
+// =========================================================================
+// BMAssistent / LIE Scorecard - Bereinigte Admin Ansicht
+// Views_Admin.js
+// BSD (Allman) Style
+// =========================================================================
 
 app.views = app.views || {};
 
 app.views.admin = function()
 {
-    const spielerOptions = (app.state.spieler || []).map(function(s)
+    const user = app.state.currentUser;
+    if (!user || user.role !== 'Admin')
     {
-        return `<option value="${s.id}">${s.name} (@${s.nickname})</option>`;
-    }).join('');
+        return '<div class="bg-red-50 border border-red-200 text-red-800 p-6 rounded-2xl text-center space-y-3">' +
+                '<i class="fas fa-lock text-3xl text-red-600"></i>' +
+                '<h3 class="font-bold text-sm">Zugriff verweigert</h3>' +
+                '<p class="text-xs text-red-600">Diese Ansicht ist ausschließlich dem System-Administrator vorbehalten.</p>' +
+               '</div>';
+    }
 
-    // Startet das automatische Rendern der Vault-Freigabekachel nach dem View-Aufbau
-    setTimeout(function()
+    const spielerListe = app.state.spieler || [];
+    const saisonStart = app.state.saisonStartDatum || '2026-10-01';
+
+    let spielerOptionsHtml = '';
+    spielerListe.forEach(function(s)
     {
-        app.logic.renderVaultToggleCard();
-    }, 50);
+        const sName = s.nickname || s.name;
+        spielerOptionsHtml += '<option value="' + s.id + '">' + sName + ' (' + s.role + ')</option>';
+    });
 
-    return `
-        <div class="space-y-5 pb-12">
-            <!-- Header -->
-            <div class="flex items-center space-x-2">
-                <button onclick="app.router.navigate('dashboard')" class="text-stone-500 touch-target"><i class="fas fa-arrow-left"></i></button>
-                <div>
-                    <h2 class="text-lg font-bold text-stone-800">System- & Adminverwaltung</h2>
-                    <p class="text-xs text-stone-400 -mt-1">Zentrale Steuerung & Gefahrenzone</p>
-                </div>
-            </div>
+    return '<div class="space-y-5 max-w-2xl mx-auto pb-12 animate-fade-in">' +
+            '<!-- Header -->' +
+            '<div class="border-b border-zinc-200 pb-3 flex justify-between items-center">' +
+                '<div>' +
+                    '<h2 class="text-lg font-black text-zinc-900 tracking-tight">Admin-Zentrale</h2>' +
+                    '<p class="text-xs text-zinc-400 font-medium -mt-0.5">Systemeinstellungen & Saison-Verwaltung</p>' +
+                '</div>' +
+                '<button onclick="app.router.navigate(\'dashboard\')" class="text-zinc-500 touch-target">' +
+                    '<i class="fas fa-times text-lg"></i>' +
+                '</button>' +
+            '</div>' +
 
-            <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs space-y-5">
-                
-                <!-- 1. DATENBANK & SIEGEREHRUNG -->
-                <div class="space-y-3">
-                    <h4 class="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <i class="fas fa-trophy text-emerald-600"></i> Siegerehrung & Freigabe
-                    </h4>
-                    
-                    <!-- Schalter für die Siegerehrung / Stats-Freigabe auf der Homepage -->
-                    <div id="vault-toggle-container">
-                        <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center justify-between animate-pulse">
-                            <span class="text-xs text-stone-400 font-semibold"><i class="fas fa-spinner fa-spin mr-1"></i> Lade Freigabestatus...</span>
-                        </div>
-                    </div>
-                </div>
+            '<!-- SAISON-MANAGEMENT -->' +
+            '<div class="bg-gradient-to-br from-emerald-900 to-zinc-900 text-white border border-emerald-800/80 rounded-2xl p-5 space-y-3 shadow-md">' +
+                '<div class="flex items-center gap-2.5 border-b border-white/10 pb-2.5">' +
+                    '<div class="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center text-sm">' +
+                        '<i class="fas fa-flag-checkered"></i>' +
+                    '</div>' +
+                    '<div>' +
+                        '<h3 class="font-extrabold text-sm text-white">Saison-Verwaltung</h3>' +
+                        '<p class="text-[10px] text-emerald-200/80">Aktive Saison gestartet am: ' + saisonStart + '</p>' +
+                    '</div>' +
+                '</div>' +
 
-                <hr class="border-stone-100">
+                '<p class="text-xs text-zinc-300 leading-relaxed pt-1">' +
+                    'Beim Starten der <b>neuen Saison</b> werden die LIE Handicaps <u>aller Spieler auf 26.0 zurückgesetzt</u>. Alle Live-Dashboard KPIs beginnen ab diesem Tag neu bei 0. Alle Runden bleiben in der Historie erhalten.' +
+                '</p>' +
 
-                <!-- 2. MITGLIEDER-MANAGEMENT (ADMIN-ACTIONS) -->
-                <div class="space-y-2">
-                    <h4 class="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <i class="fas fa-user-gear text-amber-600"></i> Spieler-Sonderfunktionen
-                    </h4>
-                    <div class="flex flex-col space-y-2">
-                        <select id="admin-delete-spieler-select" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 text-xs outline-none font-medium">
-                            <option value="" disabled selected>Spieler zum Löschen auswählen...</option>
-                            ${spielerOptions}
-                        </select>
-                        <button onclick="app.logic.adminDeletePlayerFromSelect()" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold py-2.5 rounded-xl transition text-xs flex items-center justify-center gap-1.5 touch-target">
-                            <i class="fas fa-user-slash"></i>
-                            <span>Ausgewählten Spieler löschen</span>
-                        </button>
-                    </div>
-                </div>
+                '<div class="pt-2">' +
+                    '<button onclick="app.logic.startNeueSaison()" class="w-full bg-amber-500 hover:bg-amber-600 text-zinc-950 font-black py-3 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 touch-target">' +
+                        '<i class="fas fa-rotate text-sm"></i>' +
+                        '<span>NEUE SAISON STARTEN (RESET HCP auf 26.0)</span>' +
+                    '</button>' +
+                '</div>' +
+            '</div>' +
 
-                <!-- 3. GEFAHRENZONE (RESET) -->
-                <div class="p-4 bg-red-50/70 border border-red-200 rounded-2xl space-y-3">
-                    <h4 class="text-xs font-bold text-red-700 uppercase tracking-wider flex items-center gap-1.5">
-                        <i class="fas fa-radiation"></i> Testbetrieb Gefahrenzone
-                    </h4>
-                    <p class="text-[11px] text-red-600 leading-relaxed">
-                        Achtung: Dies löscht alle gespielten Runden, Flights und abgegebenen Scorekarten unwiderruflich!
-                    </p>
-                    <button onclick="app.logic.triggerMasterReset()" id="master-reset-db-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition text-xs shadow-xs flex items-center justify-center gap-2 touch-target">
-                        <i class="fas fa-bomb"></i>
-                        <span>Spieldaten komplett löschen</span>
-                    </button>
-                </div>
+            '<!-- GRUPPE & MITGLIEDER -->' +
+            '<div class="bg-white border border-zinc-200 rounded-2xl p-4 space-y-3 shadow-xs">' +
+                '<div class="flex items-center justify-between border-b border-zinc-100 pb-2">' +
+                    '<div class="flex items-center gap-2">' +
+                        '<i class="fas fa-users-cog text-emerald-700 text-sm"></i>' +
+                        '<h3 class="font-bold text-xs text-zinc-800 uppercase tracking-wider">Mitgliederverwaltung</h3>' +
+                    '</div>' +
+                    '<span class="text-[10px] text-zinc-400 font-bold">' + spielerListe.length + ' Spieler</span>' +
+                '</div>' +
 
-            </div>
-        </div>
-    `;
+                '<p class="text-xs text-zinc-500">' +
+                    'Handicaps anpassen, Rollen vergeben oder PINs der Mitglieder zurücksetzen.' +
+                '</p>' +
+
+                '<button onclick="app.router.navigate(\'admin_gruppe\')" class="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 touch-target">' +
+                    '<i class="fas fa-user-edit"></i>' +
+                    '<span>Spielerliste bearbeiten</span>' +
+                '</button>' +
+            '</div>' +
+
+            '<!-- SPIELER-LÖSCHEN SONDERFUNKTION -->' +
+            '<div class="bg-white border border-zinc-200 rounded-2xl p-4 space-y-3 shadow-xs">' +
+                '<div class="flex items-center gap-2 border-b border-zinc-100 pb-2">' +
+                    '<i class="fas fa-user-minus text-amber-600 text-sm"></i>' +
+                    '<h3 class="font-bold text-xs text-zinc-800 uppercase tracking-wider">Spieler löschen</h3>' +
+                '</div>' +
+
+                '<div class="space-y-2">' +
+                    '<select id="admin-delete-spieler-select" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600">' +
+                        '<option value="">Spieler zum Löschen auswählen...</option>' +
+                        spielerOptionsHtml +
+                    '</select>' +
+
+                    '<button onclick="app.logic.adminDeleteSpieler()" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 touch-target">' +
+                        '<i class="fas fa-trash-alt"></i>' +
+                        '<span>Ausgewählten Spieler löschen</span>' +
+                    '</button>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
 };
 
-// Hilfsfunktion für die Spielerauswahl im Admin-Menü
-app.logic.adminDeletePlayerFromSelect = function()
+// Hilfsfunktion: Spieler über Admin-Bereich löschen
+app.logic.adminDeleteSpieler = function()
 {
     const select = document.getElementById('admin-delete-spieler-select');
     if (!select || !select.value)
     {
-        app.logic.showToast("Bitte wähle zuerst einen Spieler aus!", "info");
-        return;
-    }
-    app.logic.deletePlayer(select.value);
-};
-
-// Rendert die Kachel für den Vault-Status
-app.logic.renderVaultToggleCard = function()
-{
-    app.logic.apiRequest('getVaultLockStatus')
-        .then(function(res)
+        if (typeof app.logic.showToast === 'function')
         {
-            const container = document.getElementById('vault-toggle-container');
-            if (!container) return;
-
-            const isUnlocked = res && res.isUnlocked;
-            
-            container.innerHTML = `
-                <div class="p-3 ${isUnlocked ? 'bg-emerald-50 border-emerald-200' : 'bg-stone-50 border-stone-200'} border rounded-xl flex items-center justify-between transition-all">
-                    <div>
-                        <h5 class="text-xs font-bold text-stone-800">Stats-Freigabe für Homepage</h5>
-                        <p class="text-[10px] text-stone-500 font-medium">${isUnlocked ? '🟢 Freigeschaltet (Siegerehrung aktiv)' : '🔴 Gesperrt (Spickschutz aktiv)'}</p>
-                    </div>
-                    <button onclick="app.logic.toggleVaultAccess(${!isUnlocked})" class="px-3 py-1.5 ${isUnlocked ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white text-xs font-bold rounded-lg shadow-3xs transition touch-target">
-                        ${isUnlocked ? '<i class="fas fa-lock mr-1"></i> Sperren' : '<i class="fas fa-lock-open mr-1"></i> Freischalten'}
-                    </button>
-                </div>
-            `;
-        });
-};
-
-// Schaltet den Vault-Zugriff um
-app.logic.toggleVaultAccess = function(targetStatus)
-{
-    if (!app.state.currentUser) return;
-
-    app.logic.apiRequest('toggleVaultLock', { spielerId: app.state.currentUser.id, status: targetStatus })
-        .then(function(res)
-        {
-            if (res && res.success)
-            {
-                app.logic.showToast(targetStatus ? "Vault für Siegerehrung FREIGESCHALTET!" : "Vault wieder GESPERRT!", "success");
-                app.logic.renderVaultToggleCard();
-            }
-            else
-            {
-                app.logic.showToast("Fehler: " + (res ? res.error : "Unbekannt"), "error");
-            }
-        });
-};
-
-// Hilfsfunktion zur Generierung einer Inline-Edit-Tabelle
-app.logic.renderCollectionEditor = function(collectionName)
-{
-    const container = document.getElementById('admin-editor-table-container');
-    if (!container || !app.state[collectionName]) return;
-
-    const items = app.state[collectionName];
-    if (items.length === 0)
-    {
-        container.innerHTML = `<p class="text-xs text-stone-400 italic">Keine Einträge in ${collectionName} vorhanden.</p>`;
+            app.logic.showToast("Bitte wähle zuerst einen Spieler aus.", "warning");
+        }
         return;
     }
 
-    const keys = Object.keys(items[0]).filter(k => k !== 'id');
+    const spielerId = select.value;
+    const spieler = app.state.spieler.find(function(s) { return String(s.id) === String(spielerId); });
+    const name = spieler ? (spieler.nickname || spieler.name) : "den Spieler";
 
-    let tableHtml = `
-        <div class="overflow-x-auto border border-stone-200 rounded-xl shadow-2xs">
-            <table class="w-full text-left text-xs bg-white">
-                <thead class="bg-stone-100 text-stone-600 font-bold border-b border-stone-200">
-                    <tr>
-                        <th class="p-2">ID</th>
-                        ${keys.map(k => `<th class="p-2">${k}</th>`).join('')}
-                        <th class="p-2 text-right">Aktion</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-stone-100">
-    `;
+    app.logic.showConfirm(
+        "Spieler löschen",
+        "Möchtest du " + name + " wirklich aus der Gruppe entfernen?",
+        async function()
+        {
+            try
+            {
+                await app.db.collection('spieler').doc(spielerId).update({ istGeloescht: true });
+                
+                if (app.state.spieler)
+                {
+                    app.state.spieler = app.state.spieler.filter(function(s) { return String(s.id) !== String(spielerId); });
+                }
 
-    items.forEach(item => {
-        tableHtml += `<tr id="row-${item.id}">`;
-        tableHtml += `<td class="p-2 font-mono font-bold text-stone-400">${item.id}</td>`;
-        keys.forEach(k => {
-            tableHtml += `
-                <td class="p-1">
-                    <input type="text" data-col="${collectionName}" data-id="${item.id}" data-key="${k}" 
-                           value="${item[k] !== undefined ? item[k] : ''}" 
-                           class="w-full px-2 py-1 bg-stone-50 border border-stone-200 rounded-md text-xs font-semibold focus:bg-white focus:border-emerald-600 outline-none" />
-                </td>
-            `;
-        });
-        tableHtml += `
-            <td class="p-2 text-right whitespace-nowrap">
-                <button onclick="app.logic.saveInlineRow('${collectionName}', '${item.id}')" class="px-2 sm:px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-3xs transition">
-                    <i class="fas fa-save"></i>
-                </button>
-            </td>
-        `;
-        tableHtml += `</tr>`;
-    });
+                if (typeof app.logic.showToast === 'function')
+                {
+                    app.logic.showToast(name + " wurde entfernt.", "success");
+                }
 
-    tableHtml += `</tbody></table></div>`;
-    container.innerHTML = tableHtml;
-};
-
-// Speichert geänderte Zeilenwerte nach Firestore
-app.logic.saveInlineRow = async function(collectionName, docId)
-{
-    const inputs = document.querySelectorAll(`input[data-col="${collectionName}"][data-id="${docId}"]`);
-    const updatedData = {};
-
-    inputs.forEach(input => {
-        const key = input.getAttribute('data-key');
-        let val = input.value.trim();
-        if (!isNaN(val) && val !== '') val = Number(val);
-        if (val === 'true') val = true;
-        if (val === 'false') val = false;
-        updatedData[key] = val;
-    });
-
-    const res = await app.logic.apiRequest('updateFirestoreDoc', {
-        collectionName: collectionName,
-        docId: docId,
-        data: updatedData
-    });
-
-    if (res && res.success)
-    {
-        app.logic.showToast(`Eintrag ${docId} in ${collectionName} gespeichert!`, 'success');
-        await app.logic.refreshGlobalAppData();
-    }
-    else
-    {
-        app.logic.showToast('Fehler beim Speichern: ' + (res ? res.error : 'Unbekannt'), 'error');
-    }
+                app.router.navigate('admin');
+            }
+            catch (err)
+            {
+                console.error("[Admin Löschen] Fehler:", err);
+                if (typeof app.logic.showToast === 'function')
+                {
+                    app.logic.showToast("Fehler beim Löschen des Spielers.", "error");
+                }
+            }
+        }
+    );
 };
