@@ -151,16 +151,16 @@ app.views.golfplaetze = function()
             </div>
 
             <!-- MODAL: GOLFPLATZ EDIT / NEU -->
-            <div id="golfplatz-edit-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
-                <div class="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl border border-zinc-100 max-h-[90vh] overflow-y-auto">
-                    <div class="flex justify-between items-center border-b border-zinc-100 pb-3">
+            <div id="golfplatz-edit-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4 overflow-y-auto">
+                <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-zinc-100 max-h-[85vh] flex flex-col my-auto">
+                    <div class="flex justify-between items-center border-b border-zinc-100 pb-3 shrink-0">
                         <h3 id="golfplatz-modal-title" class="font-black text-zinc-900 text-base">Golfclub bearbeiten</h3>
                         <button onclick="app.logic.closeGolfplatzModal()" class="text-zinc-400 hover:text-zinc-600 touch-target">
                             <i class="fas fa-times text-lg"></i>
                         </button>
                     </div>
 
-                    <form id="golfplatz-form" onsubmit="app.logic.saveGolfplatzForm(event)" class="space-y-4">
+                    <form id="golfplatz-form" onsubmit="app.logic.saveGolfplatzForm(event)" class="space-y-4 overflow-y-auto pr-1 pt-1">
                         <input type="hidden" id="modal-platz-id" value="">
 
                         <!-- STAMMDATEN -->
@@ -271,7 +271,7 @@ app.views.golfplaetze = function()
                             </div>
                         </div>
 
-                        <div class="pt-4 grid grid-cols-2 gap-2">
+                        <div class="pt-3 grid grid-cols-2 gap-2 shrink-0">
                             <button type="button" onclick="app.logic.closeGolfplatzModal()" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-xs transition">
                                 Abbrechen
                             </button>
@@ -284,19 +284,21 @@ app.views.golfplaetze = function()
             </div>
 
             <!-- MODAL: VORGABETABELLE ANZEIGEN -->
-            <div id="vorgabetabelle-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
-                <div class="bg-white rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl border border-zinc-100 max-h-[90vh] overflow-y-auto">
-                    <div class="flex justify-between items-center border-b border-zinc-100 pb-3">
+            <div id="vorgabetabelle-modal" class="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4 overflow-y-auto">
+                <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-zinc-100 max-h-[85vh] flex flex-col my-auto">
+                    <!-- FIXED HEADER -->
+                    <div class="flex justify-between items-center border-b border-zinc-100 pb-3 shrink-0">
                         <div>
                             <h3 id="vorgabe-modal-platzname" class="font-black text-zinc-900 text-base">Vorgabetabelle</h3>
                             <p id="vorgabe-modal-kursname" class="text-xs text-zinc-400 font-medium">Course Handicaps nach WHS</p>
                         </div>
-                        <button onclick="app.logic.closeVorgabetabelleModal()" class="text-zinc-400 hover:text-zinc-600 touch-target">
+                        <button onclick="app.logic.closeVorgabetabelleModal()" class="text-zinc-400 hover:text-zinc-600 touch-target p-1">
                             <i class="fas fa-times text-lg"></i>
                         </button>
                     </div>
 
-                    <div id="vorgabetabelle-content" class="space-y-4">
+                    <!-- SCROLLABLE CONTENT -->
+                    <div id="vorgabetabelle-content" class="space-y-4 overflow-y-auto pr-1 pt-2">
                         <!-- Dynamischer Inhalt -->
                     </div>
                 </div>
@@ -351,7 +353,6 @@ app.logic.openGolfplatzEditModal = function(platzId)
         if (inputEmail) inputEmail.value = platz ? (platz.email || '') : '';
         if (inputWebsite) inputWebsite.value = platz ? (platz.website || '') : '';
 
-        // Abschläge setzen
         document.getElementById('modal-cr-herren-weiss').value = kurs ? (kurs.crHerrenWeiss || 71.2) : 71.2;
         document.getElementById('modal-slope-herren-weiss').value = kurs ? (kurs.slopeHerrenWeiss || 127) : 127;
         document.getElementById('modal-cr-herren-gelb').value = kurs ? (kurs.crHerrenGelb || 71.2) : 71.2;
@@ -366,7 +367,6 @@ app.logic.openGolfplatzEditModal = function(platzId)
         document.getElementById('modal-cr-damen-orange').value = kurs ? (kurs.crDamenOrange || 66.4) : 66.4;
         document.getElementById('modal-slope-damen-orange').value = kurs ? (kurs.slopeDamenOrange || 110) : 110;
 
-        // Bahnen laden (falls vorhanden)
         const bahnen = (app.state.bahnen || []).filter(function(b) { return kurs && String(b.kursId) === String(kurs.id); });
         for (let i = 1; i <= 18; i++)
         {
@@ -397,7 +397,6 @@ app.logic.openGolfplatzEditModal = function(platzId)
         if (inputEmail) inputEmail.value = "";
         if (inputWebsite) inputWebsite.value = "";
 
-        // Standard-Defaults (z.B. Bremer Schweiz)
         document.getElementById('modal-cr-herren-weiss').value = "71.2";
         document.getElementById('modal-slope-herren-weiss').value = "127";
         document.getElementById('modal-cr-herren-gelb').value = "71.2";
@@ -468,7 +467,6 @@ app.logic.saveGolfplatzForm = async function(event)
 
         const bestehenderKurs = (app.state.kurse || []).find(function(k) { return String(k.platzId) === String(docRefId); });
 
-        // Par-Summe berechnen
         let totalPar = 0;
         for (let i = 1; i <= 18; i++)
         {
@@ -508,7 +506,6 @@ app.logic.saveGolfplatzForm = async function(event)
             kursId = newKursRef.id;
         }
 
-        // Bahnen 1 bis 18 speichern
         for (let i = 1; i <= 18; i++)
         {
             const holePar = parseInt(document.getElementById(`modal-hole-par-${i}`).value) || 4;
@@ -556,7 +553,6 @@ app.logic.saveGolfplatzForm = async function(event)
     }
 };
 
-// Modal: Vorgabetabelle für alle Abschlagfarben & Spieler anzeigen
 app.logic.openVorgabetabelleModal = function(platzId)
 {
     const modal = document.getElementById('vorgabetabelle-modal');
@@ -583,7 +579,6 @@ app.logic.openVorgabetabelleModal = function(platzId)
 
     const parTotal = kurs ? (kurs.parTotal || 71) : 71;
 
-    // 1. Personalisiere Ansicht für eure Spieler-Gruppe
     const activeSpieler = (app.state.spieler || []).filter(function(s) { return s && !s.istGeloescht; });
     
     let gruppenHtml = "";
@@ -594,7 +589,6 @@ app.logic.openVorgabetabelleModal = function(platzId)
             {
                 const hcp = parseFloat(sp.hcpLIE) || 26.0;
 
-                // WHS-Formel anwenden
                 const chGelb = Math.round(hcp * (slopeHerrenGelb / 113) + (crHerrenGelb - parTotal));
                 const chHerrenRot = Math.round(hcp * (slopeHerrenRot / 113) + (crHerrenRot - parTotal));
                 const chDamenRot = Math.round(hcp * (slopeDamenRot / 113) + (crDamenRot - parTotal));
@@ -626,7 +620,7 @@ app.logic.openVorgabetabelleModal = function(platzId)
                 <span class="font-bold text-zinc-800 text-[10px] block mt-0.5">CR ${crHerrenRot} / SR ${slopeHerrenRot}</span>
             </div>
             <div class="bg-rose-50 border border-rose-200 rounded-xl p-2">
-                <span class="block text-[9px] font-black text-rose-900 uppercase">Damen Rot</span>
+                <span class="block text-[9px] font-black text-rose-800 uppercase">Damen Rot</span>
                 <span class="font-bold text-zinc-800 text-[10px] block mt-0.5">CR ${crDamenRot} / SR ${slopeDamenRot}</span>
             </div>
         </div>
