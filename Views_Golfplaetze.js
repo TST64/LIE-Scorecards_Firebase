@@ -1,5 +1,5 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Golfplätze, Multi-Kurse (27 Loch) & WHS
+// BMAssistent / LIE Scorecard - Golfplätze, Multi-Kurse (Pill-Tabs) & WHS
 // Views_Golfplaetze.js
 // BSD (Allman) Style
 // =========================================================================
@@ -172,7 +172,7 @@ app.views.golfplaetze = function()
 
                             <div>
                                 <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Club-Name *</label>
-                                <input type="text" id="modal-platz-name" required class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="z.B. Golfclub Gut Kaden">
+                                <input type="text" id="modal-platz-name" required class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="z.B. Golfclub Blauer Fasan Wiesmoor e.V.">
                             </div>
 
                             <div>
@@ -183,7 +183,7 @@ app.views.golfplaetze = function()
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
                                     <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Telefonnummer</label>
-                                    <input type="tel" id="modal-platz-telefon" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800" placeholder="0421 681321">
+                                    <input type="tel" id="modal-platz-telefon" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800" placeholder="04944 12345">
                                 </div>
                                 <div>
                                     <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">E-Mail</label>
@@ -196,17 +196,14 @@ app.views.golfplaetze = function()
                             </div>
                         </div>
 
-                        <!-- KURS WÄHLEN ODER NEU ANLEGEN (SEGMENTED TABS) -->
+                        <!-- PILL TABS FÜR KURS-AUSWAHL -->
                         <div class="pt-3 border-t border-zinc-100 space-y-2.5">
-                            <div class="flex justify-between items-center">
-                                <h4 class="font-extrabold text-xs text-zinc-900 uppercase tracking-wider flex items-center gap-1.5">
-                                    <i class="fas fa-map text-emerald-700"></i> Platz-Kombinationen (27 Loch)
-                                </h4>
-                            </div>
+                            <h4 class="font-extrabold text-xs text-zinc-900 uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fas fa-map text-emerald-700"></i> Platz-Kombinationen (27 Loch)
+                            </h4>
 
-                            <!-- PILL TABS CONTAINER -->
                             <div id="modal-kurs-tabs-container" class="flex flex-wrap gap-1.5 bg-zinc-100 p-1.5 rounded-2xl border border-zinc-200">
-                                <!-- Wird dynamisch per JS mit Pill-Buttons befüllt -->
+                                <!-- Dynamische Pill-Tabs -->
                             </div>
 
                             <div class="pt-1">
@@ -359,7 +356,6 @@ app.logic.openGolfplatzEditModal = function(platzId)
     const inputTelefon = document.getElementById('modal-platz-telefon');
     const inputEmail = document.getElementById('modal-platz-email');
     const inputWebsite = document.getElementById('modal-platz-website');
-    const tabsContainer = document.getElementById('modal-kurs-tabs-container');
 
     if (!modal) return;
 
@@ -376,11 +372,20 @@ app.logic.openGolfplatzEditModal = function(platzId)
         if (inputEmail) inputEmail.value = platz ? (platz.email || '') : '';
         if (inputWebsite) inputWebsite.value = platz ? (platz.website || '') : '';
 
-        // Tabs generieren
         app.logic.renderKursTabs(kurse, kurse.length > 0 ? kurse[0].id : 'NEW');
     }
     else
     {
+        const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
+        if (!isAdmin)
+        {
+            if (typeof app.logic.showToast === 'function')
+            {
+                app.logic.showToast("Neue Golfplätze können nur vom Admin angelegt werden.", "error");
+            }
+            return;
+        }
+
         if (title) title.innerText = "Neuen Golfclub anlegen";
         if (inputPlatzId) inputPlatzId.value = "";
         if (inputName) inputName.value = "";
@@ -395,7 +400,6 @@ app.logic.openGolfplatzEditModal = function(platzId)
     modal.classList.remove('hidden');
 };
 
-// Hilfsfunktion zum Zeichnen der Pill-Buttons
 app.logic.renderKursTabs = function(kurse, activeKursId)
 {
     const tabsContainer = document.getElementById('modal-kurs-tabs-container');
@@ -431,35 +435,83 @@ app.logic.renderKursTabs = function(kurse, activeKursId)
     `;
 
     tabsContainer.innerHTML = tabsHtml;
-    app.logic.switchGolfplatzKurs(activeKursId, false); // Formularwerte laden
+    app.logic.switchGolfplatzKurs(activeKursId, false);
 };
 
-app.logic.switchGolfplatzKurs = function(kursId, reRenderTabs = true)
+app.logic.switchGolfplatzKurs = function(kursId, reRenderTabs)
 {
+    if (reRenderTabs === undefined) reRenderTabs = true;
+
+    const platzId = document.getElementById('modal-platz-id') ? document.getElementById('modal-platz-id').value : '';
     const inputKursId = document.getElementById('modal-kurs-id');
     const inputKursName = document.getElementById('modal-kurs-name');
+
     if (inputKursId) inputKursId.value = (kursId === 'NEW') ? '' : kursId;
 
     if (reRenderTabs)
     {
-        const platzId = document.getElementById('modal-platz-id').value;
         const kurse = (app.state.kurse || []).filter(function(k) { return String(k.platzId) === String(platzId) && !k.istGeloescht; });
         app.logic.renderKursTabs(kurse, kursId);
         return;
     }
 
-    // Ab hier: Daten in die Formularfelder füllen...
     if (kursId && kursId !== 'NEW')
     {
         const kurs = (app.state.kurse || []).find(function(k) { return String(k.id) === String(kursId); });
+        
         if (inputKursName) inputKursName.value = kurs ? (kurs.name || '') : '';
 
-        // ... CR, Slope und Bahnen laden ...
+        // CR & Slope Werte setzen
+        document.getElementById('modal-cr-herren-weiss').value = kurs ? (kurs.crHerrenWeiss || 71.2) : 71.2;
+        document.getElementById('modal-slope-herren-weiss').value = kurs ? (kurs.slopeHerrenWeiss || 127) : 127;
+        document.getElementById('modal-cr-herren-gelb').value = kurs ? (kurs.crHerrenGelb || 71.2) : 71.2;
+        document.getElementById('modal-slope-herren-gelb').value = kurs ? (kurs.slopeHerrenGelb || 125) : 125;
+        document.getElementById('modal-cr-herren-rot').value = kurs ? (kurs.crHerrenRot || 67.1) : 67.1;
+        document.getElementById('modal-slope-herren-rot').value = kurs ? (kurs.slopeHerrenRot || 113) : 113;
+        document.getElementById('modal-cr-herren-orange').value = kurs ? (kurs.crHerrenOrange || 62.4) : 62.4;
+        document.getElementById('modal-slope-herren-orange').value = kurs ? (kurs.slopeHerrenOrange || 105) : 105;
+
+        document.getElementById('modal-cr-damen-rot').value = kurs ? (kurs.crDamenRot || 72.4) : 72.4;
+        document.getElementById('modal-slope-damen-rot').value = kurs ? (kurs.slopeDamenRot || 120) : 120;
+        document.getElementById('modal-cr-damen-orange').value = kurs ? (kurs.crDamenOrange || 66.4) : 66.4;
+        document.getElementById('modal-slope-damen-orange').value = kurs ? (kurs.slopeDamenOrange || 110) : 110;
+
+        // Bahnen (1–18) Par & SI für diesen gewählten Kurs laden
+        const bahnen = (app.state.bahnen || []).filter(function(b) { return String(b.kursId) === String(kursId); });
+        for (let i = 1; i <= 18; i++)
+        {
+            const bMatch = bahnen.find(function(b) { return parseInt(b.nr) === i; });
+            const inputPar = document.getElementById(`modal-hole-par-${i}`);
+            const inputSi = document.getElementById(`modal-hole-si-${i}`);
+            if (inputPar) inputPar.value = bMatch ? bMatch.par : 4;
+            if (inputSi) inputSi.value = bMatch ? bMatch.si : i;
+        }
     }
     else
     {
         if (inputKursName) inputKursName.value = "18-Loch Platz";
-        // ... Standardwerte setzen ...
+
+        document.getElementById('modal-cr-herren-weiss').value = "71.2";
+        document.getElementById('modal-slope-herren-weiss').value = "127";
+        document.getElementById('modal-cr-herren-gelb').value = "71.2";
+        document.getElementById('modal-slope-herren-gelb').value = "125";
+        document.getElementById('modal-cr-herren-rot').value = "67.1";
+        document.getElementById('modal-slope-herren-rot').value = "113";
+        document.getElementById('modal-cr-herren-orange').value = "62.4";
+        document.getElementById('modal-slope-herren-orange').value = "105";
+
+        document.getElementById('modal-cr-damen-rot').value = "72.4";
+        document.getElementById('modal-slope-damen-rot').value = "120";
+        document.getElementById('modal-cr-damen-orange').value = "66.4";
+        document.getElementById('modal-slope-damen-orange').value = "110";
+
+        for (let i = 1; i <= 18; i++)
+        {
+            const inputPar = document.getElementById(`modal-hole-par-${i}`);
+            const inputSi = document.getElementById(`modal-hole-si-${i}`);
+            if (inputPar) inputPar.value = 4;
+            if (inputSi) inputSi.value = i;
+        }
     }
 };
 
@@ -550,9 +602,7 @@ app.logic.saveGolfplatzForm = async function(event)
             const holePar = parseInt(document.getElementById(`modal-hole-par-${i}`).value) || 4;
             const holeSi = parseInt(document.getElementById(`modal-hole-si-${i}`).value) || i;
 
-            const existingBahn = (app.state.bahnen || []).find(
-                function(b) { return String(b.kursId) === String(activeKursId) && parseInt(b.nr) === i; }
-            );
+            const existingBahn = (app.state.bahnen || []).filter(function(b) { return String(b.kursId) === String(activeKursId); }).find(function(b) { return parseInt(b.nr) === i; });
 
             const bahnData = {
                 kursId: activeKursId,
