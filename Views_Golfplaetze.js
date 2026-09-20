@@ -1,5 +1,5 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Golfplätze, Bahnen & Erweitere WHS-Tabellen
+// BMAssistent / LIE Scorecard - Golfplätze, Multi-Kurse (27 Loch) & WHS
 // Views_Golfplaetze.js
 // BSD (Allman) Style
 // =========================================================================
@@ -43,7 +43,7 @@ app.views.golfplaetze = function()
                     kurseBadgeHtml = kurse.map(
                         function(k)
                         {
-                            return `<span class="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold">${k.name || '18-Loch Platz'} (${k.parTotal ? 'Par ' + k.parTotal : '18 Bahnen'})</span>`;
+                            return `<span class="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold">${k.name || 'Standard Kurs'} (${k.parTotal ? 'Par ' + k.parTotal : '18 Bahnen'})</span>`;
                         }
                     ).join(' ');
                 }
@@ -134,7 +134,7 @@ app.views.golfplaetze = function()
                     </button>
                     <div>
                         <h2 class="text-lg font-black text-zinc-900 tracking-tight">Golfplätze & Clubs</h2>
-                        <p class="text-xs text-zinc-400 font-medium -mt-0.5">Kontaktdaten, Abschläge (CR/Slope) & Stroke Index</p>
+                        <p class="text-xs text-zinc-400 font-medium -mt-0.5">Kontaktdaten, Multi-Kurse (27 Loch) & Stroke Index</p>
                     </div>
                 </div>
                 ${isAdmin ? `
@@ -162,6 +162,7 @@ app.views.golfplaetze = function()
 
                     <form id="golfplatz-form" onsubmit="app.logic.saveGolfplatzForm(event)" class="space-y-4 overflow-y-auto pr-1 pt-2 flex-1 min-h-0">
                         <input type="hidden" id="modal-platz-id" value="">
+                        <input type="hidden" id="modal-kurs-id" value="">
 
                         <!-- STAMMDATEN -->
                         <div class="space-y-3">
@@ -171,7 +172,7 @@ app.views.golfplaetze = function()
 
                             <div>
                                 <label class="block text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider mb-1">Club-Name *</label>
-                                <input type="text" id="modal-platz-name" required class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="z.B. Golf-Club Bremer Schweiz e.V.">
+                                <input type="text" id="modal-platz-name" required class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-emerald-600" placeholder="z.B. Golfclub Gut Kaden">
                             </div>
 
                             <div>
@@ -195,10 +196,33 @@ app.views.golfplaetze = function()
                             </div>
                         </div>
 
-                        <!-- ABSCHLÄGE (CR & SLOPE WERTE) -->
+                        <!-- KURS WÄHLEN ODER NEU ANLEGEN -->
                         <div class="pt-3 border-t border-zinc-100 space-y-3">
+                            <div class="flex justify-between items-center">
+                                <h4 class="font-extrabold text-xs text-zinc-900 uppercase tracking-wider flex items-center gap-1.5">
+                                    <i class="fas fa-map text-emerald-700"></i> Kursauswahl (27-Loch / Schleifen)
+                                </h4>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-emerald-50/50 p-3 rounded-2xl border border-emerald-100">
+                                <div>
+                                    <label class="block text-[10px] font-extrabold text-emerald-900 uppercase mb-1">Bearbeiteter Kurs</label>
+                                    <select id="modal-kurs-select" onchange="app.logic.switchGolfplatzKurs(this.value)" class="w-full bg-white border border-emerald-200 rounded-xl p-2 text-xs font-bold text-zinc-800">
+                                        <!-- Dynamische Kurs-Optionen -->
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[10px] font-extrabold text-emerald-900 uppercase mb-1">Kurs Name / Schleife *</label>
+                                    <input type="text" id="modal-kurs-name" required class="w-full bg-white border border-emerald-200 rounded-xl p-2 text-xs font-bold text-zinc-800" placeholder="z.B. Kurs A+B (Rot/Gelb)">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ABSCHLÄGE (CR & SLOPE WERTE) -->
+                        <div class="pt-2 space-y-3">
                             <h4 class="font-extrabold text-xs text-zinc-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <i class="fas fa-flag text-emerald-700"></i> Abschläge (CR & Slope Werte)
+                                <i class="fas fa-flag text-emerald-700"></i> Abschläge für den gewählten Kurs
                             </h4>
 
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -290,14 +314,16 @@ app.views.golfplaetze = function()
                     <div class="flex justify-between items-center border-b border-zinc-100 pb-3 shrink-0">
                         <div>
                             <h3 id="vorgabe-modal-platzname" class="font-black text-zinc-900 text-base">Vorgabetabelle</h3>
-                            <p id="vorgabe-modal-kursname" class="text-xs text-zinc-400 font-medium">Course Handicaps nach WHS</p>
+                            <div class="flex items-center gap-2 mt-1" id="vorgabe-kurs-select-container">
+                                <!-- Kurs Dropdown wenn >1 Kurs -->
+                            </div>
                         </div>
                         <button onclick="app.logic.closeVorgabetabelleModal()" class="text-zinc-400 hover:text-zinc-600 touch-target p-1">
                             <i class="fas fa-times text-lg"></i>
                         </button>
                     </div>
 
-                    <!-- SCROLLABLE CONTENT (MAXIMIZED VERTICAL SPACE) -->
+                    <!-- SCROLLABLE CONTENT -->
                     <div id="vorgabetabelle-content" class="space-y-4 overflow-y-auto pr-1 pt-3 flex-1 min-h-0">
                         <!-- Dynamischer Inhalt -->
                     </div>
@@ -308,7 +334,7 @@ app.views.golfplaetze = function()
 };
 
 // ==========================================
-// LOGIK FUNKTIONEN FÜR GOLFPLÄTZE
+// LOGIK FUNKTIONEN FÜR GOLFPLÄTZE & KURSE
 // ==========================================
 
 app.logic.callGolfclub = function(telefonnummer, clubname)
@@ -331,27 +357,77 @@ app.logic.openGolfplatzEditModal = function(platzId)
 {
     const modal = document.getElementById('golfplatz-edit-modal');
     const title = document.getElementById('golfplatz-modal-title');
-    const inputId = document.getElementById('modal-platz-id');
+    const inputPlatzId = document.getElementById('modal-platz-id');
     const inputName = document.getElementById('modal-platz-name');
     const inputAdresse = document.getElementById('modal-platz-adresse');
     const inputTelefon = document.getElementById('modal-platz-telefon');
     const inputEmail = document.getElementById('modal-platz-email');
     const inputWebsite = document.getElementById('modal-platz-website');
+    const kursSelect = document.getElementById('modal-kurs-select');
 
     if (!modal) return;
 
     if (platzId)
     {
         const platz = (app.state.golfplaetze || []).find(function(p) { return String(p.id) === String(platzId); });
-        const kurs = (app.state.kurse || []).find(function(k) { return String(k.platzId) === String(platzId); });
+        const kurse = (app.state.kurse || []).filter(function(k) { return String(k.platzId) === String(platzId) && !k.istGeloescht; });
 
         if (title) title.innerText = "Golfclub bearbeiten";
-        if (inputId) inputId.value = platzId;
+        if (inputPlatzId) inputPlatzId.value = platzId;
         if (inputName) inputName.value = platz ? (platz.name || '') : '';
         if (inputAdresse) inputAdresse.value = platz ? (platz.adresse || '') : '';
         if (inputTelefon) inputTelefon.value = platz ? (platz.telefon || '') : '';
         if (inputEmail) inputEmail.value = platz ? (platz.email || '') : '';
         if (inputWebsite) inputWebsite.value = platz ? (platz.website || '') : '';
+
+        // Kurse ins Dropdown füllen
+        let optionsHtml = kurse.map(function(k) {
+            return `<option value="${k.id}">${k.name || '18-Loch Platz'}</option>`;
+        }).join('');
+
+        optionsHtml += `<option value="NEW">+ Neuen Kurs anlegen...</option>`;
+        if (kursSelect) kursSelect.innerHTML = optionsHtml;
+
+        const firstKursId = kurse.length > 0 ? kurse[0].id : 'NEW';
+        app.logic.switchGolfplatzKurs(firstKursId);
+    }
+    else
+    {
+        const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
+        if (!isAdmin)
+        {
+            if (typeof app.logic.showToast === 'function')
+            {
+                app.logic.showToast("Neue Golfplätze können nur vom Admin angelegt werden.", "error");
+            }
+            return;
+        }
+
+        if (title) title.innerText = "Neuen Golfclub anlegen";
+        if (inputPlatzId) inputPlatzId.value = "";
+        if (inputName) inputName.value = "";
+        if (inputAdresse) inputAdresse.value = "";
+        if (inputTelefon) inputTelefon.value = "";
+        if (inputEmail) inputEmail.value = "";
+        if (inputWebsite) inputWebsite.value = "";
+
+        if (kursSelect) kursSelect.innerHTML = `<option value="NEW">Erster 18-Loch Kurs</option>`;
+        app.logic.switchGolfplatzKurs('NEW');
+    }
+
+    modal.classList.remove('hidden');
+};
+
+app.logic.switchGolfplatzKurs = function(kursId)
+{
+    const inputKursId = document.getElementById('modal-kurs-id');
+    const inputKursName = document.getElementById('modal-kurs-name');
+    if (inputKursId) inputKursId.value = (kursId === 'NEW') ? '' : kursId;
+
+    if (kursId && kursId !== 'NEW')
+    {
+        const kurs = (app.state.kurse || []).find(function(k) { return String(k.id) === String(kursId); });
+        if (inputKursName) inputKursName.value = kurs ? (kurs.name || '') : '';
 
         document.getElementById('modal-cr-herren-weiss').value = kurs ? (kurs.crHerrenWeiss || 71.2) : 71.2;
         document.getElementById('modal-slope-herren-weiss').value = kurs ? (kurs.slopeHerrenWeiss || 127) : 127;
@@ -367,7 +443,7 @@ app.logic.openGolfplatzEditModal = function(platzId)
         document.getElementById('modal-cr-damen-orange').value = kurs ? (kurs.crDamenOrange || 66.4) : 66.4;
         document.getElementById('modal-slope-damen-orange').value = kurs ? (kurs.slopeDamenOrange || 110) : 110;
 
-        const bahnen = (app.state.bahnen || []).filter(function(b) { return kurs && String(b.kursId) === String(kurs.id); });
+        const bahnen = (app.state.bahnen || []).filter(function(b) { return String(b.kursId) === String(kursId); });
         for (let i = 1; i <= 18; i++)
         {
             const bMatch = bahnen.find(function(b) { return parseInt(b.nr) === i; });
@@ -379,24 +455,7 @@ app.logic.openGolfplatzEditModal = function(platzId)
     }
     else
     {
-        const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
-        if (!isAdmin)
-        {
-            if (typeof app.logic.showToast === 'function')
-            {
-                app.logic.showToast("Neue Golfplätze können nur vom Admin angelegt werden.", "error");
-            }
-            return;
-        }
-
-        if (title) title.innerText = "Neuen Golfclub anlegen";
-        if (inputId) inputId.value = "";
-        if (inputName) inputName.value = "";
-        if (inputAdresse) inputAdresse.value = "";
-        if (inputTelefon) inputTelefon.value = "";
-        if (inputEmail) inputEmail.value = "";
-        if (inputWebsite) inputWebsite.value = "";
-
+        if (inputKursName) inputKursName.value = "18-Loch Platz";
         document.getElementById('modal-cr-herren-weiss').value = "71.2";
         document.getElementById('modal-slope-herren-weiss').value = "127";
         document.getElementById('modal-cr-herren-gelb').value = "71.2";
@@ -419,8 +478,6 @@ app.logic.openGolfplatzEditModal = function(platzId)
             if (inputSi) inputSi.value = i;
         }
     }
-
-    modal.classList.remove('hidden');
 };
 
 app.logic.closeGolfplatzModal = function()
@@ -433,18 +490,20 @@ app.logic.saveGolfplatzForm = async function(event)
 {
     event.preventDefault();
 
-    const id = document.getElementById('modal-platz-id').value;
+    const platzId = document.getElementById('modal-platz-id').value;
+    const kursId = document.getElementById('modal-kurs-id').value;
     const name = document.getElementById('modal-platz-name').value.trim();
     const adresse = document.getElementById('modal-platz-adresse').value.trim();
     const telefon = document.getElementById('modal-platz-telefon').value.trim();
     const email = document.getElementById('modal-platz-email').value.trim();
     const website = document.getElementById('modal-platz-website').value.trim();
+    const kursName = document.getElementById('modal-kurs-name').value.trim() || "18-Loch Platz";
 
     if (!name) return;
 
     try
     {
-        let docRefId = id;
+        let docRefPlatzId = platzId;
 
         const dataPlatz = {
             name: name,
@@ -455,17 +514,15 @@ app.logic.saveGolfplatzForm = async function(event)
             updatedAt: new Date().toISOString()
         };
 
-        if (docRefId)
+        if (docRefPlatzId)
         {
-            await app.db.collection('golfplaetze').doc(docRefId).update(dataPlatz);
+            await app.db.collection('golfplaetze').doc(docRefPlatzId).update(dataPlatz);
         }
         else
         {
             const newRef = await app.db.collection('golfplaetze').add(dataPlatz);
-            docRefId = newRef.id;
+            docRefPlatzId = newRef.id;
         }
-
-        const bestehenderKurs = (app.state.kurse || []).find(function(k) { return String(k.platzId) === String(docRefId); });
 
         let totalPar = 0;
         for (let i = 1; i <= 18; i++)
@@ -474,8 +531,8 @@ app.logic.saveGolfplatzForm = async function(event)
         }
 
         const dataKurs = {
-            platzId: docRefId,
-            name: "18-Loch Platz",
+            platzId: docRefPlatzId,
+            name: kursName,
             bahnAnzahl: 18,
             parTotal: totalPar,
             
@@ -494,16 +551,15 @@ app.logic.saveGolfplatzForm = async function(event)
             slopeDamenOrange: parseInt(document.getElementById('modal-slope-damen-orange').value) || 110
         };
 
-        let kursId = null;
-        if (bestehenderKurs)
+        let activeKursId = kursId;
+        if (activeKursId)
         {
-            await app.db.collection('kurse').doc(bestehenderKurs.id).update(dataKurs);
-            kursId = bestehenderKurs.id;
+            await app.db.collection('kurse').doc(activeKursId).update(dataKurs);
         }
         else
         {
             const newKursRef = await app.db.collection('kurse').add(dataKurs);
-            kursId = newKursRef.id;
+            activeKursId = newKursRef.id;
         }
 
         for (let i = 1; i <= 18; i++)
@@ -512,11 +568,11 @@ app.logic.saveGolfplatzForm = async function(event)
             const holeSi = parseInt(document.getElementById(`modal-hole-si-${i}`).value) || i;
 
             const existingBahn = (app.state.bahnen || []).find(
-                function(b) { return String(b.kursId) === String(kursId) && parseInt(b.nr) === i; }
+                function(b) { return String(b.kursId) === String(activeKursId) && parseInt(b.nr) === i; }
             );
 
             const bahnData = {
-                kursId: kursId,
+                kursId: activeKursId,
                 nr: i,
                 par: holePar,
                 si: holeSi
@@ -534,7 +590,7 @@ app.logic.saveGolfplatzForm = async function(event)
 
         if (typeof app.logic.showToast === 'function')
         {
-            app.logic.showToast("Golfclub & Bahnen wurden gespeichert!", "success");
+            app.logic.showToast("Golfclub, Kurs & Bahnen wurden gespeichert!", "success");
         }
 
         app.logic.closeGolfplatzModal();
@@ -553,31 +609,49 @@ app.logic.saveGolfplatzForm = async function(event)
     }
 };
 
-app.logic.openVorgabetabelleModal = function(platzId)
+app.logic.openVorgabetabelleModal = function(platzId, selectedKursId)
 {
     const modal = document.getElementById('vorgabetabelle-modal');
     const titlePlatz = document.getElementById('vorgabe-modal-platzname');
-    const titleKurs = document.getElementById('vorgabe-modal-kursname');
-    const container = document.getElementById('vorgabetabelle-content');
+    const containerSelect = document.getElementById('vorgabe-kurs-select-container');
+    const containerContent = document.getElementById('vorgabetabelle-content');
 
-    if (!modal || !container) return;
+    if (!modal || !containerContent) return;
 
     const platz = (app.state.golfplaetze || []).find(function(p) { return String(p.id) === String(platzId); });
-    const kurs = (app.state.kurse || []).find(function(k) { return String(k.platzId) === String(platzId); });
+    const kurse = (app.state.kurse || []).filter(function(k) { return String(k.platzId) === String(platzId) && !k.istGeloescht; });
 
     if (titlePlatz) titlePlatz.innerText = platz ? platz.name : "Vorgabetabelle";
-    if (titleKurs) titleKurs.innerText = kurs ? `${kurs.name} (Par ${kurs.parTotal || 71})` : "18-Loch Kurs";
 
-    const crHerrenGelb = kurs ? (kurs.crHerrenGelb || 71.2) : 71.2;
-    const slopeHerrenGelb = kurs ? (kurs.slopeHerrenGelb || 125) : 125;
+    let currentKurs = kurse.find(function(k) { return String(k.id) === String(selectedKursId); }) || kurse[0];
+
+    if (kurse.length > 1 && containerSelect)
+    {
+        const optionsHtml = kurse.map(function(k) {
+            return `<option value="${k.id}" ${currentKurs && String(k.id) === String(currentKurs.id) ? 'selected' : ''}>${k.name} (Par ${k.parTotal || 71})</option>`;
+        }).join('');
+
+        containerSelect.innerHTML = `
+            <select onchange="app.logic.openVorgabetabelleModal('${platzId}', this.value)" class="bg-zinc-100 border border-zinc-200 text-zinc-800 rounded-lg p-1 text-xs font-bold">
+                ${optionsHtml}
+            </select>
+        `;
+    }
+    else if (containerSelect)
+    {
+        containerSelect.innerHTML = `<span class="text-xs text-zinc-400 font-medium">${currentKurs ? currentKurs.name : '18-Loch Kurs'}</span>`;
+    }
+
+    const crHerrenGelb = currentKurs ? (currentKurs.crHerrenGelb || 71.2) : 71.2;
+    const slopeHerrenGelb = currentKurs ? (currentKurs.slopeHerrenGelb || 125) : 125;
     
-    const crHerrenRot = kurs ? (kurs.crHerrenRot || 67.1) : 67.1;
-    const slopeHerrenRot = kurs ? (kurs.slopeHerrenRot || 113) : 113;
+    const crHerrenRot = currentKurs ? (currentKurs.crHerrenRot || 67.1) : 67.1;
+    const slopeHerrenRot = currentKurs ? (currentKurs.slopeHerrenRot || 113) : 113;
 
-    const crDamenRot = kurs ? (kurs.crDamenRot || 72.4) : 72.4;
-    const slopeDamenRot = kurs ? (kurs.slopeDamenRot || 120) : 120;
+    const crDamenRot = currentKurs ? (currentKurs.crDamenRot || 72.4) : 72.4;
+    const slopeDamenRot = currentKurs ? (currentKurs.slopeDamenRot || 120) : 120;
 
-    const parTotal = kurs ? (kurs.parTotal || 71) : 71;
+    const parTotal = currentKurs ? (currentKurs.parTotal || 71) : 71;
 
     const activeSpieler = (app.state.spieler || []).filter(function(s) { return s && !s.istGeloescht; });
     
@@ -609,7 +683,7 @@ app.logic.openVorgabetabelleModal = function(platzId)
         ).join('');
     }
 
-    container.innerHTML = `
+    containerContent.innerHTML = `
         <div class="grid grid-cols-3 gap-1.5 text-center text-xs">
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5">
                 <span class="block text-[9px] font-black text-amber-900 uppercase">Herren Gelb</span>
