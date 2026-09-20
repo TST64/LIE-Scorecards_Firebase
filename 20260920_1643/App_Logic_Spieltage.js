@@ -1,5 +1,5 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Spieltag & Flight Management (mit 9/18 Loch Logik)
+// BMAssistent / LIE Scorecard - Spieltag & Flight Management
 // App_Logic_Spieltage.js
 // BSD (Allman) Style
 // =========================================================================
@@ -161,7 +161,6 @@ app.logic.saveManualFlights = function()
 {
     const kursSelect = document.getElementById('new-spieltag-kurs');
     const dateInput = document.getElementById('new-spieltag-date');
-    const rundenTypSelect = document.getElementById('new-spieltag-rundentyp');
     const checkedBoxes = document.querySelectorAll('input[name="teilnehmer"]:checked');
     const gewaehlteIds = Array.from(checkedBoxes).map(function(cb) { return cb.value; });
 
@@ -189,16 +188,11 @@ app.logic.saveManualFlights = function()
         return;
     }
 
-    const rundenTyp = rundenTypSelect ? rundenTypSelect.value : '18';
-    const bahnAnzahl = rundenTyp.startsWith('9') ? 9 : 18;
-
     const spieltagId = "ST-" + Date.now();
     const spieltagObj = {
         id: spieltagId,
         date: dateInput.value,
         kursId: kursSelect.value,
-        rundenTyp: rundenTyp,
-        bahnAnzahl: bahnAnzahl,
         status: "Aktiv",
         teilnehmerCsv: gewaehlteIds.join(','),
         bruttoSieger: "",
@@ -351,22 +345,16 @@ app.logic.saveZufallsFlights = function()
 {
     const kursSelect = document.getElementById('new-spieltag-kurs');
     const dateInput = document.getElementById('new-spieltag-date');
-    const rundenTypSelect = document.getElementById('new-spieltag-rundentyp');
     const checkedBoxes = document.querySelectorAll('input[name="teilnehmer"]:checked');
     const gewaehlteIds = Array.from(checkedBoxes).map(function(cb) { return cb.value; });
 
     if (!kursSelect || !dateInput || !app.state.tempZufallsFlights) return;
-
-    const rundenTyp = rundenTypSelect ? rundenTypSelect.value : '18';
-    const bahnAnzahl = rundenTyp.startsWith('9') ? 9 : 18;
 
     const spieltagId = "ST-" + Date.now();
     const spieltagObj = {
         id: spieltagId,
         date: dateInput.value,
         kursId: kursSelect.value,
-        rundenTyp: rundenTyp,
-        bahnAnzahl: bahnAnzahl,
         status: "Aktiv",
         teilnehmerCsv: gewaehlteIds.join(','),
         bruttoSieger: "",
@@ -453,23 +441,11 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
 
     const teilnehmerString = String(spieltag.teilnehmerCsv || "");
     const teilnehmerIds = teilnehmerString ? teilnehmerString.split(',').map(function(id) { return String(id).trim(); }) : [];
+    const kurs = app.state.kurse.find(function(k) { return String(k.id).trim() === String(spieltag.kursId).trim(); });
     const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(spieltag.kursId).trim(); });
 
-    // Auswertung für 9 Loch vs 18 Loch
-    const is9Loch = (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9'));
-    const maxBahnen = is9Loch ? 9 : (spieltag.bahnAnzahl || 18);
-    const stablefordSoll = is9Loch ? 18 : 36;
-
-    // Bahnen filtern falls Front-9 / Back-9
-    let zuWertendeBahnen = kursBahnen;
-    if (spieltag.rundenTyp === '9-Front')
-    {
-        zuWertendeBahnen = kursBahnen.filter(b => parseInt(b.nr) <= 9);
-    }
-    else if (spieltag.rundenTyp === '9-Back')
-    {
-        zuWertendeBahnen = kursBahnen.filter(b => parseInt(b.nr) >= 10);
-    }
+    let maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : (kursBahnen.length || 9);
+    const stablefordSoll = (maxBahnen <= 9) ? 18 : 36;
 
     const handicapUpdates = [];
     let infoText = "";
@@ -487,7 +463,9 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
         let totalNettoStableford = 0;
         let playedHoles = 0;
 
-        zuWertendeBahnen.forEach(function(bahn)
+        const bahnenSchleife = kursBahnen.length > 0 ? kursBahnen : Array.from({length: maxBahnen}, function(_, i) { return { nr: i + 1, par: 4, si: 10 }; });
+
+        bahnenSchleife.forEach(function(bahn)
         {
             const hNr = parseInt(bahn.nr);
             const liveKey = `${spieltagId}_${spielerId}_${hNr}`;
@@ -502,7 +480,7 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
             if (strokes !== undefined && strokes > 0)
             {
                 playedHoles++;
-                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si, is9Loch);
+                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si);
                 const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
                 totalNettoStableford += nettoPkt;
             }
@@ -537,7 +515,7 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
         }
     });
 
-    const confirmationMsg = `Möchtest du die Runde (${maxBahnen} Loch) jetzt schließen? Sieger: Brutto: ${bruttoSieger}, Netto: ${nettoSieger}. HCP-Updates:${infoText || " Keine (alle im Puffer)"}.`;
+    const confirmationMsg = `Möchtest du die Runde jetzt schließen? Sieger: Brutto: ${bruttoSieger}, Netto: ${nettoSieger}. HCP-Updates:${infoText || " Keine (alle im Puffer)"}.`;
 
     app.logic.showConfirm(
         "Spieltag beenden?", 
@@ -622,12 +600,8 @@ app.logic.finishRoundWithWinners = function(spieltagId)
     const st = app.state.spieltage.find(function(s) { return String(s.id).trim() === String(spieltagId).trim(); });
     if (!st) return;
 
-    const is9Loch = (st.bahnAnzahl === 9 || String(st.rundenTyp || '').startsWith('9'));
     const teilnehmerIds = (st.teilnehmerCsv || "").split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
-    let kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); });
-
-    if (st.rundenTyp === '9-Front') kursBahnen = kursBahnen.filter(b => parseInt(b.nr) <= 9);
-    else if (st.rundenTyp === '9-Back') kursBahnen = kursBahnen.filter(b => parseInt(b.nr) >= 10);
+    const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); });
 
     let ergebnisse = teilnehmerIds.map(function(spielerId)
     {
@@ -651,7 +625,7 @@ app.logic.finishRoundWithWinners = function(spieltagId)
                 const str = parseInt(match.strokes);
                 playedHoles++;
                 totalStrokes += str;
-                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, st.kursId, bahn.si, is9Loch);
+                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, st.kursId, bahn.si);
                 totalNetto += app.logic.calculateNettoStableford(str, bahn.par, holeVorgabe);
             }
         });

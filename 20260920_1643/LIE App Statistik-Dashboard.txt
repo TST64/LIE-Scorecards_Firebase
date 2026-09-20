@@ -1,0 +1,17 @@
+Ich habe Deine Dateien zu 100% übernommen. Dann können wir ja loslegen....
+Als ersten Punkt auf der Agenda hätte ich gerne ein Life-Dashboard in unserer App, mit Charts, die folgende Dinge anzeigen:
+1: "Handicap" - alle Spieler nach ihrem aktuellen LIE Handicap, aufsteigend, gerne auch mit einem Chart (Balkendiagramme) oder einer anderen Visualisierung.
+2: "Putt König" - eine Putt Statistik, für jeden Spieler über die besten 10 Runden, die durchschnittliche Anzahl der Puts, mit Chart, wenn es geht, aufsteigend.
+3. "Birdy-Man" - eine Statistik für alle Spieler mit der Anzahl der gespielten Birdies in allen gespielten Runden, gerne auch mit Chart, Werte absteigend
+4. "Paar-Man" - eine Statistik über die Anzahl der gespielten Paars, aller Spiele, gerne auch mit Chart, Werte absteigend
+5. "Lady Kracher" - eine Statistik, die die Anzahl der gespielten Ladies aller gespielten Runden zeigt, für alle Spieler, Werte absteigend, gerne auch wieder mitr einem schönen Chart
+6. "Stricher" - eine Statistik über die letzten 10 gespielten Spiele, gezählt werden die Striche auf der Runde, also alle Bahnen ohne eine Wertung (Netto), wieder als Chart mit allen Spielern, Werte absteigend
+7. "Fleißiges Bienchen" - Eine Statistik über die Anzahl der gespielten Runden für jeden Spieler, Werte sollen absteigend dargestellt werden.
+
+Dann habe ich noch eine Idee:
+Wir wollen am 1. Oktober offiziell die nächste Saison (die dann bis zum 30.9.2027 gehen wird) beginnen. Alle oben genannten "KPI" sollen dann wieder bei 0 anfangen. Es wäre die Aufgabe des Admins einen neue Saison zu starten, soll heißen, nur der Admin soll über die entsprechende Funktion verfügen.
+Wichtig ist auch, dass dann die LIE Handicaps wieder auf 26 zurückgestellt werden, für alle Spieler. So macht auch der erste KPI - LIE Handicap Sinn, weil es automatisch den Spieler anzeigt, der sich am meisten verbessert hat.
+Was denkst Du wäre das alles umsetzbar?
+
+Nur als kleine Erinnerung: bitte denke an den Allman Stil für Deinen Code und daran, das es für mich einfacher ist komplette Code-Dateien auszutauschen, als Modifikationen durchzuführen. Das Hinzufügen oder Ändern einzelner Funktionen kann ich einfach bewerkstelligen und Du kannst mir das ruhig zutrauen, in einem solchen Fall gib mir bitte nur die Änderung. Wenn Du aber mehrere Änderungen an einer Datei vorschlägst, bitte sende mir diese immer komplett.
+Ich Danke Dir sehr im Voraus

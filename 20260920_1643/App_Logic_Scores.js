@@ -1,5 +1,5 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Live-Scoring & Calculations (mit 9/18 Loch Support)
+// BMAssistent / LIE Scorecard - Live-Scoring & Calculations
 // App_Logic_Scores.js
 // BSD (Allman) Style
 // =========================================================================
@@ -7,19 +7,13 @@
 var app = app || {};
 app.logic = app.logic || {};
 
-app.logic.calculateHoleVorgabe = function(spieler, kursId, holeSi, is9LochRound)
+app.logic.calculateHoleVorgabe = function(spieler, kursId, holeSi)
 {
     const hcp = parseFloat(spieler ? spieler.hcpLIE : 54.0) || 54.0;
     const hcpsForKurs = (app.state.handicaps || []).filter(function(h) { return String(h.kursId).trim() === String(kursId).trim(); });
     
     let vorgabeMatch = hcpsForKurs.find(function(h) { return parseFloat(h.vorgabe) === hcp; });
     let spielvorgabeTotal = vorgabeMatch ? parseInt(vorgabeMatch.spielvorgabe) : Math.round(hcp);
-
-    // Bei einer 9-Loch-Runde halbiert sich die Spielvorgabe gerundet
-    if (is9LochRound)
-    {
-        spielvorgabeTotal = Math.round(spielvorgabeTotal / 2);
-    }
 
     let basisSchlaege = Math.floor(spielvorgabeTotal / 18);
     let restSchlaege = spielvorgabeTotal % 18;
@@ -254,11 +248,10 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
 
         const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
         const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-        const is9Loch = (spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9')));
         const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId) === String(spieltag ? spieltag.kursId : ""); });
         const bahn = kursBahnen.find(function(b) { return parseInt(b.nr) === holeNr; }) || { si: 10 };
 
-        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si, is9Loch);
+        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si);
 
         scoresPayload.push({
             id: `SC-${spieltagId}-${spielerId}-${holeNr}`,

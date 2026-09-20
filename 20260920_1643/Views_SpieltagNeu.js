@@ -1,5 +1,5 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Spieltag Anlegen & Flight-Auslosung (9/18 Loch Support)
+// BMAssistent / LIE Scorecard - Spieltag Anlegen & Flight-Auslosung
 // Views_SpieltagNeu.js
 // BSD (Allman) Style
 // =========================================================================
@@ -116,8 +116,8 @@ app.views.spieltag_neu = function()
             <!-- Formular Container -->
             <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs space-y-4">
                 
-                <!-- Datum, Kurs & 9/18-Loch Auswahl -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <!-- Datum & Kurs -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="flex flex-col space-y-1">
                         <label class="text-[10px] font-bold text-stone-500 uppercase">Datum</label>
                         <input type="date" id="new-spieltag-date" value="${today}" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2.5 focus:border-emerald-600 outline-none font-semibold">
@@ -126,14 +126,6 @@ app.views.spieltag_neu = function()
                         <label class="text-[10px] font-bold text-stone-500 uppercase">Golfplatz / Kurs</label>
                         <select id="new-spieltag-kurs" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2.5 focus:border-emerald-600 outline-none font-semibold">
                             ${kurseOptionsHtml}
-                        </select>
-                    </div>
-                    <div class="flex flex-col space-y-1">
-                        <label class="text-[10px] font-bold text-stone-500 uppercase">Rundentyp / Löcher</label>
-                        <select id="new-spieltag-rundentyp" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2.5 focus:border-emerald-600 outline-none font-semibold">
-                            <option value="18" selected>18 Loch (Gesamter Platz)</option>
-                            <option value="9-Front">9 Loch - Front Nine (Loch 1-9)</option>
-                            <option value="9-Back">9 Loch - Back Nine (Loch 10-18)</option>
                         </select>
                     </div>
                 </div>
