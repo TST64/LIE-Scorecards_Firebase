@@ -79,13 +79,16 @@ app.logic.showToast = function(text, type)
     
     container.appendChild(toast);
 
-    setTimeout(function() {
+    setTimeout(function() 
+    {
         toast.classList.remove('opacity-0', 'translate-y-2');
     }, 10);
 
-    setTimeout(function() {
+    setTimeout(function() 
+    {
         toast.classList.add('opacity-0', '-translate-y-2');
-        setTimeout(function() {
+        setTimeout(function() 
+        {
             toast.remove();
         }, 300);
     }, 3200);
@@ -121,23 +124,28 @@ app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel)
     }
 
     modal.classList.remove('hidden');
-    setTimeout(function() {
+    setTimeout(function() 
+    {
         box.classList.remove('opacity-0', 'scale-95');
     }, 10);
 
-    const closeModal = function() {
+    const closeModal = function() 
+    {
         box.classList.add('opacity-0', 'scale-95');
-        setTimeout(function() {
+        setTimeout(function() 
+        {
             modal.classList.add('hidden');
         }, 200);
     };
 
-    btnCancel.onclick = function() {
+    btnCancel.onclick = function() 
+    {
         closeModal();
         if (typeof onCancel === 'function') onCancel();
     };
 
-    btnSubmit.onclick = function() {
+    btnSubmit.onclick = function() 
+    {
         closeModal();
         if (typeof onConfirm === 'function') onConfirm();
     };
@@ -176,7 +184,7 @@ app.logic.triggerMasterReset = function()
                 app.state.liveScores = {};
                 app.router.navigate('dashboard');
             }
-            catch(err)
+            catch (err)
             {
                 app.logic.showToast("Fehler beim Zurücksetzen: " + err.message, "error");
                 if (btn)

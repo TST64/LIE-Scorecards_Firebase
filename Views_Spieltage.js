@@ -40,7 +40,8 @@
        activeRounds.sort((a, b) => new Date(b.date) - new Date(a.date));
    
        // 2. Anzahl der eigenen Runden für den Button-Badge berechnen
-       const myRoundsCount = activeRounds.filter(st => {
+       const myRoundsCount = activeRounds.filter(st => 
+       {
            if (!currentUser) return false;
            const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
            return ids.includes(String(currentUser.id).trim());
@@ -50,7 +51,8 @@
        let roundsToDisplay = activeRounds;
        if (activeFilter === 'my' && currentUser)
        {
-           roundsToDisplay = activeRounds.filter(st => {
+           roundsToDisplay = activeRounds.filter(st => 
+           {
                const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
                return ids.includes(String(currentUser.id).trim());
            });
@@ -114,7 +116,7 @@
                }
                else
                {
-                   statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplant</span>`;
+                   statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplanned</span>`;
                }
    
                const kurs = app.state.kurse ? app.state.kurse.find(k => k.id === st.kursId) : null;
@@ -128,7 +130,10 @@
                    {
                        datumFormatted = d.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
                    }
-               } catch (e) {}
+               } 
+               catch (e) 
+               {
+               }
    
                const teilnehmerAnzahl = st.teilnehmerCsv ? st.teilnehmerCsv.split(',').filter(Boolean).length : 0;
    
@@ -138,7 +143,8 @@
                    let myFlightSeq = 1;
                    if (currentUser && app.state.flights)
                    {
-                       const myFlight = app.state.flights.find(f => {
+                       const myFlight = app.state.flights.find(f => 
+                       {
                            if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
                            const ids = (f.spielerIdsCsv || "").split(',');
                            return ids.includes(String(currentUser.id).trim());

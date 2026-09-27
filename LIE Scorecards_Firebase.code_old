@@ -1610,8 +1610,6 @@ app.logic.saveManualFlights = function()
         }
     });
 
-    const createdFromKalender = !!app.state.tempKalenderId;
-
     app.logic.apiRequest('createNewSpieltag', { spieltagObj: spieltagObj, flightsPayload: flightsPayload })
         .then(function(response)
         {
@@ -1622,27 +1620,7 @@ app.logic.saveManualFlights = function()
                 app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und manuelle Flights angelegt!", "success");
-
-                if (createdFromKalender)
-                {
-                    app.logic.showConfirm(
-                        "Spieltag direkt öffnen?", 
-                        "Möchtest du diesen Spieltag direkt öffnen, um Scores einzugeben?", 
-                        "standard", 
-                        function() 
-                        {
-                            app.router.navigate('score_eingabe', { id: spieltagId, hole: 1, flightSeq: 1 });
-                        },
-                        function() 
-                        {
-                            app.router.navigate('spieltage');
-                        }
-                    );
-                }
-                else
-                {
-                    app.router.navigate('spieltage');
-                }
+                app.router.navigate('spieltage');
             }
             else
             {
@@ -1742,10 +1720,10 @@ app.logic.previewFlights = function()
         }).join(', ');
 
         previewHtml += `
-        <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-800 font-semibold flex justify-between items-center gap-2">
-            <div class="truncate min-w-0"><span class="text-emerald-700 font-bold">Flight ${index + 1}:</span> ${namenList}</div>
-            <span class="text-[10px] bg-stone-200 text-stone-600 px-2 py-0.5 rounded-md font-bold shrink-0">${flightIds.length}er</span>
-        </div>
+            <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-800 font-semibold flex justify-between items-center">
+                <div><span class="text-emerald-700 font-bold">Flight ${index + 1}:</span> ${namenList}</div>
+                <span class="text-[10px] bg-stone-200 text-stone-600 px-2 py-0.5 rounded-md font-bold">${flightIds.length}er</span>
+            </div>
         `;
     });
 
@@ -1795,8 +1773,6 @@ app.logic.saveZufallsFlights = function()
         };
     });
 
-    const createdFromKalender = !!app.state.tempKalenderId;
-
     app.logic.apiRequest('createNewSpieltag', { spieltagObj: spieltagObj, flightsPayload: flightsPayload })
         .then(function(response)
         {
@@ -1807,27 +1783,7 @@ app.logic.saveZufallsFlights = function()
                 app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und Flights generiert!", "success");
-
-                if (createdFromKalender)
-                {
-                    app.logic.showConfirm(
-                        "Spieltag direkt öffnen?", 
-                        "Möchtest du diesen Spieltag direkt öffnen, um Scores einzugeben?", 
-                        "standard", 
-                        function() 
-                        {
-                            app.router.navigate('score_eingabe', { id: spieltagId, hole: 1, flightSeq: 1 });
-                        },
-                        function() 
-                        {
-                            app.router.navigate('spieltage');
-                        }
-                    );
-                }
-                else
-                {
-                    app.router.navigate('spieltage');
-                }
+                app.router.navigate('spieltage');
             }
             else
             {
@@ -2199,7 +2155,7 @@ app.logic.showToast = function(text, type)
     }, 3200);
 };
 
-app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel)
+app.logic.showConfirm = function(title, message, mode, onConfirm)
 {
     const modal = document.getElementById('global-confirm-modal');
     const box = document.getElementById('confirm-modal-box');
@@ -2242,7 +2198,6 @@ app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel)
 
     btnCancel.onclick = function() {
         closeModal();
-        if (typeof onCancel === 'function') onCancel();
     };
 
     btnSubmit.onclick = function() {
@@ -2869,7 +2824,7 @@ function sendTempPinEmail(spielerId, tempPin)
 
 window.CONFIG =
 {
-    appVersion: '4.9.0.1',
+    appVersion: '4.8.0.8',
     appName: 'lie-scorecard',
     gasUrl: 'https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec'
 };
@@ -2930,32 +2885,42 @@ window.firebaseConfig =
     </script>
 
     <!-- App Shell Wrapper -->
-    <div class="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-2xl border-x border-zinc-200/60 flex flex-col">
+    <div class="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-2xl border-x border-zinc-200/60">
         
         <!-- Header in Clean Tech Emerald -->
-        <header class="bg-emerald-900 text-white px-3 sm:px-4 py-2.5 sm:py-3 sticky top-0 z-40 shadow-md flex justify-between items-center border-b border-emerald-800/80">
-            <div class="flex items-center space-x-2 min-w-0">
-                <h1 class="text-base sm:text-lg font-black tracking-wider uppercase text-emerald-50 truncate">LIE Scorecard</h1>
+        <header class="bg-emerald-900 text-white px-4 py-3 sticky top-0 z-40 shadow-md flex justify-between items-center border-b border-emerald-800/80">
+            <div class="flex items-center space-x-2.5">
+                <h1 class="text-lg font-black tracking-wider uppercase text-emerald-50">LIE Scorecard</h1>
+                
+                <span class="flex items-center gap-1 bg-emerald-950/80 border border-emerald-600/50 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-300 shadow-xs" title="Firebase Backend aktiv">
+                    <svg class="w-3 h-3 fill-amber-400" viewBox="0 0 24 24">
+                        <path d="M3.89 15.672L6.255.461A.542.542 0 0 1 7.27.283l2.543 4.772-5.923 10.617zM13.5 11.235l-2.22-4.18-8.23 14.868 10.45-10.688zM20.11 21.923L14.49 13.1l-1.01 1.034 6.63 7.789a.544.544 0 0 0 .866-.027zM20.592 7.641l-1.874-3.551a.543.543 0 0 0-.962.008L3.218 21.848l8.608 4.887a1.63 1.63 0 0 0 1.572 0l8.608-4.887a.543.543 0 0 0 .237-.624l-1.651-13.583z"/>
+                    </svg>
+                    <span class="tracking-tight text-[9px] uppercase">Firestore</span>
+                </span>
             </div>
 
-            <div class="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
-                <button onclick="app.router.navigate('golfplaetze')" class="text-emerald-200 hover:text-white p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Golfplätze anzeigen">
+            <div class="flex items-center space-x-3">
+                <button onclick="app.router.navigate('golfplaetze')" class="text-emerald-200 hover:text-white p-1 touch-target text-base transition focus:outline-none" title="Golfplätze anzeigen">
                     <i class="fas fa-map-marked-alt"></i>
                 </button>
-                <button onclick="app.router.navigate('live_dashboard')" class="text-amber-300 hover:text-amber-200 p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Saison Live-Dashboard">
+                <button onclick="app.router.navigate('live_dashboard')" class="text-amber-300 hover:text-amber-200 p-1 touch-target text-base transition focus:outline-none" title="Saison Live-Dashboard">
                     <i class="fas fa-chart-line"></i>
                 </button>
-                <button onclick="app.router.navigate('wetter')" class="text-emerald-200 hover:text-white p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Platzwetter anzeigen">
+                <button onclick="app.router.navigate('wetter')" class="text-emerald-200 hover:text-white p-1 touch-target text-base transition focus:outline-none" title="Platzwetter anzeigen">
                     <i class="fas fa-cloud-sun"></i>
                 </button>
-                <button id="global-refresh-btn" onclick="app.logic.refreshGlobalAppData()" class="text-white p-1 touch-target text-sm sm:text-base opacity-80 hover:opacity-100 transition focus:outline-none" title="Daten aktualisieren">
+                <button id="global-refresh-btn" onclick="app.logic.refreshGlobalAppData()" class="text-white p-1 touch-target text-base opacity-80 hover:opacity-100 transition focus:outline-none" title="Daten aktualisieren">
                     <i id="global-refresh-icon" class="fas fa-sync-alt"></i>
                 </button>
+                <button id="header-action-btn" onclick="app.router.navigate('spieltag_neu')" class="hidden text-white p-1 touch-target text-lg" title="Runde anlegen">
+                    <i class="fas fa-plus-circle"></i>
+                </button>
                 <span id="header-role-badge" class="flex items-center text-xs opacity-75"></span>
-                <button id="header-logout-btn" onclick="app.logic.logout()" class="hidden text-white opacity-80 hover:opacity-100 p-1 touch-target text-xs sm:text-sm transition focus:outline-none" title="Abmelden">
+                <button id="header-logout-btn" onclick="app.logic.logout()" class="hidden text-white opacity-80 hover:opacity-100 p-1 touch-target text-sm transition focus:outline-none" title="Abmelden">
                     <i class="fas fa-sign-out-alt"></i>
                 </button>
-                <div id="connection-status" class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-400 shadow-xs"></div>
+                <div id="connection-status" class="w-3 h-3 rounded-full bg-emerald-400 shadow-xs"></div>
             </div>
         </header>
 
@@ -2974,7 +2939,7 @@ window.firebaseConfig =
         </main>
 
         <!-- Mobile Navigation Footer -->
-        <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur-md border-t border-zinc-200/80 py-2 px-3 flex justify-around items-center z-40 shadow-xl">
+        <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur-md border-t border-zinc-200/80 py-2 px-3 flex justify-around items-center z-40 shadow-xl hidden">
             <button id="nav-dash" onclick="app.router.navigate('dashboard')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-home text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Home</span>
@@ -3008,7 +2973,7 @@ window.firebaseConfig =
 
     <!-- Globales Confirmation Modal -->
     <div id="global-confirm-modal" class="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
-        <div id="confirm-modal-box" class="bg-white rounded-2xl max-w-xs w-full p-5 space-y-4 shadow-2xl transition-all duration-200 opacity-0 scale-95 border border-stone-100 max-h-[85vh] overflow-y-auto">
+        <div id="confirm-modal-box" class="bg-white rounded-2xl max-w-xs w-full p-5 space-y-4 shadow-2xl transition-all duration-200 opacity-0 scale-95 border border-stone-100">
             <div class="flex items-start space-x-3">
                 <div id="confirm-modal-icon-container" class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 bg-emerald-100 text-emerald-700">
                     <i id="confirm-modal-icon" class="fas fa-question-circle text-sm"></i>
@@ -7433,18 +7398,6 @@ app.views.spieler_edit = function(spielerId)
        let activeFilter = filterParam || app.state.spieltageFilterMode || 'all';
        app.state.spieltageFilterMode = activeFilter;
    
-       // Button für Spielleiter/Admins definieren
-       let newRoundBtnHeader = "";
-       if (isLeiter)
-       {
-           newRoundBtnHeader = `
-               <button onclick="app.router.navigate('spieltag_neu')" 
-                       class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5 touch-target shrink-0">
-                   <i class="fas fa-plus"></i> Neue Runde
-               </button>
-           `;
-       }
-   
        // 1. Alle aktiven (nicht gelöschten/abgebrochenen) Runden filtern
        const activeRounds = app.state.spieltage ? app.state.spieltage.filter(function(st) 
        {
@@ -7481,13 +7434,12 @@ app.views.spieler_edit = function(spielerId)
        let html = `
            <div class="space-y-5 max-w-4xl mx-auto pb-12">
                <!-- Header Section -->
-                <div class="border-b border-stone-200 pb-3 flex justify-between items-center gap-2">
-                    <div class="min-w-0 flex-1">
-                        <h1 class="text-xl sm:text-3xl font-bold text-stone-800 tracking-tight truncate">Spieltage</h1>
-                        <p class="text-xs sm:text-sm text-stone-500 mt-0.5 truncate">Übersicht aller aktiven und vergangenen Runden</p>
-                    </div>
-                    ${newRoundBtnHeader}
-                </div>
+               <div class="border-b border-stone-200 pb-3 flex justify-between items-end">
+                   <div>
+                       <h1 class="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">Spieltage</h1>
+                       <p class="text-xs sm:text-sm text-stone-500 mt-0.5">Übersicht aller aktiven und vergangenen Runden</p>
+                   </div>
+               </div>
    
                <!-- Filter-Schalter (Alle Runden vs. Meine Runden) -->
                <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200 max-w-xs">
