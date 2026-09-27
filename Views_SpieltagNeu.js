@@ -4,7 +4,9 @@
 // BSD (Allman) Style
 // =========================================================================
 
-app.views.spieltag_neu = function()
+app.views = app.views || {};
+
+app.views.spieltagNeu = app.views.spieltag_neu = function()
 {
     // Prefill-Daten aus Kalender auslesen
     const prefill = app.state.neuerSpieltagVorausgefuellt || {};
