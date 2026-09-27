@@ -2,7 +2,7 @@
 
 window.CONFIG =
 {
-    appVersion: '4.9.1.0',
+    appVersion: '4.9.1.1',
     appName: 'lie-scorecard',
     gasUrl: 'https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec'
 };
