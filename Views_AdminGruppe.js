@@ -6,7 +6,7 @@
 
 app.views = app.views || {};
 
-app.views.spieler = function()
+app.views.spieler = app.views.adminGruppe = function()
 {
     const currentUser = app.state.currentUser || {};
     const isAdmin = currentUser.role === 'Admin';

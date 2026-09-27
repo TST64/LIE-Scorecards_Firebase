@@ -26,7 +26,7 @@ app.router.navigate = function(viewName, params)
             html = app.views.dashboard ? app.views.dashboard() : "";
             break;
         case 'live_dashboard':
-            html = app.views.liveDashboard ? app.views.liveDashboard() : "";
+            html = (app.views.liveDashboard || app.views.live_dashboard) ? (app.views.liveDashboard || app.views.live_dashboard)() : "";
             break;
         case 'spieltage':
             html = app.views.spieltage ? app.views.spieltage(params) : "";
@@ -50,7 +50,8 @@ app.router.navigate = function(viewName, params)
             html = app.views.wetter ? app.views.wetter() : "";
             break;
         case 'spieler':
-            html = app.views.adminGruppe ? app.views.adminGruppe() : "";
+        case 'admin_gruppe':
+            html = (app.views.spieler || app.views.adminGruppe) ? (app.views.spieler || app.views.adminGruppe)() : "";
             break;
         case 'admin':
             html = app.views.admin ? app.views.admin() : "";
@@ -77,7 +78,7 @@ app.router.navigate = function(viewName, params)
     container.innerHTML = html;
     window.scrollTo(0, 0);
 
-    // Update bottom navigation bar active styles
+    // Update bottom navigation bar active styles & admin visibility
     if (typeof app.router.updateNavState === 'function')
     {
         app.router.updateNavState(viewName);
@@ -86,6 +87,21 @@ app.router.navigate = function(viewName, params)
 
 app.router.updateNavState = function(activeView)
 {
+    // Sichtbarkeit des Admin-Buttons basierend auf der Rolle steuern
+    const adminBtn = document.getElementById('nav-admin');
+    const currentUser = app.state.currentUser;
+    if (adminBtn)
+    {
+        if (currentUser && currentUser.role === 'Admin')
+        {
+            adminBtn.classList.remove('hidden');
+        }
+        else
+        {
+            adminBtn.classList.add('hidden');
+        }
+    }
+
     const navBtns = document.querySelectorAll('.nav-btn');
     navBtns.forEach(function(btn)
     {
@@ -118,7 +134,7 @@ app.router.updateNavState = function(activeView)
         const el = document.getElementById('nav-players');
         if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
     }
-    else if (activeView === 'admin')
+    else if (activeView === 'admin' || activeView === 'admin_gruppe')
     {
         const el = document.getElementById('nav-admin');
         if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-amber-600'); }

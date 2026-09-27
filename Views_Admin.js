@@ -19,7 +19,7 @@ app.views.admin = function()
     }
 
     const spielerListe = app.state.spieler || [];
-    const saisonStart = app.state.saisonStartDatum || '2026-10-01';
+    const saisonStart = app.state.saisonStartDatum || '2026-01-01';
 
     let spielerOptionsHtml = '';
     spielerListe.forEach(function(s)
@@ -41,7 +41,7 @@ app.views.admin = function()
             '</div>' +
 
             '<!-- SAISON-MANAGEMENT -->' +
-            '<div class="bg-gradient-to-br from-emerald-900 to-zinc-900 text-white border border-emerald-800/80 rounded-2xl p-5 space-y-3 shadow-md">' +
+            '<div class="bg-gradient-to-br from-emerald-900 to-zinc-900 text-white border border-emerald-800/80 rounded-2xl p-5 space-y-4 shadow-md">' +
                 '<div class="flex items-center gap-2.5 border-b border-white/10 pb-2.5">' +
                     '<div class="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center text-sm">' +
                         '<i class="fas fa-flag-checkered"></i>' +
@@ -49,6 +49,17 @@ app.views.admin = function()
                     '<div>' +
                         '<h3 class="font-extrabold text-sm text-white">Saison-Verwaltung</h3>' +
                         '<p class="text-[10px] text-emerald-200/80">Aktive Saison gestartet am: ' + saisonStart + '</p>' +
+                    '</div>' +
+                '</div>' +
+
+                '<!-- SAISONSTART DATUM ÄNDERN -->' +
+                '<div class="space-y-2 bg-emerald-950/60 p-3 rounded-xl border border-emerald-700/50">' +
+                    '<label class="block text-xs font-bold text-emerald-200">Saison-Startdatum festlegen:</label>' +
+                    '<div class="flex gap-2">' +
+                        '<input type="date" id="admin-saison-start-input" value="' + saisonStart + '" class="bg-zinc-100 text-zinc-900 font-bold text-xs p-2.5 rounded-xl flex-1 focus:outline-none focus:ring-2 focus:ring-amber-400" />' +
+                        '<button onclick="app.logic.updateSaisonStartDatum()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shrink-0 touch-target">' +
+                            '<i class="fas fa-save mr-1"></i> Speichern' +
+                        '</button>' +
                     '</div>' +
                 '</div>' +
 
@@ -78,7 +89,7 @@ app.views.admin = function()
                     'Handicaps anpassen, Rollen vergeben oder PINs der Mitglieder zurücksetzen.' +
                 '</p>' +
 
-                '<button onclick="app.router.navigate(\'admin_gruppe\')" class="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 touch-target">' +
+                '<button onclick="app.router.navigate(\'spieler\')" class="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 touch-target">' +
                     '<i class="fas fa-user-edit"></i>' +
                     '<span>Spielerliste bearbeiten</span>' +
                 '</button>' +
@@ -104,6 +115,47 @@ app.views.admin = function()
                 '</div>' +
             '</div>' +
         '</div>';
+};
+
+// Hilfsfunktion: Saisonstart-Datum in Firestore speichern
+app.logic.updateSaisonStartDatum = async function()
+{
+    const input = document.getElementById('admin-saison-start-input');
+    if (!input || !input.value)
+    {
+        if (typeof app.logic.showToast === 'function')
+        {
+            app.logic.showToast("Bitte wähle ein gültiges Datum aus.", "warning");
+        }
+        return;
+    }
+
+    const newDate = input.value;
+    try
+    {
+        if (app.db)
+        {
+            await app.db.collection('config').doc('saison').set({
+                saisonStartDatum: newDate
+            }, { merge: true });
+        }
+        
+        app.state.saisonStartDatum = newDate;
+
+        if (typeof app.logic.showToast === 'function')
+        {
+            app.logic.showToast("Saisonstart auf " + newDate + " aktualisiert!", "success");
+        }
+        app.router.navigate('admin');
+    }
+    catch (err)
+    {
+        console.error("[Admin Saison] Fehler:", err);
+        if (typeof app.logic.showToast === 'function')
+        {
+            app.logic.showToast("Fehler beim Speichern des Saisonstarts.", "error");
+        }
+    }
 };
 
 // Hilfsfunktion: Spieler über Admin-Bereich löschen

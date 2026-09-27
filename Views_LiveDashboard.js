@@ -6,10 +6,15 @@
 
 app.views = app.views || {};
 
-app.views.live_dashboard = function()
+// Zuweisung für CamelCase (Router) & Unterstrich (Abwärtskompatibilität)
+app.views.liveDashboard = app.views.live_dashboard = function()
 {
     const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
-    const saisonStart = app.state.saisonStartDatum || '2020-01-01';
+    
+    // Saisonstart flexibel wählen (Fallback auf 2026-01-01, damit September 2026 sicher dabei ist)
+    const saisonStart = (app.state.saisonStartDatum && app.state.saisonStartDatum < '2026-09-01') 
+        ? app.state.saisonStartDatum 
+        : '2026-01-01';
 
     // Runden für die aktuelle Saison filtern
     const saisonRunden = (app.state.spieltage || []).filter(
@@ -25,7 +30,10 @@ app.views.live_dashboard = function()
 
             const statusNorm = String(st.status || '').toLowerCase().trim();
             const isDone = (statusNorm === 'beendet' || statusNorm === 'abgeschlossen');
-            const dateOk = st.date ? (st.date >= saisonStart) : true;
+            
+            // Flexibel auf date oder datum prüfen
+            const rundenDatum = st.date || st.datum || '';
+            const dateOk = rundenDatum ? (rundenDatum >= saisonStart) : true;
 
             return isDone && dateOk;
         }
@@ -72,7 +80,7 @@ app.views.live_dashboard = function()
                     scs.forEach(
                         function(sc)
                         {
-                            const rawPutt = sc.putts !== undefined ? sc.putts : sc.putt;
+                            const rawPutt = sc.putts !== undefined ? sc.putts : (sc.puts !== undefined ? sc.puts : sc.putt);
                             if (rawPutt !== undefined && rawPutt !== null && String(rawPutt).trim() !== "")
                             {
                                 const puttsVal = parseInt(rawPutt);
@@ -117,7 +125,7 @@ app.views.live_dashboard = function()
                     const ids = String(st.teilnehmerCsv || "").split(',').map(i => i.trim());
                     return ids.includes(String(sp.id).trim());
                 }
-            ).sort((a, b) => new Date(b.date) - new Date(a.date));
+            ).sort((a, b) => new Date(b.date || b.datum) - new Date(a.date || a.datum));
 
             rundenGespielt = spRunden.length;
 
@@ -149,7 +157,7 @@ app.views.live_dashboard = function()
                                 if (strokes === par) pars++;
                             }
 
-                            const ladyVal = parseInt(sc.ladies) || parseInt(sc.lady) || 0;
+                            const ladyVal = parseInt(sc.ladies) || parseInt(sc.lady) || (sc.lady === true ? 1 : 0);
                             if (ladyVal > 0) ladies += ladyVal;
                         }
                     );
@@ -188,7 +196,7 @@ app.views.live_dashboard = function()
                                     ? app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe) 
                                     : (strokes > 0 ? 1 : 0);
 
-                                if (strokes === 0 || netto === 0)
+                                if (strokes === 0 || netto === 0 || sc.maxscore === true || sc.isStrich === true)
                                 {
                                     strichCountLast10++;
                                 }
