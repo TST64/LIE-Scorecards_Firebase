@@ -198,13 +198,19 @@ app.logic.deletePlayer = function(spielerId)
                 {
                     if (response && response.success)
                     {
-                        app.state.spieler = app.state.spieler.filter(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
+                        if (app.state && app.state.spieler)
+                        {
+                            // KORREKTUR: Filtert NUR den gelöschten Spieler heraus
+                            app.state.spieler = app.state.spieler.filter(function(s) { 
+                                return String(s.id).trim() !== String(spielerId).trim(); 
+                            });
+                        }
                         app.logic.showToast("Spieler erfolgreich gelöscht.", "success");
-                        app.router.navigate('spieler');
+                        if (app.router && typeof app.router.navigate === 'function') app.router.navigate('spieler');
                     }
                     else
                     {
-                        app.logic.showToast("Fehler beim Löschen: " + response.error, "error");
+                        app.logic.showToast("Fehler beim Löschen: " + (response ? response.error : "Unbekannt"), "error");
                     }
                 });
         }

@@ -4,9 +4,6 @@
 // BSD (Allman) Style
 // =========================================================================
 
-var app = app || {};
-app.views = app.views || {};
-
 app.views.dashboard = function()
 {
     const user = app.state.currentUser;
@@ -329,13 +326,4 @@ app.views.dashboard = function()
             </div>
         </div>
     `;
-};
-
-app.views.renderDashboard = function()
-{
-    const container = document.getElementById('view-container');
-    if (container)
-    {
-        container.innerHTML = app.views.dashboard();
-    }
 };
