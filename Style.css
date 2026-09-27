@@ -63,6 +63,7 @@
   
   .view-content {
     padding: 16px;
+    padding-top: 75px; /* Abstand zur fixierten Header-Leiste ganz oben */
     animation: fadeIn 0.2s ease-in-out;
   }
   
