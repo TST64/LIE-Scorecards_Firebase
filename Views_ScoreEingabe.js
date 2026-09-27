@@ -4,13 +4,31 @@
 // BSD (Allman) Style
 // =========================================================================
 
-app.views.score_eingabe = function(spieltagId, holeNumber, targetFlightSeq)
+app.views = app.views || {};
+
+app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, holeNumberParam, targetFlightSeqParam)
 {
-    const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-    const kurs = app.state.kurse.find(function(k) { return String(k.id) === String(spieltag.kursId); });
+    // Parameter entpacken (falls als Objekt vom Router oder als Einzelparameter übergeben)
+    let spieltagId = spieltagIdParam;
+    let holeNumber = holeNumberParam;
+    let targetFlightSeq = targetFlightSeqParam;
+
+    if (typeof spieltagIdParam === 'object' && spieltagIdParam !== null)
+    {
+        spieltagId = spieltagIdParam.id || spieltagIdParam.spieltagId;
+        holeNumber = spieltagIdParam.hole || spieltagIdParam.holeNumber;
+        targetFlightSeq = spieltagIdParam.flightSeq || spieltagIdParam.targetFlightSeq;
+    }
+
+    // LiveScores-State absichern
+    app.state.liveScores = app.state.liveScores || {};
+
+    const spieltage = app.state.spieltage || [];
+    const spieltag = spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
+    const kurs = (app.state.kurse || []).find(function(k) { return spieltag && String(k.id) === String(spieltag.kursId); });
     
     const is9Loch = (spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9')));
-    const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(spieltag.kursId).trim(); });
+    const kursBahnen = (app.state.bahnen || []).filter(function(b) { return spieltag && String(b.kursId).trim() === String(spieltag.kursId).trim(); });
     kursBahnen.sort(function(a, b) { return parseInt(a.nr) - parseInt(b.nr); });
 
     // Bahnbereich basierend auf Rundentyp festlegen (1-9, 10-18 oder 1-18)
@@ -148,13 +166,13 @@ app.views.score_eingabe = function(spieltagId, holeNumber, targetFlightSeq)
     // Spieler-Karten generieren
     let spielerKartenHtml = teilnehmerIds.map(function(spielerId)
     {
-        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
+        const spieler = (app.state.spieler || []).find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
         if (!spieler) 
         {
             return "";
         }
 
-        let spielvorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahnDaten.si, is9Loch);
+        let spielvorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : null, bahnDaten.si, is9Loch);
         const maxErlaubteSchlaege = parseInt(bahnDaten.par) + parseInt(spielvorgabe) + 2;
         
         const currentScoreKey = `${spieltagId}_${spielerId}_${currentHoleNr}`;
@@ -162,7 +180,7 @@ app.views.score_eingabe = function(spieltagId, holeNumber, targetFlightSeq)
         const currentPutsKey = `${spieltagId}_${spielerId}_${currentHoleNr}_puts`;
         const currentMaxScoreKey = `${spieltagId}_${spielerId}_${currentHoleNr}_maxscore`;
 
-        const dbScores = app.state.scoreCards.filter(function(sc) { return String(sc.spieltagId) === String(spieltagId) && String(sc.spielerId) === String(spielerId); });
+        const dbScores = (app.state.scoreCards || []).filter(function(sc) { return String(sc.spieltagId) === String(spieltagId) && String(sc.spielerId) === String(spielerId); });
         const dbMatch = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === currentHoleNr; });
         
         const hatDbScore = dbMatch ? parseInt(dbMatch.strokes) : undefined;
@@ -250,7 +268,7 @@ app.views.score_eingabe = function(spieltagId, holeNumber, targetFlightSeq)
                 <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; background-color: #e4e4e7; border: 1px solid #d4d4d8; padding: 4px; border-radius: 12px;">
                     
                     <!-- Lady -->
-                    <button id="lady-btn-${spielerId}" onclick="app.logic.toggleLiveBoolean('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'lady')" class="${ladyBtnStyle} select-none" style="grid-column: span 1 / span 1; display: flex; items-center; justify-content: center; height: 32px !important; min-height: 32px !important; border-radius: 8px; border: 1px solid #d4d4d8; padding: 0; margin: 0;">
+                    <button id="lady-btn-${spielerId}" onclick="app.logic.toggleLiveBoolean('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'lady')" class="${ladyBtnStyle} select-none" style="grid-column: span 1 / span 1; display: flex; align-items: center; justify-content: center; height: 32px !important; min-height: 32px !important; border-radius: 8px; border: 1px solid #d4d4d8; padding: 0; margin: 0;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
                             <i class="fas ${aktuelleLady ? 'fa-beer-mug-empty' : 'fa-wine-glass-empty'}" style="font-size: 11px;"></i>
                             <span style="font-size: 9px; text-transform: uppercase; font-weight: 900; letter-spacing: -0.05em;">${aktuelleLady ? '🍻' : 'Lady'}</span>
