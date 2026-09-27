@@ -1,5 +1,5 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Router Module
+// BMAssistent / LIE Scorecard - Client-Side Router
 // App_Router.js
 // BSD (Allman) Style
 // =========================================================================
@@ -7,177 +7,120 @@
 var app = app || {};
 app.router = app.router || {};
 
-app.router.currentView = null;
-app.router.currentParams = null;
-
 app.router.navigate = function(viewName, params)
 {
-    if (app.state.liveScores && Object.keys(app.state.liveScores).length > 0)
+    // Auto-sync pending scores before changing views
+    if (typeof app.logic.syncPendingScores === 'function')
     {
-        console.log("[Router Guard] Ungesicherte Scores entdeckt. Starte Auto-Sync...");
-        
-        let activeSpieltagId = params ? params.id : null;
-        let activeFlightSeq = params ? params.flightSeq : 1;
-        
-        if (!activeSpieltagId && app.state.spieltage)
-        {
-            const aktRunde = app.state.spieltage.find(function(st) { return st.status === 'Aktiv'; });
-            if (aktRunde) activeSpieltagId = aktRunde.id;
-        }
-        
-        if (activeSpieltagId)
-        {
-            app.logic.syncScoresWithServer(activeSpieltagId, activeFlightSeq);
-        }
+        app.logic.syncPendingScores();
     }
-
-    if (app.logic && typeof app.logic.stopLivePolling === 'function')
-    {
-        app.logic.stopLivePolling();
-    }
-
-    const loadingEl = document.getElementById('app-loading');
-    if (loadingEl)
-    {
-        loadingEl.classList.add('hidden');
-    }
-
-    app.state = app.state || {};
-    app.state.spieler = app.state.spieler || [];
-    app.state.spieltage = app.state.spieltage || [];
-    app.state.scoreCards = app.state.scoreCards || [];
-    app.state.kalenderTermine = app.state.kalenderTermine || [];
-    app.state.liveScores = app.state.liveScores || {};
-
-    const targetView = viewName || 'login';
-    app.router.currentView = targetView;
-    app.router.currentParams = params || null;
-    app.state.currentView = targetView;
-
-    app.router.updateNavigationUI(targetView);
 
     const container = document.getElementById('app-container');
-    if (!container)
+    if (!container) return;
+
+    let html = "";
+
+    switch (viewName)
     {
-        console.error('[Router] Container #app-container im DOM nicht gefunden.');
-        return;
+        case 'dashboard':
+            html = app.views.dashboard ? app.views.dashboard() : "";
+            break;
+        case 'live_dashboard':
+            html = app.views.liveDashboard ? app.views.liveDashboard() : "";
+            break;
+        case 'spieltage':
+            html = app.views.spieltage ? app.views.spieltage(params) : "";
+            break;
+        case 'spieltag_neu':
+            html = app.views.spieltagNeu ? app.views.spieltagNeu() : "";
+            break;
+        case 'score_eingabe':
+            html = app.views.scoreEingabe ? app.views.scoreEingabe(params) : "";
+            break;
+        case 'leaderboard':
+            html = app.views.leaderboard ? app.views.leaderboard(params) : "";
+            break;
+        case 'golfplaetze':
+            html = app.views.golfplaetze ? app.views.golfplaetze() : "";
+            break;
+        case 'kalender':
+            html = app.views.kalender ? app.views.kalender() : "";
+            break;
+        case 'wetter':
+            html = app.views.wetter ? app.views.wetter() : "";
+            break;
+        case 'spieler':
+            html = app.views.adminGruppe ? app.views.adminGruppe() : "";
+            break;
+        case 'admin':
+            html = app.views.admin ? app.views.admin() : "";
+            break;
+        case 'spieler_edit':
+            html = app.views.spielerEdit ? app.views.spielerEdit(params) : "";
+            break;
+        case 'hilfe':
+        case 'help':
+            if (typeof app.views.help === 'function')
+            {
+                html = app.views.help();
+            }
+            else if (typeof app.views.hilfe === 'function')
+            {
+                html = app.views.hilfe();
+            }
+            break;
+        default:
+            html = app.views.dashboard ? app.views.dashboard() : "";
+            break;
     }
 
-    let p1 = params;
-    let p2 = undefined;
-    let p3 = undefined;
-
-    if (params && typeof params === 'object')
-    {
-        p1 = params.id !== undefined ? params.id : params.hole;
-        p2 = params.mode !== undefined ? params.mode : params.hole;
-        p3 = params.flightSeq !== undefined ? params.flightSeq : undefined;
-    }
-
-    if (app.views && typeof app.views[targetView] === 'function')
-    {
-        container.innerHTML = app.views[targetView](p1, p2, p3);
-
-        if (targetView === 'leaderboard' && params && params.id)
-        {
-            app.logic.startLivePolling(params.id);
-        }
-        else if (targetView === 'score_eingabe' && params && params.id && params.hole)
-        {
-            app.logic.startLivePolling(params.id, params.hole, params.flightSeq);
-        }
-    }
-    else if (app.views && typeof app.views.dashboard === 'function')
-    {
-        console.warn('[Router] View "' + targetView + '" nicht gefunden. Lade Dashboard-Fallback.');
-        app.router.currentView = 'dashboard';
-        container.innerHTML = app.views.dashboard();
-    }
-    else
-    {
-        console.error('[Router] Keine passende View zum Rendern gefunden.');
-    }
-
+    container.innerHTML = html;
     window.scrollTo(0, 0);
-};
 
-app.router.renderCurrentView = function()
-{
-    if (app.router.currentView)
+    // Update bottom navigation bar active styles
+    if (typeof app.router.updateNavState === 'function')
     {
-        app.router.navigate(app.router.currentView, app.router.currentParams);
-    }
-    else
-    {
-        const defaultTarget = (app.state && app.state.currentUser) ? 'dashboard' : 'login';
-        app.router.navigate(defaultTarget);
+        app.router.updateNavState(viewName);
     }
 };
 
-app.router.updateNavigationUI = function(viewName)
+app.router.updateNavState = function(activeView)
 {
-    if (app.logic && typeof app.logic.updateHeaderRoleIcon === 'function')
+    const navBtns = document.querySelectorAll('.nav-btn');
+    navBtns.forEach(function(btn)
     {
-        app.logic.updateHeaderRoleIcon();
+        btn.classList.remove('text-emerald-700', 'text-amber-600', 'text-emerald-600');
+        btn.classList.add('text-zinc-400');
+    });
+
+    if (activeView === 'dashboard')
+    {
+        const el = document.getElementById('nav-dash');
+        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
     }
-
-    const actionBtn = document.getElementById('header-action-btn');
-    const navBar = document.getElementById('bottom-nav');
-    const adminNavBtn = document.getElementById('nav-admin');
-
-    if (!actionBtn || !navBar) return;
-
-    const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
-    const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
-
-    if (viewName === 'spieltage' && isLeiter)
+    else if (activeView === 'live_dashboard')
     {
-        actionBtn.classList.remove('hidden');
+        const el = document.getElementById('nav-stats');
+        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
     }
-    else
+    else if (activeView === 'spieltage' || activeView === 'spieltag_neu' || activeView === 'score_eingabe' || activeView === 'leaderboard')
     {
-        actionBtn.classList.add('hidden');
+        const el = document.getElementById('nav-rounds');
+        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
     }
-
-    if (adminNavBtn)
+    else if (activeView === 'kalender')
     {
-        if (isAdmin)
-        {
-            adminNavBtn.classList.remove('hidden');
-        }
-        else
-        {
-            adminNavBtn.classList.add('hidden');
-        }
+        const el = document.getElementById('nav-calendar');
+        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-600'); }
     }
-
-    if (viewName === 'login')
+    else if (activeView === 'spieler' || activeView === 'spieler_edit')
     {
-        navBar.classList.add('hidden');
+        const el = document.getElementById('nav-players');
+        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
     }
-    else
+    else if (activeView === 'admin')
     {
-        navBar.classList.remove('hidden');
-        
-        document.querySelectorAll('#bottom-nav button').forEach(function(btn)
-        {
-            btn.classList.remove('text-emerald-600', 'font-bold');
-            btn.classList.add('text-stone-400');
-        });
-
-        let activeTabId = "";
-        if (viewName === 'dashboard') activeTabId = 'nav-dash';
-        if (viewName === 'live_dashboard') activeTabId = 'nav-stats';
-        if (viewName === 'kalender') activeTabId = 'nav-calendar';
-        if (viewName === 'spieltage' || viewName === 'spieltag_neu' || viewName === 'leaderboard') activeTabId = 'nav-rounds';
-        if (viewName === 'spieler' || viewName === 'spieler_edit') activeTabId = 'nav-players';
-        if (viewName === 'admin') activeTabId = 'nav-admin';
-
-        const activeBtn = document.getElementById(activeTabId);
-        if (activeBtn)
-        {
-            activeBtn.classList.remove('text-stone-400');
-            activeBtn.classList.add('text-emerald-600', 'font-bold');
-        }
+        const el = document.getElementById('nav-admin');
+        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-amber-600'); }
     }
 };
