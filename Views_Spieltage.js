@@ -11,6 +11,18 @@
        let activeFilter = filterParam || app.state.spieltageFilterMode || 'all';
        app.state.spieltageFilterMode = activeFilter;
    
+       // Button für Spielleiter/Admins definieren
+       let newRoundBtnHeader = "";
+       if (isLeiter)
+       {
+           newRoundBtnHeader = `
+               <button onclick="app.router.navigate('spieltag_neu')" 
+                       class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5 touch-target shrink-0">
+                   <i class="fas fa-plus"></i> Neue Runde
+               </button>
+           `;
+       }
+   
        // 1. Alle aktiven (nicht gelöschten/abgebrochenen) Runden filtern
        const activeRounds = app.state.spieltage ? app.state.spieltage.filter(function(st) 
        {
@@ -47,11 +59,12 @@
        let html = `
            <div class="space-y-5 max-w-4xl mx-auto pb-12">
                <!-- Header Section -->
-               <div class="border-b border-stone-200 pb-3 flex justify-between items-end">
+               <div class="border-b border-stone-200 pb-3 flex justify-between items-center">
                    <div>
                        <h1 class="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">Spieltage</h1>
                        <p class="text-xs sm:text-sm text-stone-500 mt-0.5">Übersicht aller aktiven und vergangenen Runden</p>
                    </div>
+                   ${newRoundBtnHeader}
                </div>
    
                <!-- Filter-Schalter (Alle Runden vs. Meine Runden) -->

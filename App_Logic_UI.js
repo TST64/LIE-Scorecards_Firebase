@@ -91,7 +91,7 @@ app.logic.showToast = function(text, type)
     }, 3200);
 };
 
-app.logic.showConfirm = function(title, message, mode, onConfirm)
+app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel)
 {
     const modal = document.getElementById('global-confirm-modal');
     const box = document.getElementById('confirm-modal-box');
@@ -134,6 +134,7 @@ app.logic.showConfirm = function(title, message, mode, onConfirm)
 
     btnCancel.onclick = function() {
         closeModal();
+        if (typeof onCancel === 'function') onCancel();
     };
 
     btnSubmit.onclick = function() {

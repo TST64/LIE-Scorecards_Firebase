@@ -220,6 +220,8 @@ app.logic.saveManualFlights = function()
         }
     });
 
+    const createdFromKalender = !!app.state.tempKalenderId;
+
     app.logic.apiRequest('createNewSpieltag', { spieltagObj: spieltagObj, flightsPayload: flightsPayload })
         .then(function(response)
         {
@@ -230,7 +232,27 @@ app.logic.saveManualFlights = function()
                 app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und manuelle Flights angelegt!", "success");
-                app.router.navigate('spieltage');
+
+                if (createdFromKalender)
+                {
+                    app.logic.showConfirm(
+                        "Spieltag direkt öffnen?", 
+                        "Möchtest du diesen Spieltag direkt öffnen, um Scores einzugeben?", 
+                        "standard", 
+                        function() 
+                        {
+                            app.router.navigate('score_eingabe', { id: spieltagId, hole: 1, flightSeq: 1 });
+                        },
+                        function() 
+                        {
+                            app.router.navigate('spieltage');
+                        }
+                    );
+                }
+                else
+                {
+                    app.router.navigate('spieltage');
+                }
             }
             else
             {
@@ -383,6 +405,8 @@ app.logic.saveZufallsFlights = function()
         };
     });
 
+    const createdFromKalender = !!app.state.tempKalenderId;
+
     app.logic.apiRequest('createNewSpieltag', { spieltagObj: spieltagObj, flightsPayload: flightsPayload })
         .then(function(response)
         {
@@ -393,7 +417,27 @@ app.logic.saveZufallsFlights = function()
                 app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und Flights generiert!", "success");
-                app.router.navigate('spieltage');
+
+                if (createdFromKalender)
+                {
+                    app.logic.showConfirm(
+                        "Spieltag direkt öffnen?", 
+                        "Möchtest du diesen Spieltag direkt öffnen, um Scores einzugeben?", 
+                        "standard", 
+                        function() 
+                        {
+                            app.router.navigate('score_eingabe', { id: spieltagId, hole: 1, flightSeq: 1 });
+                        },
+                        function() 
+                        {
+                            app.router.navigate('spieltage');
+                        }
+                    );
+                }
+                else
+                {
+                    app.router.navigate('spieltage');
+                }
             }
             else
             {
