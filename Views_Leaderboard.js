@@ -6,16 +6,29 @@
 
 app.views = app.views || {};
 
-app.views.leaderboard = function(spieltagId, activeTab)
+app.views.leaderboard = function(spieltagIdParam, activeTabParam)
 {
     if (!app.state.leaderboardViewMode)
     {
         app.state.leaderboardViewMode = 'matrix';
     }
     
-    const mode = activeTab || 'netto';
+    // Parameter-Unpacking: Unterscheide zwischen String und Objekt vom Router
+    let spieltagId = "";
+    let mode = 'netto';
+
+    if (typeof spieltagIdParam === 'object' && spieltagIdParam !== null)
+    {
+        spieltagId = spieltagIdParam.id || spieltagIdParam.spieltagId || "";
+        mode = spieltagIdParam.mode || activeTabParam || 'netto';
+    }
+    else if (typeof spieltagIdParam === 'string')
+    {
+        spieltagId = spieltagIdParam;
+        mode = activeTabParam || 'netto';
+    }
     
-    // 1. SPIELTAG RESOLVER (Falls keine ID übergeben wurde, wähle aktiven / neuesten Spieltag)
+    // 1. SPIELTAG RESOLVER
     let spieltag = null;
     if (spieltagId)
     {
@@ -139,7 +152,7 @@ app.views.leaderboard = function(spieltagId, activeTab)
         );
     }
 
-    // Bahnen festlegen (Standard 18 Loch)
+    // Bahnen festlegen
     const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
     const kursBahnen = (app.state.bahnen || []).filter(
         function(b) 
@@ -207,10 +220,12 @@ app.views.leaderboard = function(spieltagId, activeTab)
                         const dbMatch = dbScores.find(
                             function(sc) 
                             { 
-                                return sc.hole !== undefined && parseInt(sc.hole) === hNr; 
+                                if (sc.hole === undefined || sc.hole === null) return false;
+                                const scHole = parseInt(sc.hole);
+                                return scHole === hNr || scHole === (hNr - 9); 
                             }
                         );
-                        if (dbMatch) 
+                        if (dbMatch && dbMatch.strokes !== undefined && dbMatch.strokes !== null && dbMatch.strokes !== "") 
                         {
                             strokes = parseInt(dbMatch.strokes);
                         }
@@ -397,12 +412,27 @@ app.views.leaderboard = function(spieltagId, activeTab)
             </div>
         `;
     }
+    else if (spieltag && spieltag.status === 'Beendet')
+    {
+        closeRoundBannerHtml = `
+            <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-2xs">
+                <div class="flex items-center space-x-2 text-emerald-900 text-xs">
+                    <i class="fas fa-flag-checkered text-emerald-600"></i>
+                    <span class="font-bold">Runde beendet</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px]">
+                    ${spieltag.bruttoSieger ? `<span class="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">🏆 ${spieltag.bruttoSieger}</span>` : ''}
+                    ${spieltag.nettoSieger ? `<span class="bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold">🥇 ${spieltag.nettoSieger}</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
 
     return `
         <div class="space-y-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2">
-                    <button onclick="app.router.navigate('dashboard')" class="text-zinc-500 touch-target"><i class="fas fa-arrow-left"></i></button>
+                    <button onclick="app.router.navigate('spieltage')" class="text-zinc-500 touch-target"><i class="fas fa-arrow-left"></i></button>
                     <div>
                         <h2 class="text-base font-bold text-zinc-800">Live-Leaderboard</h2>
                         <p class="text-xs text-zinc-400 -mt-1">${platz ? platz.name : (spieltag ? spieltag.date : 'Turnier')}</p>
@@ -410,10 +440,10 @@ app.views.leaderboard = function(spieltagId, activeTab)
                 </div>
                 
                 <div class="flex bg-zinc-100 border border-zinc-200 rounded-lg p-0.5">
-                    <button onclick="app.state.leaderboardViewMode='matrix'; app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'matrix' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
+                    <button onclick="app.state.leaderboardViewMode='matrix'; app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'matrix' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
                         <i class="fas fa-table"></i>
                     </button>
-                    <button onclick="app.state.leaderboardViewMode='list'; app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'list' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
+                    <button onclick="app.state.leaderboardViewMode='list'; app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'list' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
                         <i class="fas fa-list"></i>
                     </button>
                 </div>
@@ -422,10 +452,10 @@ app.views.leaderboard = function(spieltagId, activeTab)
             ${closeRoundBannerHtml}
 
             <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200">
-                <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
+                <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
                     <i class="fas fa-star mr-1"></i> Netto (Stableford)
                 </button>
-                <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'brutto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'brutto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
+                <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: 'brutto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'brutto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
                     <i class="fas fa-trophy mr-1"></i> Brutto (Zählspiel)
                 </button>
             </div>
@@ -434,7 +464,7 @@ app.views.leaderboard = function(spieltagId, activeTab)
                 ${app.state.leaderboardViewMode === 'matrix' ? matrixHtml : rowsListHtml}
             </div>
 
-            <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="w-full bg-zinc-100 border border-zinc-200 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-xs transition">
+            <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: '${mode}' })" class="w-full bg-zinc-100 border border-zinc-200 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-xs transition">
                 <i class="fas fa-sync-alt mr-1"></i> Rangliste aktualisieren
             </button>
         </div>
@@ -504,7 +534,9 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
             const match = dbScores.find(
                 function(sc)
                 {
-                    return sc.hole !== undefined && parseInt(sc.hole) === hNr;
+                    if (sc.hole === undefined || sc.hole === null) return false;
+                    const scHole = parseInt(sc.hole);
+                    return scHole === hNr || scHole === (hNr - 9);
                 }
             );
             

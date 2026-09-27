@@ -274,6 +274,16 @@ app.views.dashboard = function()
 
             <!-- SCHNELLSTART-KACHELN -->
             <div class="grid grid-cols-2 gap-2.5">
+                <button onclick="app.router.navigate('live_dashboard')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
+                    <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center text-sm shrink-0 transition">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="truncate">
+                        <span class="block font-bold text-zinc-800 text-xs truncate">Saison Stats</span>
+                        <span class="block text-[9px] text-zinc-400 font-medium truncate">Kaiser & KPIs</span>
+                    </div>
+                </button>
+
                 <button onclick="app.router.navigate('golfplaetze')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
                     <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm shrink-0 transition">
                         <i class="fas fa-map-marked-alt"></i>
@@ -304,7 +314,7 @@ app.views.dashboard = function()
                     </div>
                 </button>
 
-                <button onclick="window.open('${gameUrl}', '_blank')" class="p-2.5 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-xl text-left hover:border-amber-300 transition shadow-xs group flex items-center gap-2.5 touch-target">
+                <button onclick="window.open('${gameUrl}', '_blank')" class="col-span-2 p-2.5 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-xl text-left hover:border-amber-300 transition shadow-xs group flex items-center gap-2.5 touch-target">
                     <div class="w-8 h-8 rounded-lg bg-amber-100/80 text-amber-700 flex items-center justify-center text-sm shrink-0 transition">
                         <i class="fas fa-gamepad"></i>
                     </div>
