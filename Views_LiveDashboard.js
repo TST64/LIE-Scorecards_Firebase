@@ -11,10 +11,8 @@ app.views.liveDashboard = app.views.live_dashboard = function()
 {
     const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
     
-    // Saisonstart flexibel wählen (Fallback auf 2026-01-01, damit September 2026 sicher dabei ist)
-    const saisonStart = (app.state.saisonStartDatum && app.state.saisonStartDatum < '2026-09-01') 
-        ? app.state.saisonStartDatum 
-        : '2026-01-01';
+    // Saisonstart direkt übernehmen (Fallback nur falls gar kein Datum gesetzt ist)
+    const saisonStart = app.state.saisonStartDatum || '2026-01-01';
 
     // Runden für die aktuelle Saison filtern
     const saisonRunden = (app.state.spieltage || []).filter(

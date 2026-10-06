@@ -1,5 +1,5 @@
 ======================================================================
-PROJEKT-DUMP: LIE Scorecards_Firebase
+PROJEKT-DUMP: 20260920_1643
 ======================================================================
 Diese Datei enthält den zusammengesetzten Quellcode des Projekts.
 Inhalt:
@@ -9,8 +9,7 @@ Inhalt:
 ======================================================================
 
 PROJEKTSTRUKTUR:
-/LIE Scorecards_Firebase
-├── img/
+/20260920_1643
 ├── App_Core.js
 ├── App_Logic_Bridge.js
 ├── App_Logic_Scores.js
@@ -814,7 +813,7 @@ app.logic.getGolfWeather = function(callback)
 ##### <App_Logic_Scores.js>:
 ----------------------------------------------------------------------
 // =========================================================================
-// BMAssistent / LIE Scorecard - Live-Scoring & Calculations (mit 9/18 Loch Support)
+// BMAssistent / LIE Scorecard - Live-Scoring & Calculations
 // App_Logic_Scores.js
 // BSD (Allman) Style
 // =========================================================================
@@ -822,19 +821,13 @@ app.logic.getGolfWeather = function(callback)
 var app = app || {};
 app.logic = app.logic || {};
 
-app.logic.calculateHoleVorgabe = function(spieler, kursId, holeSi, is9LochRound)
+app.logic.calculateHoleVorgabe = function(spieler, kursId, holeSi)
 {
     const hcp = parseFloat(spieler ? spieler.hcpLIE : 54.0) || 54.0;
     const hcpsForKurs = (app.state.handicaps || []).filter(function(h) { return String(h.kursId).trim() === String(kursId).trim(); });
     
     let vorgabeMatch = hcpsForKurs.find(function(h) { return parseFloat(h.vorgabe) === hcp; });
     let spielvorgabeTotal = vorgabeMatch ? parseInt(vorgabeMatch.spielvorgabe) : Math.round(hcp);
-
-    // Bei einer 9-Loch-Runde halbiert sich die Spielvorgabe gerundet
-    if (is9LochRound)
-    {
-        spielvorgabeTotal = Math.round(spielvorgabeTotal / 2);
-    }
 
     let basisSchlaege = Math.floor(spielvorgabeTotal / 18);
     let restSchlaege = spielvorgabeTotal % 18;
@@ -1069,11 +1062,10 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
 
         const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
         const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-        const is9Loch = (spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9')));
         const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId) === String(spieltag ? spieltag.kursId : ""); });
         const bahn = kursBahnen.find(function(b) { return parseInt(b.nr) === holeNr; }) || { si: 10 };
 
-        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si, is9Loch);
+        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si);
 
         scoresPayload.push({
             id: `SC-${spieltagId}-${spielerId}-${holeNr}`,
@@ -1345,19 +1337,13 @@ app.logic.deletePlayer = function(spielerId)
                 {
                     if (response && response.success)
                     {
-                        if (app.state && app.state.spieler)
-                        {
-                            // KORREKTUR: Filtert NUR den gelöschten Spieler heraus
-                            app.state.spieler = app.state.spieler.filter(function(s) { 
-                                return String(s.id).trim() !== String(spielerId).trim(); 
-                            });
-                        }
+                        app.state.spieler = app.state.spieler.filter(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
                         app.logic.showToast("Spieler erfolgreich gelöscht.", "success");
-                        if (app.router && typeof app.router.navigate === 'function') app.router.navigate('spieler');
+                        app.router.navigate('spieler');
                     }
                     else
                     {
-                        app.logic.showToast("Fehler beim Löschen: " + (response ? response.error : "Unbekannt"), "error");
+                        app.logic.showToast("Fehler beim Löschen: " + response.error, "error");
                     }
                 });
         }
@@ -1391,121 +1377,11 @@ app.logic.logout = function()
     );
 };
 
-/**
- * Resets all players' LIE handicaps to 26.0 and sets new season start date.
- */
-app.logic.startNeueSaison = function()
-{
-    // Try reading date from all possible DOM input fields or global config state
-    const dateInput = document.getElementById('saison-startdatum') || 
-                      document.getElementById('edit-saison-start') || 
-                      document.getElementById('admin-saison-start') ||
-                      document.querySelector('input[type="date"]');
-
-    var startDate = null;
-
-    if (dateInput && dateInput.value)
-    {
-        startDate = dateInput.value;
-    }
-    else if (app.state && app.state.config && app.state.config.saisonStartDatum)
-    {
-        startDate = app.state.config.saisonStartDatum;
-    }
-    else
-    {
-        startDate = new Date().toISOString().split('T')[0];
-    }
-
-    app.logic.showConfirm(
-        "Neue Saison starten?",
-        "Bist du sicher? Alle LIE Handicaps der Spieler werden auf 26.0 zurückgesetzt und das Saison-Startdatum wird auf " + startDate + " gesetzt.",
-        "warning",
-        async function()
-        {
-            try
-            {
-                // 1. Reset all local player state LIE handicaps to 26
-                if (app.state && Array.isArray(app.state.spieler))
-                {
-                    for (var i = 0; i < app.state.spieler.length; i++)
-                    {
-                        var player = app.state.spieler[i];
-                        player.hcpLIE = 26;
-
-                        // Persist updated player to backend
-                        await app.logic.apiRequest('savePlayerServer', player);
-                    }
-                }
-
-                // 2. Persist new season start date
-                await app.logic.apiRequest('startNeueSaisonServer', { startDate: startDate });
-
-                // Update local config state
-                if (app.state && app.state.config)
-                {
-                    app.state.config.saisonStartDatum = startDate;
-                }
-
-                app.logic.showToast("Neue Saison gestartet! Alle HCPs stehen auf 26.0.", "success");
-
-                if (typeof app.logic.refreshGlobalAppData === 'function')
-                {
-                    await app.logic.refreshGlobalAppData();
-                }
-
-                if (app.router && typeof app.router.navigate === 'function')
-                {
-                    app.router.navigate('admin');
-                }
-            }
-            catch (err)
-            {
-                console.error("Error executing season reset:", err);
-                app.logic.showToast("Saison-Reset teilweise fehlgeschlagen.", "error");
-            }
-        }
-    );
-};
-
-/**
- * Saves only the season start date.
- */
-app.logic.saveSaisonStartDate = function()
-{
-    const dateInput = document.getElementById('saison-startdatum') || 
-                      document.getElementById('edit-saison-start') || 
-                      document.getElementById('admin-saison-start') ||
-                      document.querySelector('input[type="date"]');
-
-    if (!dateInput || !dateInput.value) return;
-
-    const chosenDate = dateInput.value;
-
-    if (app.state && app.state.config)
-    {
-        app.state.config.saisonStartDatum = chosenDate;
-    }
-
-    app.logic.apiRequest('saveSaisonStartDateServer', { startDate: chosenDate })
-        .then(function(response)
-        {
-            if (response && response.success)
-            {
-                app.logic.showToast("Saison-Startdatum erfolgreich gespeichert!", "success");
-            }
-            else
-            {
-                app.logic.showToast("Datum gespeichert: " + chosenDate, "info");
-            }
-        });
-};
-
 
 ##### <App_Logic_Spieltage.js>:
 ----------------------------------------------------------------------
 // =========================================================================
-// BMAssistent / LIE Scorecard - Spieltag & Flight Management (mit 9/18 Loch Logik)
+// BMAssistent / LIE Scorecard - Spieltag & Flight Management
 // App_Logic_Spieltage.js
 // BSD (Allman) Style
 // =========================================================================
@@ -1667,7 +1543,6 @@ app.logic.saveManualFlights = function()
 {
     const kursSelect = document.getElementById('new-spieltag-kurs');
     const dateInput = document.getElementById('new-spieltag-date');
-    const rundenTypSelect = document.getElementById('new-spieltag-rundentyp');
     const checkedBoxes = document.querySelectorAll('input[name="teilnehmer"]:checked');
     const gewaehlteIds = Array.from(checkedBoxes).map(function(cb) { return cb.value; });
 
@@ -1695,16 +1570,11 @@ app.logic.saveManualFlights = function()
         return;
     }
 
-    const rundenTyp = rundenTypSelect ? rundenTypSelect.value : '18';
-    const bahnAnzahl = rundenTyp.startsWith('9') ? 9 : 18;
-
     const spieltagId = "ST-" + Date.now();
     const spieltagObj = {
         id: spieltagId,
         date: dateInput.value,
         kursId: kursSelect.value,
-        rundenTyp: rundenTyp,
-        bahnAnzahl: bahnAnzahl,
         status: "Aktiv",
         teilnehmerCsv: gewaehlteIds.join(','),
         bruttoSieger: "",
@@ -1726,8 +1596,6 @@ app.logic.saveManualFlights = function()
         }
     });
 
-    const createdFromKalender = !!app.state.tempKalenderId;
-
     app.logic.apiRequest('createNewSpieltag', { spieltagObj: spieltagObj, flightsPayload: flightsPayload })
         .then(function(response)
         {
@@ -1738,27 +1606,7 @@ app.logic.saveManualFlights = function()
                 app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und manuelle Flights angelegt!", "success");
-
-                if (createdFromKalender)
-                {
-                    app.logic.showConfirm(
-                        "Spieltag direkt öffnen?", 
-                        "Möchtest du diesen Spieltag direkt öffnen, um Scores einzugeben?", 
-                        "standard", 
-                        function() 
-                        {
-                            app.router.navigate('score_eingabe', { id: spieltagId, hole: 1, flightSeq: 1 });
-                        },
-                        function() 
-                        {
-                            app.router.navigate('spieltage');
-                        }
-                    );
-                }
-                else
-                {
-                    app.router.navigate('spieltage');
-                }
+                app.router.navigate('spieltage');
             }
             else
             {
@@ -1879,22 +1727,16 @@ app.logic.saveZufallsFlights = function()
 {
     const kursSelect = document.getElementById('new-spieltag-kurs');
     const dateInput = document.getElementById('new-spieltag-date');
-    const rundenTypSelect = document.getElementById('new-spieltag-rundentyp');
     const checkedBoxes = document.querySelectorAll('input[name="teilnehmer"]:checked');
     const gewaehlteIds = Array.from(checkedBoxes).map(function(cb) { return cb.value; });
 
     if (!kursSelect || !dateInput || !app.state.tempZufallsFlights) return;
-
-    const rundenTyp = rundenTypSelect ? rundenTypSelect.value : '18';
-    const bahnAnzahl = rundenTyp.startsWith('9') ? 9 : 18;
 
     const spieltagId = "ST-" + Date.now();
     const spieltagObj = {
         id: spieltagId,
         date: dateInput.value,
         kursId: kursSelect.value,
-        rundenTyp: rundenTyp,
-        bahnAnzahl: bahnAnzahl,
         status: "Aktiv",
         teilnehmerCsv: gewaehlteIds.join(','),
         bruttoSieger: "",
@@ -1911,8 +1753,6 @@ app.logic.saveZufallsFlights = function()
         };
     });
 
-    const createdFromKalender = !!app.state.tempKalenderId;
-
     app.logic.apiRequest('createNewSpieltag', { spieltagObj: spieltagObj, flightsPayload: flightsPayload })
         .then(function(response)
         {
@@ -1923,27 +1763,7 @@ app.logic.saveZufallsFlights = function()
                 app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und Flights generiert!", "success");
-
-                if (createdFromKalender)
-                {
-                    app.logic.showConfirm(
-                        "Spieltag direkt öffnen?", 
-                        "Möchtest du diesen Spieltag direkt öffnen, um Scores einzugeben?", 
-                        "standard", 
-                        function() 
-                        {
-                            app.router.navigate('score_eingabe', { id: spieltagId, hole: 1, flightSeq: 1 });
-                        },
-                        function() 
-                        {
-                            app.router.navigate('spieltage');
-                        }
-                    );
-                }
-                else
-                {
-                    app.router.navigate('spieltage');
-                }
+                app.router.navigate('spieltage');
             }
             else
             {
@@ -2003,23 +1823,11 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
 
     const teilnehmerString = String(spieltag.teilnehmerCsv || "");
     const teilnehmerIds = teilnehmerString ? teilnehmerString.split(',').map(function(id) { return String(id).trim(); }) : [];
+    const kurs = app.state.kurse.find(function(k) { return String(k.id).trim() === String(spieltag.kursId).trim(); });
     const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(spieltag.kursId).trim(); });
 
-    // Auswertung für 9 Loch vs 18 Loch
-    const is9Loch = (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9'));
-    const maxBahnen = is9Loch ? 9 : (spieltag.bahnAnzahl || 18);
-    const stablefordSoll = is9Loch ? 18 : 36;
-
-    // Bahnen filtern falls Front-9 / Back-9
-    let zuWertendeBahnen = kursBahnen;
-    if (spieltag.rundenTyp === '9-Front')
-    {
-        zuWertendeBahnen = kursBahnen.filter(b => parseInt(b.nr) <= 9);
-    }
-    else if (spieltag.rundenTyp === '9-Back')
-    {
-        zuWertendeBahnen = kursBahnen.filter(b => parseInt(b.nr) >= 10);
-    }
+    let maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : (kursBahnen.length || 9);
+    const stablefordSoll = (maxBahnen <= 9) ? 18 : 36;
 
     const handicapUpdates = [];
     let infoText = "";
@@ -2037,7 +1845,9 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
         let totalNettoStableford = 0;
         let playedHoles = 0;
 
-        zuWertendeBahnen.forEach(function(bahn)
+        const bahnenSchleife = kursBahnen.length > 0 ? kursBahnen : Array.from({length: maxBahnen}, function(_, i) { return { nr: i + 1, par: 4, si: 10 }; });
+
+        bahnenSchleife.forEach(function(bahn)
         {
             const hNr = parseInt(bahn.nr);
             const liveKey = `${spieltagId}_${spielerId}_${hNr}`;
@@ -2052,7 +1862,7 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
             if (strokes !== undefined && strokes > 0)
             {
                 playedHoles++;
-                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si, is9Loch);
+                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si);
                 const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
                 totalNettoStableford += nettoPkt;
             }
@@ -2087,7 +1897,7 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
         }
     });
 
-    const confirmationMsg = `Möchtest du die Runde (${maxBahnen} Loch) jetzt schließen? Sieger: Brutto: ${bruttoSieger}, Netto: ${nettoSieger}. HCP-Updates:${infoText || " Keine (alle im Puffer)"}.`;
+    const confirmationMsg = `Möchtest du die Runde jetzt schließen? Sieger: Brutto: ${bruttoSieger}, Netto: ${nettoSieger}. HCP-Updates:${infoText || " Keine (alle im Puffer)"}.`;
 
     app.logic.showConfirm(
         "Spieltag beenden?", 
@@ -2172,12 +1982,8 @@ app.logic.finishRoundWithWinners = function(spieltagId)
     const st = app.state.spieltage.find(function(s) { return String(s.id).trim() === String(spieltagId).trim(); });
     if (!st) return;
 
-    const is9Loch = (st.bahnAnzahl === 9 || String(st.rundenTyp || '').startsWith('9'));
     const teilnehmerIds = (st.teilnehmerCsv || "").split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
-    let kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); });
-
-    if (st.rundenTyp === '9-Front') kursBahnen = kursBahnen.filter(b => parseInt(b.nr) <= 9);
-    else if (st.rundenTyp === '9-Back') kursBahnen = kursBahnen.filter(b => parseInt(b.nr) >= 10);
+    const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); });
 
     let ergebnisse = teilnehmerIds.map(function(spielerId)
     {
@@ -2201,7 +2007,7 @@ app.logic.finishRoundWithWinners = function(spieltagId)
                 const str = parseInt(match.strokes);
                 playedHoles++;
                 totalStrokes += str;
-                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, st.kursId, bahn.si, is9Loch);
+                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, st.kursId, bahn.si);
                 totalNetto += app.logic.calculateNettoStableford(str, bahn.par, holeVorgabe);
             }
         });
@@ -2303,22 +2109,19 @@ app.logic.showToast = function(text, type)
     
     container.appendChild(toast);
 
-    setTimeout(function() 
-    {
+    setTimeout(function() {
         toast.classList.remove('opacity-0', 'translate-y-2');
     }, 10);
 
-    setTimeout(function() 
-    {
+    setTimeout(function() {
         toast.classList.add('opacity-0', '-translate-y-2');
-        setTimeout(function() 
-        {
+        setTimeout(function() {
             toast.remove();
         }, 300);
     }, 3200);
 };
 
-app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel)
+app.logic.showConfirm = function(title, message, mode, onConfirm)
 {
     const modal = document.getElementById('global-confirm-modal');
     const box = document.getElementById('confirm-modal-box');
@@ -2348,28 +2151,22 @@ app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel)
     }
 
     modal.classList.remove('hidden');
-    setTimeout(function() 
-    {
+    setTimeout(function() {
         box.classList.remove('opacity-0', 'scale-95');
     }, 10);
 
-    const closeModal = function() 
-    {
+    const closeModal = function() {
         box.classList.add('opacity-0', 'scale-95');
-        setTimeout(function() 
-        {
+        setTimeout(function() {
             modal.classList.add('hidden');
         }, 200);
     };
 
-    btnCancel.onclick = function() 
-    {
+    btnCancel.onclick = function() {
         closeModal();
-        if (typeof onCancel === 'function') onCancel();
     };
 
-    btnSubmit.onclick = function() 
-    {
+    btnSubmit.onclick = function() {
         closeModal();
         if (typeof onConfirm === 'function') onConfirm();
     };
@@ -2408,7 +2205,7 @@ app.logic.triggerMasterReset = function()
                 app.state.liveScores = {};
                 app.router.navigate('dashboard');
             }
-            catch (err)
+            catch(err)
             {
                 app.logic.showToast("Fehler beim Zurücksetzen: " + err.message, "error");
                 if (btn)
@@ -2466,7 +2263,7 @@ app.logic.closePixelGolfGame = function()
 ##### <App_Router.js>:
 ----------------------------------------------------------------------
 // =========================================================================
-// BMAssistent / LIE Scorecard - Client-Side Router
+// BMAssistent / LIE Scorecard - Router Module
 // App_Router.js
 // BSD (Allman) Style
 // =========================================================================
@@ -2474,137 +2271,178 @@ app.logic.closePixelGolfGame = function()
 var app = app || {};
 app.router = app.router || {};
 
+app.router.currentView = null;
+app.router.currentParams = null;
+
 app.router.navigate = function(viewName, params)
 {
-    // Auto-sync pending scores before changing views
-    if (typeof app.logic.syncPendingScores === 'function')
+    if (app.state.liveScores && Object.keys(app.state.liveScores).length > 0)
     {
-        app.logic.syncPendingScores();
+        console.log("[Router Guard] Ungesicherte Scores entdeckt. Starte Auto-Sync...");
+        
+        let activeSpieltagId = params ? params.id : null;
+        let activeFlightSeq = params ? params.flightSeq : 1;
+        
+        if (!activeSpieltagId && app.state.spieltage)
+        {
+            const aktRunde = app.state.spieltage.find(function(st) { return st.status === 'Aktiv'; });
+            if (aktRunde) activeSpieltagId = aktRunde.id;
+        }
+        
+        if (activeSpieltagId)
+        {
+            app.logic.syncScoresWithServer(activeSpieltagId, activeFlightSeq);
+        }
     }
+
+    if (app.logic && typeof app.logic.stopLivePolling === 'function')
+    {
+        app.logic.stopLivePolling();
+    }
+
+    const loadingEl = document.getElementById('app-loading');
+    if (loadingEl)
+    {
+        loadingEl.classList.add('hidden');
+    }
+
+    app.state = app.state || {};
+    app.state.spieler = app.state.spieler || [];
+    app.state.spieltage = app.state.spieltage || [];
+    app.state.scoreCards = app.state.scoreCards || [];
+    app.state.kalenderTermine = app.state.kalenderTermine || [];
+    app.state.liveScores = app.state.liveScores || {};
+
+    const targetView = viewName || 'login';
+    app.router.currentView = targetView;
+    app.router.currentParams = params || null;
+    app.state.currentView = targetView;
+
+    app.router.updateNavigationUI(targetView);
 
     const container = document.getElementById('app-container');
-    if (!container) return;
-
-    let html = "";
-
-    switch (viewName)
+    if (!container)
     {
-        case 'dashboard':
-            html = app.views.dashboard ? app.views.dashboard() : "";
-            break;
-        case 'live_dashboard':
-            html = (app.views.liveDashboard || app.views.live_dashboard) ? (app.views.liveDashboard || app.views.live_dashboard)() : "";
-            break;
-        case 'spieltage':
-            html = app.views.spieltage ? app.views.spieltage(params) : "";
-            break;
-        case 'spieltag_neu':
-            html = app.views.spieltagNeu ? app.views.spieltagNeu() : "";
-            break;
-        case 'score_eingabe':
-            html = app.views.scoreEingabe ? app.views.scoreEingabe(params) : "";
-            break;
-        case 'leaderboard':
-            html = app.views.leaderboard ? app.views.leaderboard(params) : "";
-            break;
-        case 'golfplaetze':
-            html = app.views.golfplaetze ? app.views.golfplaetze() : "";
-            break;
-        case 'kalender':
-            html = app.views.kalender ? app.views.kalender() : "";
-            break;
-        case 'wetter':
-            html = app.views.wetter ? app.views.wetter() : "";
-            break;
-        case 'spieler':
-        case 'admin_gruppe':
-            html = (app.views.spieler || app.views.adminGruppe) ? (app.views.spieler || app.views.adminGruppe)() : "";
-            break;
-        case 'admin':
-            html = app.views.admin ? app.views.admin() : "";
-            break;
-        case 'spieler_edit':
-            html = app.views.spielerEdit ? app.views.spielerEdit(params) : "";
-            break;
-        case 'hilfe':
-        case 'help':
-            if (typeof app.views.help === 'function')
-            {
-                html = app.views.help();
-            }
-            else if (typeof app.views.hilfe === 'function')
-            {
-                html = app.views.hilfe();
-            }
-            break;
-        default:
-            html = app.views.dashboard ? app.views.dashboard() : "";
-            break;
+        console.error('[Router] Container #app-container im DOM nicht gefunden.');
+        return;
     }
 
-    container.innerHTML = html;
-    window.scrollTo(0, 0);
+    let p1 = params;
+    let p2 = undefined;
+    let p3 = undefined;
 
-    // Update bottom navigation bar active styles & admin visibility
-    if (typeof app.router.updateNavState === 'function')
+    if (params && typeof params === 'object')
     {
-        app.router.updateNavState(viewName);
+        p1 = params.id !== undefined ? params.id : params.hole;
+        p2 = params.mode !== undefined ? params.mode : params.hole;
+        p3 = params.flightSeq !== undefined ? params.flightSeq : undefined;
+    }
+
+    if (app.views && typeof app.views[targetView] === 'function')
+    {
+        container.innerHTML = app.views[targetView](p1, p2, p3);
+
+        if (targetView === 'leaderboard' && params && params.id)
+        {
+            app.logic.startLivePolling(params.id);
+        }
+        else if (targetView === 'score_eingabe' && params && params.id && params.hole)
+        {
+            app.logic.startLivePolling(params.id, params.hole, params.flightSeq);
+        }
+    }
+    else if (app.views && typeof app.views.dashboard === 'function')
+    {
+        console.warn('[Router] View "' + targetView + '" nicht gefunden. Lade Dashboard-Fallback.');
+        app.router.currentView = 'dashboard';
+        container.innerHTML = app.views.dashboard();
+    }
+    else
+    {
+        console.error('[Router] Keine passende View zum Rendern gefunden.');
+    }
+
+    window.scrollTo(0, 0);
+};
+
+app.router.renderCurrentView = function()
+{
+    if (app.router.currentView)
+    {
+        app.router.navigate(app.router.currentView, app.router.currentParams);
+    }
+    else
+    {
+        const defaultTarget = (app.state && app.state.currentUser) ? 'dashboard' : 'login';
+        app.router.navigate(defaultTarget);
     }
 };
 
-app.router.updateNavState = function(activeView)
+app.router.updateNavigationUI = function(viewName)
 {
-    // Sichtbarkeit des Admin-Buttons basierend auf der Rolle steuern
-    const adminBtn = document.getElementById('nav-admin');
-    const currentUser = app.state.currentUser;
-    if (adminBtn)
+    if (app.logic && typeof app.logic.updateHeaderRoleIcon === 'function')
     {
-        if (currentUser && currentUser.role === 'Admin')
+        app.logic.updateHeaderRoleIcon();
+    }
+
+    const actionBtn = document.getElementById('header-action-btn');
+    const navBar = document.getElementById('bottom-nav');
+    const adminNavBtn = document.getElementById('nav-admin');
+
+    if (!actionBtn || !navBar) return;
+
+    const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
+    const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
+
+    if (viewName === 'spieltage' && isLeiter)
+    {
+        actionBtn.classList.remove('hidden');
+    }
+    else
+    {
+        actionBtn.classList.add('hidden');
+    }
+
+    if (adminNavBtn)
+    {
+        if (isAdmin)
         {
-            adminBtn.classList.remove('hidden');
+            adminNavBtn.classList.remove('hidden');
         }
         else
         {
-            adminBtn.classList.add('hidden');
+            adminNavBtn.classList.add('hidden');
         }
     }
 
-    const navBtns = document.querySelectorAll('.nav-btn');
-    navBtns.forEach(function(btn)
+    if (viewName === 'login')
     {
-        btn.classList.remove('text-emerald-700', 'text-amber-600', 'text-emerald-600');
-        btn.classList.add('text-zinc-400');
-    });
+        navBar.classList.add('hidden');
+    }
+    else
+    {
+        navBar.classList.remove('hidden');
+        
+        document.querySelectorAll('#bottom-nav button').forEach(function(btn)
+        {
+            btn.classList.remove('text-emerald-600', 'font-bold');
+            btn.classList.add('text-stone-400');
+        });
 
-    if (activeView === 'dashboard')
-    {
-        const el = document.getElementById('nav-dash');
-        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
-    }
-    else if (activeView === 'live_dashboard')
-    {
-        const el = document.getElementById('nav-stats');
-        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
-    }
-    else if (activeView === 'spieltage' || activeView === 'spieltag_neu' || activeView === 'score_eingabe' || activeView === 'leaderboard')
-    {
-        const el = document.getElementById('nav-rounds');
-        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
-    }
-    else if (activeView === 'kalender')
-    {
-        const el = document.getElementById('nav-calendar');
-        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-600'); }
-    }
-    else if (activeView === 'spieler' || activeView === 'spieler_edit')
-    {
-        const el = document.getElementById('nav-players');
-        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
-    }
-    else if (activeView === 'admin' || activeView === 'admin_gruppe')
-    {
-        const el = document.getElementById('nav-admin');
-        if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-amber-600'); }
+        let activeTabId = "";
+        if (viewName === 'dashboard') activeTabId = 'nav-dash';
+        if (viewName === 'live_dashboard') activeTabId = 'nav-stats';
+        if (viewName === 'kalender') activeTabId = 'nav-calendar';
+        if (viewName === 'spieltage' || viewName === 'spieltag_neu' || viewName === 'leaderboard') activeTabId = 'nav-rounds';
+        if (viewName === 'spieler' || viewName === 'spieler_edit') activeTabId = 'nav-players';
+        if (viewName === 'admin') activeTabId = 'nav-admin';
+
+        const activeBtn = document.getElementById(activeTabId);
+        if (activeBtn)
+        {
+            activeBtn.classList.remove('text-stone-400');
+            activeBtn.classList.add('text-emerald-600', 'font-bold');
+        }
     }
 };
 
@@ -2618,67 +2456,18 @@ app.router.updateNavState = function(activeView)
 // =========================================================================
 
 var app = app || {};
-app.logic = app.logic || {};
-
-// Registrierung des Service Workers für PWA-Installation und automatische Updates
-app.logic.registerServiceWorker = function()
-{
-    if ('serviceWorker' in navigator)
-    {
-        navigator.serviceWorker.register('./sw.js')
-            .then(function(registration)
-            {
-                // Erzwinge eine Update-Prüfung bei jedem Start der App
-                registration.update();
-
-                // Prüfe erneut auf Updates, wenn der Anwender das Smartphone entsperrt oder zur App zurückkehrt
-                document.addEventListener('visibilitychange', function()
-                {
-                    if (document.visibilityState === 'visible')
-                    {
-                        registration.update();
-                    }
-                });
-            })
-            .catch(function(err)
-            {
-                console.error('[SW] Registrierung fehlgeschlagen:', err);
-            });
-
-        // Wenn auf GitHub eine neue Version hochgeladen und der SW aktualisiert wurde, Seite neu laden
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', function()
-        {
-            if (!refreshing)
-            {
-                refreshing = true;
-                if (typeof app.logic.showToast === 'function')
-                {
-                    app.logic.showToast("Neue App-Version geladen! Aktualisiere...", "success");
-                }
-                setTimeout(function()
-                {
-                    window.location.reload();
-                }, 800);
-            }
-        });
-    }
-};
 
 app.initStart = async function()
 {
     console.log("[App] Starting LIE Scorecard initialization...");
 
-    // 1. Service Worker für PWA-Installierbarkeit & Auto-Updates registrieren
-    app.logic.registerServiceWorker();
-
-    // 2. Initialize core systems and wait for Firebase / app.db to be ready
+    // 1. Initialize core systems and wait for Firebase / app.db to be ready
     if (typeof app.initCore === 'function')
     {
         await app.initCore();
     }
 
-    // 3. Load initial app data from Firestore
+    // 2. Load initial app data from Firestore
     try
     {
         const res = await app.logic.apiRequest('getInitialAppData');
@@ -2692,7 +2481,7 @@ app.initStart = async function()
             app.state.golfplaetze = res.golfplaetze || [];
             app.state.bahnen = res.bahnen || [];
             app.state.handicaps = res.handicaps || [];
-            app.state.kalenderTermine = res.kalenderTermine || [];
+            app.state.kalenderTermine = res.kalenderTermine || []; // <--- Ergänzt
         }
     }
     catch (err)
@@ -2700,7 +2489,7 @@ app.initStart = async function()
         console.error("[App] Error loading initial app data:", err);
     }
 
-    // 4. Check for persisted user session in localStorage
+    // 3. Check for persisted user session in localStorage
     const savedUserId = localStorage.getItem('lie_scorecard_user_id');
     if (savedUserId && app.state.spieler)
     {
@@ -2730,7 +2519,7 @@ app.initStart = async function()
         }
     }
 
-    // 5. Default fallback to login view if no valid session exists
+    // 4. Default fallback to login view if no valid session exists
     app.router.navigate('login');
 };
 
@@ -2744,27 +2533,25 @@ window.addEventListener('DOMContentLoaded', function()
 });
 
 // Saison-Datum aus Config laden
-if (app.db && typeof app.db.collection === 'function')
-{
-    app.db.collection('config').doc('saison').get().then(
-        function(doc)
+app.db.collection('config').doc('saison').get().then(
+    function(doc)
+    {
+        if (doc.exists)
         {
-            if (doc.exists)
-            {
-                app.state.saisonStartDatum = doc.data().saisonStartDatum || '2026-10-01';
-            }
-            else
-            {
-                app.state.saisonStartDatum = '2026-10-01';
-            }
+            app.state.saisonStartDatum = doc.data().saisonStartDatum || '2026-10-01';
         }
-    ).catch(
-        function()
+        else
         {
             app.state.saisonStartDatum = '2026-10-01';
         }
-    );
-}
+    }
+).catch(
+    function()
+    {
+        app.state.saisonStartDatum = '2026-10-01';
+    }
+);
+
 
 
 ##### <App_View_Help.js>:
@@ -3001,15 +2788,15 @@ function sendTempPinEmail(spielerId, tempPin)
 ----------------------------------------------------------------------
 // config.js
 
-var isWindowAvailable = (typeof window !== 'undefined');
-
-var configData = {
-    appVersion: '4.9.1.7',
+window.CONFIG =
+{
+    appVersion: '4.8.0.7',
     appName: 'lie-scorecard',
     gasUrl: 'https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec'
 };
 
-var firebaseData = {
+window.firebaseConfig =
+{
     apiKey: "AIzaSyBH6Rb8RLKw6tUrOM-j8Qcfnqlkte3crCM",
     authDomain: "liescorecard-70c5e.firebaseapp.com",
     projectId: "liescorecard-70c5e",
@@ -3017,17 +2804,6 @@ var firebaseData = {
     messagingSenderId: "163868016379",
     appId: "1:163868016379:web:0b7f1aeb29d80f9ca37a5e"
 };
-
-if (isWindowAvailable)
-{
-    window.CONFIG = configData;
-    window.firebaseConfig = firebaseData;
-}
-else if (typeof self !== 'undefined')
-{
-    self.CONFIG = configData;
-    self.firebaseConfig = firebaseData;
-}
 
 
 ##### <index.html>:
@@ -3075,35 +2851,42 @@ else if (typeof self !== 'undefined')
     </script>
 
     <!-- App Shell Wrapper -->
-    <div class="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-2xl border-x border-zinc-200/60 flex flex-col">
+    <div class="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-2xl border-x border-zinc-200/60">
         
         <!-- Header in Clean Tech Emerald -->
-        <header class="bg-emerald-900 text-white px-3 sm:px-4 py-2.5 sm:py-3 sticky top-0 z-40 shadow-md flex justify-between items-center border-b border-emerald-800/80">
-            <div class="flex items-center space-x-1.5 min-w-0">
-                <h1 onclick="app.router.navigate('dashboard')" class="text-base sm:text-lg font-black tracking-wider uppercase text-emerald-50 truncate cursor-pointer hover:text-white transition">LIE Scorecard</h1>
-                <button onclick="app.router.navigate('hilfe')" class="text-emerald-300 hover:text-white p-1 touch-target text-xs sm:text-sm transition focus:outline-none" title="Handbuch & Versions-Info">
-                    <i class="fas fa-question-circle"></i>
-                </button>
+        <header class="bg-emerald-900 text-white px-4 py-3 sticky top-0 z-40 shadow-md flex justify-between items-center border-b border-emerald-800/80">
+            <div class="flex items-center space-x-2.5">
+                <h1 class="text-lg font-black tracking-wider uppercase text-emerald-50">LIE Scorecard</h1>
+                
+                <span class="flex items-center gap-1 bg-emerald-950/80 border border-emerald-600/50 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-300 shadow-xs" title="Firebase Backend aktiv">
+                    <svg class="w-3 h-3 fill-amber-400" viewBox="0 0 24 24">
+                        <path d="M3.89 15.672L6.255.461A.542.542 0 0 1 7.27.283l2.543 4.772-5.923 10.617zM13.5 11.235l-2.22-4.18-8.23 14.868 10.45-10.688zM20.11 21.923L14.49 13.1l-1.01 1.034 6.63 7.789a.544.544 0 0 0 .866-.027zM20.592 7.641l-1.874-3.551a.543.543 0 0 0-.962.008L3.218 21.848l8.608 4.887a1.63 1.63 0 0 0 1.572 0l8.608-4.887a.543.543 0 0 0 .237-.624l-1.651-13.583z"/>
+                    </svg>
+                    <span class="tracking-tight text-[9px] uppercase">Firestore</span>
+                </span>
             </div>
 
-            <div class="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
-                <button onclick="app.router.navigate('golfplaetze')" class="text-emerald-200 hover:text-white p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Golfplätze anzeigen">
+            <div class="flex items-center space-x-3">
+                <button onclick="app.router.navigate('golfplaetze')" class="text-emerald-200 hover:text-white p-1 touch-target text-base transition focus:outline-none" title="Golfplätze anzeigen">
                     <i class="fas fa-map-marked-alt"></i>
                 </button>
-                <button onclick="app.router.navigate('live_dashboard')" class="text-amber-300 hover:text-amber-200 p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Saison Live-Dashboard">
+                <button onclick="app.router.navigate('live_dashboard')" class="text-amber-300 hover:text-amber-200 p-1 touch-target text-base transition focus:outline-none" title="Saison Live-Dashboard">
                     <i class="fas fa-chart-line"></i>
                 </button>
-                <button onclick="app.router.navigate('wetter')" class="text-emerald-200 hover:text-white p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Platzwetter anzeigen">
+                <button onclick="app.router.navigate('wetter')" class="text-emerald-200 hover:text-white p-1 touch-target text-base transition focus:outline-none" title="Platzwetter anzeigen">
                     <i class="fas fa-cloud-sun"></i>
                 </button>
-                <button id="global-refresh-btn" onclick="app.logic.refreshGlobalAppData()" class="text-white p-1 touch-target text-sm sm:text-base opacity-80 hover:opacity-100 transition focus:outline-none" title="Daten aktualisieren">
+                <button id="global-refresh-btn" onclick="app.logic.refreshGlobalAppData()" class="text-white p-1 touch-target text-base opacity-80 hover:opacity-100 transition focus:outline-none" title="Daten aktualisieren">
                     <i id="global-refresh-icon" class="fas fa-sync-alt"></i>
                 </button>
+                <button id="header-action-btn" onclick="app.router.navigate('spieltag_neu')" class="hidden text-white p-1 touch-target text-lg" title="Runde anlegen">
+                    <i class="fas fa-plus-circle"></i>
+                </button>
                 <span id="header-role-badge" class="flex items-center text-xs opacity-75"></span>
-                <button id="header-logout-btn" onclick="app.logic.logout()" class="hidden text-white opacity-80 hover:opacity-100 p-1 touch-target text-xs sm:text-sm transition focus:outline-none" title="Abmelden">
+                <button id="header-logout-btn" onclick="app.logic.logout()" class="hidden text-white opacity-80 hover:opacity-100 p-1 touch-target text-sm transition focus:outline-none" title="Abmelden">
                     <i class="fas fa-sign-out-alt"></i>
                 </button>
-                <div id="connection-status" class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-400 shadow-xs"></div>
+                <div id="connection-status" class="w-3 h-3 rounded-full bg-emerald-400 shadow-xs"></div>
             </div>
         </header>
 
@@ -3122,7 +2905,7 @@ else if (typeof self !== 'undefined')
         </main>
 
         <!-- Mobile Navigation Footer -->
-        <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur-md border-t border-zinc-200/80 py-2 px-3 flex justify-around items-center z-40 shadow-xl">
+        <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur-md border-t border-zinc-200/80 py-2 px-3 flex justify-around items-center z-40 shadow-xl hidden">
             <button id="nav-dash" onclick="app.router.navigate('dashboard')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-home text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Home</span>
@@ -3315,7 +3098,287 @@ button, a, .nav-btn
 {
     animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+```[cite: 4]
 
+---
+
+### 2. `Views_Dashboard.js` (Dashboard im modernen Look)
+##### <Views_Dashboard.js>:
+```javascript
+// =========================================================================
+// BMAssistent / LIE Scorecard - Dashboard Ansicht (Modern Apple Style)
+// Views_Dashboard.js
+// BSD (Allman) Style
+// =========================================================================
+
+app.views.dashboard = function()
+{
+    const user = app.state.currentUser;
+    const nickname = user ? user.nickname : "Golfer";
+    const rolle = user ? user.role : "Spieler";
+    
+    // Aktive Runde ermitteln (sofern nicht gelöscht)
+    const aktiveRunde = app.state.spieltage ? app.state.spieltage.find(function(st) 
+    { 
+        if (!st) return false;
+
+        const isDel = st.istGeloescht === true || 
+                      String(st.istGeloescht).toUpperCase() === "TRUE" || 
+                      st.istGelöscht === true || 
+                      String(st.istGelöscht).toUpperCase() === "TRUE";
+
+        return st.status === 'Aktiv' && !isDel; 
+    }) : null;
+    
+    let activeRoundCardHtml = "";
+    if (aktiveRunde)
+    {
+        const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return String(k.id) === String(aktiveRunde.kursId); }) : null;
+        const platz = kurs ? app.state.golfplaetze.find(function(p) { return String(p.id) === String(kurs.platzId); }) : null;
+        
+        const meinFlight = app.state.flights ? app.state.flights.find(function(f) 
+        {
+            if (f.spieltagId !== aktiveRunde.id) return false;
+            const ids = String(f.spielerIdsCsv || "").split(',').map(function(id) { return id.trim(); });
+            return ids.includes(String(user ? user.id : '').trim());
+        }) : null;
+
+        let flightSeq = 1;
+        if (meinFlight)
+        {
+            const parts = meinFlight.id.split('-');
+            flightSeq = parseInt(parts[parts.length - 1]) || 1;
+        }
+
+        activeRoundCardHtml = `
+            <div class="p-5 bg-gradient-to-br from-emerald-950 via-emerald-900 to-zinc-900 text-white rounded-3xl shadow-xl shadow-emerald-950/10 space-y-4 border border-emerald-800/40 relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 opacity-10 text-9xl pointer-events-none">
+                    <i class="fas fa-golf-ball-tee"></i>
+                </div>
+                <div class="flex justify-between items-center relative z-10">
+                    <span class="text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full tracking-wider animate-pulse flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Live-Turnier aktiv
+                    </span>
+                    <span class="text-xs font-medium text-emerald-200/80">${aktiveRunde.date}</span>
+                </div>
+                <div class="relative z-10">
+                    <h3 class="font-black text-white text-lg tracking-tight">${platz ? platz.name : 'LIE Golfrunde'}</h3>
+                    <p class="text-xs text-emerald-200/90 font-medium mt-0.5">${kurs ? kurs.name : ''} &bull; Flight ${flightSeq}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-2.5 pt-2 relative z-10">
+                    <button onclick="app.router.navigate('score_eingabe', { id: '${aktiveRunde.id}', hole: 1, flightSeq: ${flightSeq} })" class="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-extrabold py-3 rounded-2xl text-xs transition shadow-md shadow-emerald-500/20 text-center flex items-center justify-center gap-1.5 touch-target">
+                        <i class="fas fa-pen-to-square"></i> Scores tippen
+                    </button>
+                    <button onclick="app.router.navigate('leaderboard', { id: '${aktiveRunde.id}', mode: 'netto' })" class="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-bold py-3 rounded-2xl text-xs transition text-center shadow-xs flex items-center justify-center gap-1.5 touch-target">
+                        <i class="fas fa-list-ol text-emerald-400"></i> Leaderboard
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    else
+    {
+        activeRoundCardHtml = `
+            <div class="p-6 text-center bg-white/60 backdrop-blur-md border border-zinc-200/80 rounded-3xl shadow-xs">
+                <div class="w-12 h-12 bg-zinc-100 text-zinc-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-lg">
+                    <i class="fas fa-golf-ball"></i>
+                </div>
+                <p class="text-zinc-800 text-xs font-bold">Zurzeit läuft kein aktives Match.</p>
+                <p class="text-zinc-400 text-[11px] mt-1 max-w-xs mx-auto">Sobald eine neue Runde ausgelost wird, erscheint hier deine Scorekarte automatisch.</p>
+            </div>
+        `;
+    }
+
+    // --- KARRIERE-STATISTIKEN BERECHNEN ---
+    let gespielteRundenCount = 0;
+    let besterNettoScore = 0;
+    let besteBruttoRunde = "-";
+    let letzterNettoScore = "-";
+
+    if (user && app.state.spieltage && app.state.scoreCards)
+    {
+        const beendeteTeilgenommen = app.state.spieltage.filter(function(st)
+        {
+            if (st.status !== 'Beendet') return false;
+            
+            const isDel = st.istGeloescht === true || 
+                          String(st.istGeloescht).toUpperCase() === "TRUE" || 
+                          st.istGelöscht === true || 
+                          String(st.istGelöscht).toUpperCase() === "TRUE";
+
+            if (isDel) return false;
+
+            const ids = String(st.teilnehmerCsv || "").split(',').map(function(id) { return id.trim(); });
+            return ids.includes(String(user.id).trim());
+        });
+
+        beendeteTeilgenommen.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+        gespielteRundenCount = beendeteTeilgenommen.length;
+
+        let bruttoRundenListe = [];
+
+        beendeteTeilgenommen.forEach(function(st)
+        {
+            const rundenScores = app.state.scoreCards.filter(function(sc)
+            {
+                return String(sc.spieltagId).trim() === String(st.id).trim() && String(sc.spielerId).trim() === String(user.id).trim();
+            });
+
+            const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return String(k.id).trim() === String(st.kursId).trim(); }) : null;
+            const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+            const kursBahnen = app.state.bahnen ? app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); }) : [];
+
+            let rundenNettoTotal = 0;
+            let rundenSchlaegeTotal = 0;
+            let gespielteBahnenInRunde = 0;
+
+            kursBahnen.forEach(function(bahn)
+            {
+                const hNr = parseInt(bahn.nr);
+                const scoreMatch = rundenScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
+
+                if (scoreMatch && parseInt(scoreMatch.strokes) > 0)
+                {
+                    const strokes = parseInt(scoreMatch.strokes);
+                    gespielteBahnenInRunde++;
+                    rundenSchlaegeTotal += strokes;
+
+                    let holeVorgabe = app.logic.calculateHoleVorgabe(user, st.kursId, bahn.si);
+                    const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
+                    rundenNettoTotal += nettoPkt;
+                }
+            });
+
+            if (gespielteBahnenInRunde >= maxBahnen && maxBahnen > 0)
+            {
+                if (rundenNettoTotal > besterNettoScore)
+                {
+                    besterNettoScore = rundenNettoTotal;
+                }
+                bruttoRundenListe.push(rundenSchlaegeTotal);
+                letzterNettoScore = `${rundenNettoTotal} Pkt`;
+            }
+        });
+
+        if (bruttoRundenListe.length > 0)
+        {
+            besteBruttoRunde = Math.min(...bruttoRundenListe) + " Schl.";
+        }
+    }
+
+    const netRecDisplay = besterNettoScore > 0 ? `${besterNettoScore} Pkt` : "-";
+
+    // Admin-Hinweis
+    let adminHintHtml = "";
+    if (rolle === "Admin" || rolle === "Spielleiter")
+    {
+        adminHintHtml = `
+            <div class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start space-x-3 text-amber-900 shadow-2xs">
+                <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                    <i class="fas fa-shield-halved text-xs"></i>
+                </div>
+                <div class="text-xs leading-relaxed">
+                    <b>Hallo ${nickname}!</b> Du bist als <span class="font-bold underline">${rolle}</span> eingeloggt. Unter <b>Runden</b> kannst du neue Spieltage auslosen.
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="space-y-6 animate-fade-in">
+            <!-- Header-Banner (Apple Style Gradient) -->
+            <div class="bg-gradient-to-br from-zinc-900 via-emerald-950 to-emerald-900 text-white p-6 rounded-3xl shadow-xl shadow-zinc-900/10 relative overflow-hidden border border-emerald-800/30">
+                <div class="absolute right-[-10px] bottom-[-20px] opacity-10 text-9xl pointer-events-none">
+                    <i class="fas fa-flag-checkered"></i>
+                </div>
+                <p class="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest">Clubhaus Dashboard</p>
+                <h2 class="text-2xl sm:text-3xl font-black tracking-tight mt-0.5 text-white">${nickname}</h2>
+                <div class="mt-3 inline-flex items-center gap-1.5 text-[11px] bg-white/10 backdrop-blur-md text-emerald-200 px-3.5 py-1 rounded-full font-extrabold uppercase tracking-wider border border-white/10 shadow-3xs">
+                    <i class="fas fa-golf-ball text-emerald-400 text-[10px]"></i> HCP ${user ? user.hcpLIE : '54'}
+                </div>
+            </div>
+
+            ${adminHintHtml}
+
+            <!-- Aktive Runde Sektion -->
+            <div class="space-y-2.5">
+                <h4 class="text-[11px] font-extrabold text-zinc-400 uppercase tracking-wider px-1">Aktueller Spieltag</h4>
+                ${activeRoundCardHtml}
+            </div>
+
+            <!-- KARRIERE-STATISTIKEN GRID -->
+            <div class="space-y-2.5">
+                <h4 class="text-[11px] font-extrabold text-zinc-400 uppercase tracking-wider px-1">Deine LIE-Karriere</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-trophy"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Netto-Rekord</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${netRecDisplay}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-medal"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Bestes Brutto</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${besteBruttoRunde}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-history"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Letzte Runde</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${letzterNettoScore}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-2xl flex items-center space-x-3.5 shadow-2xs hover:border-emerald-500/40 transition">
+                        <div class="w-10 h-10 rounded-2xl bg-zinc-100 text-zinc-600 flex items-center justify-center text-base shrink-0 shadow-3xs"><i class="fas fa-calendar-check"></i></div>
+                        <div>
+                            <span class="block text-[9px] font-black text-zinc-400 uppercase tracking-wider leading-none">Turniere</span>
+                            <span class="text-sm font-black text-zinc-800 mt-1 block">${gespielteRundenCount} Runden</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schnellstart-Kacheln -->
+            <div class="grid grid-cols-2 gap-3 pb-6">
+                <button onclick="app.router.navigate('spieltage')" class="p-5 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-3xl text-left hover:border-emerald-500/50 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target">
+                    <div class="w-10 h-10 rounded-2xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-600 flex items-center justify-center text-base transition">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div>
+                        <span class="block font-black text-zinc-900 text-sm">Turniere</span>
+                        <span class="block text-[10px] text-zinc-400 font-medium mt-0.5">Alle Runden & Ergebnisse</span>
+                    </div>
+                </button>
+
+                <button onclick="app.router.navigate('spieler')" class="p-5 bg-white/80 backdrop-blur-md border border-zinc-200/80 rounded-3xl text-left hover:border-emerald-500/50 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target">
+                    <div class="w-10 h-10 rounded-2xl bg-zinc-100 group-hover:bg-emerald-50 text-zinc-500 group-hover:text-emerald-600 flex items-center justify-center text-base transition">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <span class="block font-black text-zinc-900 text-sm">LIE-Gruppe</span>
+                        <span class="block text-[10px] text-zinc-400 font-medium mt-0.5">Handicaps & Mitglieder</span>
+                    </div>
+                </button>
+
+                <button onclick="app.logic.openPixelGolfGame()" class="p-5 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent border border-amber-500/30 rounded-3xl text-left hover:border-amber-500/60 hover:shadow-md transition group flex flex-col justify-between min-h-[105px] touch-target col-span-2">
+                    <div class="flex justify-between items-start">
+                        <div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center text-base">
+                            <i class="fas fa-gamepad"></i>
+                        </div>
+                        <span class="text-[10px] bg-amber-500/20 text-amber-800 font-extrabold px-2.5 py-1 rounded-full">Mini-Game</span>
+                    </div>
+                    <div class="mt-3">
+                        <span class="block font-black text-amber-950 text-sm">Pixel Golf Run starten</span>
+                        <span class="block text-[10px] text-amber-700 font-medium mt-0.5">Teste deine Skills im Arcade-Modus ⛳</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+    `;
+};[cite: 4]
 
 
 ##### <sw.js>:
@@ -3656,7 +3719,7 @@ app.views.admin = function()
     }
 
     const spielerListe = app.state.spieler || [];
-    const saisonStart = app.state.saisonStartDatum || '2026-01-01';
+    const saisonStart = app.state.saisonStartDatum || '2026-10-01';
 
     let spielerOptionsHtml = '';
     spielerListe.forEach(function(s)
@@ -3678,7 +3741,7 @@ app.views.admin = function()
             '</div>' +
 
             '<!-- SAISON-MANAGEMENT -->' +
-            '<div class="bg-gradient-to-br from-emerald-900 to-zinc-900 text-white border border-emerald-800/80 rounded-2xl p-5 space-y-4 shadow-md">' +
+            '<div class="bg-gradient-to-br from-emerald-900 to-zinc-900 text-white border border-emerald-800/80 rounded-2xl p-5 space-y-3 shadow-md">' +
                 '<div class="flex items-center gap-2.5 border-b border-white/10 pb-2.5">' +
                     '<div class="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center text-sm">' +
                         '<i class="fas fa-flag-checkered"></i>' +
@@ -3686,17 +3749,6 @@ app.views.admin = function()
                     '<div>' +
                         '<h3 class="font-extrabold text-sm text-white">Saison-Verwaltung</h3>' +
                         '<p class="text-[10px] text-emerald-200/80">Aktive Saison gestartet am: ' + saisonStart + '</p>' +
-                    '</div>' +
-                '</div>' +
-
-                '<!-- SAISONSTART DATUM ÄNDERN -->' +
-                '<div class="space-y-2 bg-emerald-950/60 p-3 rounded-xl border border-emerald-700/50">' +
-                    '<label class="block text-xs font-bold text-emerald-200">Saison-Startdatum festlegen:</label>' +
-                    '<div class="flex gap-2">' +
-                        '<input type="date" id="admin-saison-start-input" value="' + saisonStart + '" class="bg-zinc-100 text-zinc-900 font-bold text-xs p-2.5 rounded-xl flex-1 focus:outline-none focus:ring-2 focus:ring-amber-400" />' +
-                        '<button onclick="app.logic.updateSaisonStartDatum()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shrink-0 touch-target">' +
-                            '<i class="fas fa-save mr-1"></i> Speichern' +
-                        '</button>' +
                     '</div>' +
                 '</div>' +
 
@@ -3726,7 +3778,7 @@ app.views.admin = function()
                     'Handicaps anpassen, Rollen vergeben oder PINs der Mitglieder zurücksetzen.' +
                 '</p>' +
 
-                '<button onclick="app.router.navigate(\'spieler\')" class="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 touch-target">' +
+                '<button onclick="app.router.navigate(\'admin_gruppe\')" class="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 touch-target">' +
                     '<i class="fas fa-user-edit"></i>' +
                     '<span>Spielerliste bearbeiten</span>' +
                 '</button>' +
@@ -3752,47 +3804,6 @@ app.views.admin = function()
                 '</div>' +
             '</div>' +
         '</div>';
-};
-
-// Hilfsfunktion: Saisonstart-Datum in Firestore speichern
-app.logic.updateSaisonStartDatum = async function()
-{
-    const input = document.getElementById('admin-saison-start-input');
-    if (!input || !input.value)
-    {
-        if (typeof app.logic.showToast === 'function')
-        {
-            app.logic.showToast("Bitte wähle ein gültiges Datum aus.", "warning");
-        }
-        return;
-    }
-
-    const newDate = input.value;
-    try
-    {
-        if (app.db)
-        {
-            await app.db.collection('config').doc('saison').set({
-                saisonStartDatum: newDate
-            }, { merge: true });
-        }
-        
-        app.state.saisonStartDatum = newDate;
-
-        if (typeof app.logic.showToast === 'function')
-        {
-            app.logic.showToast("Saisonstart auf " + newDate + " aktualisiert!", "success");
-        }
-        app.router.navigate('admin');
-    }
-    catch (err)
-    {
-        console.error("[Admin Saison] Fehler:", err);
-        if (typeof app.logic.showToast === 'function')
-        {
-            app.logic.showToast("Fehler beim Speichern des Saisonstarts.", "error");
-        }
-    }
 };
 
 // Hilfsfunktion: Spieler über Admin-Bereich löschen
@@ -3856,7 +3867,7 @@ app.logic.adminDeleteSpieler = function()
 
 app.views = app.views || {};
 
-app.views.spieler = app.views.adminGruppe = function()
+app.views.spieler = function()
 {
     const currentUser = app.state.currentUser || {};
     const isAdmin = currentUser.role === 'Admin';
@@ -3957,9 +3968,6 @@ app.views.spieler = app.views.adminGruppe = function()
 // Views_Dashboard.js
 // BSD (Allman) Style
 // =========================================================================
-
-var app = app || {};
-app.views = app.views || {};
 
 app.views.dashboard = function()
 {
@@ -4231,16 +4239,6 @@ app.views.dashboard = function()
 
             <!-- SCHNELLSTART-KACHELN -->
             <div class="grid grid-cols-2 gap-2.5">
-                <button onclick="app.router.navigate('live_dashboard')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
-                    <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center text-sm shrink-0 transition">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <div class="truncate">
-                        <span class="block font-bold text-zinc-800 text-xs truncate">Saison Stats</span>
-                        <span class="block text-[9px] text-zinc-400 font-medium truncate">Kaiser & KPIs</span>
-                    </div>
-                </button>
-
                 <button onclick="app.router.navigate('golfplaetze')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
                     <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm shrink-0 transition">
                         <i class="fas fa-map-marked-alt"></i>
@@ -4271,7 +4269,7 @@ app.views.dashboard = function()
                     </div>
                 </button>
 
-                <button onclick="window.open('${gameUrl}', '_blank')" class="col-span-2 p-2.5 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-xl text-left hover:border-amber-300 transition shadow-xs group flex items-center gap-2.5 touch-target">
+                <button onclick="window.open('${gameUrl}', '_blank')" class="p-2.5 bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-xl text-left hover:border-amber-300 transition shadow-xs group flex items-center gap-2.5 touch-target">
                     <div class="w-8 h-8 rounded-lg bg-amber-100/80 text-amber-700 flex items-center justify-center text-sm shrink-0 transition">
                         <i class="fas fa-gamepad"></i>
                     </div>
@@ -4283,15 +4281,6 @@ app.views.dashboard = function()
             </div>
         </div>
     `;
-};
-
-app.views.renderDashboard = function()
-{
-    const container = document.getElementById('view-container');
-    if (container)
-    {
-        container.innerHTML = app.views.dashboard();
-    }
 };
 
 
@@ -5563,29 +5552,16 @@ app.logic.deleteTermin = async function(terminId)
 
 app.views = app.views || {};
 
-app.views.leaderboard = function(spieltagIdParam, activeTabParam)
+app.views.leaderboard = function(spieltagId, activeTab)
 {
     if (!app.state.leaderboardViewMode)
     {
         app.state.leaderboardViewMode = 'matrix';
     }
     
-    // Parameter-Unpacking: Unterscheide zwischen String und Objekt vom Router
-    let spieltagId = "";
-    let mode = 'netto';
-
-    if (typeof spieltagIdParam === 'object' && spieltagIdParam !== null)
-    {
-        spieltagId = spieltagIdParam.id || spieltagIdParam.spieltagId || "";
-        mode = spieltagIdParam.mode || activeTabParam || 'netto';
-    }
-    else if (typeof spieltagIdParam === 'string')
-    {
-        spieltagId = spieltagIdParam;
-        mode = activeTabParam || 'netto';
-    }
+    const mode = activeTab || 'netto';
     
-    // 1. SPIELTAG RESOLVER
+    // 1. SPIELTAG RESOLVER (Falls keine ID übergeben wurde, wähle aktiven / neuesten Spieltag)
     let spieltag = null;
     if (spieltagId)
     {
@@ -5709,7 +5685,7 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
         );
     }
 
-    // Bahnen festlegen
+    // Bahnen festlegen (Standard 18 Loch)
     const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
     const kursBahnen = (app.state.bahnen || []).filter(
         function(b) 
@@ -5777,12 +5753,10 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
                         const dbMatch = dbScores.find(
                             function(sc) 
                             { 
-                                if (sc.hole === undefined || sc.hole === null) return false;
-                                const scHole = parseInt(sc.hole);
-                                return scHole === hNr || scHole === (hNr - 9); 
+                                return sc.hole !== undefined && parseInt(sc.hole) === hNr; 
                             }
                         );
-                        if (dbMatch && dbMatch.strokes !== undefined && dbMatch.strokes !== null && dbMatch.strokes !== "") 
+                        if (dbMatch) 
                         {
                             strokes = parseInt(dbMatch.strokes);
                         }
@@ -5969,27 +5943,12 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
             </div>
         `;
     }
-    else if (spieltag && spieltag.status === 'Beendet')
-    {
-        closeRoundBannerHtml = `
-            <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-2xs">
-                <div class="flex items-center space-x-2 text-emerald-900 text-xs">
-                    <i class="fas fa-flag-checkered text-emerald-600"></i>
-                    <span class="font-bold">Runde beendet</span>
-                </div>
-                <div class="flex items-center gap-2 text-[11px]">
-                    ${spieltag.bruttoSieger ? `<span class="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">🏆 ${spieltag.bruttoSieger}</span>` : ''}
-                    ${spieltag.nettoSieger ? `<span class="bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold">🥇 ${spieltag.nettoSieger}</span>` : ''}
-                </div>
-            </div>
-        `;
-    }
 
     return `
         <div class="space-y-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2">
-                    <button onclick="app.router.navigate('spieltage')" class="text-zinc-500 touch-target"><i class="fas fa-arrow-left"></i></button>
+                    <button onclick="app.router.navigate('dashboard')" class="text-zinc-500 touch-target"><i class="fas fa-arrow-left"></i></button>
                     <div>
                         <h2 class="text-base font-bold text-zinc-800">Live-Leaderboard</h2>
                         <p class="text-xs text-zinc-400 -mt-1">${platz ? platz.name : (spieltag ? spieltag.date : 'Turnier')}</p>
@@ -5997,10 +5956,10 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
                 </div>
                 
                 <div class="flex bg-zinc-100 border border-zinc-200 rounded-lg p-0.5">
-                    <button onclick="app.state.leaderboardViewMode='matrix'; app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'matrix' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
+                    <button onclick="app.state.leaderboardViewMode='matrix'; app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'matrix' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
                         <i class="fas fa-table"></i>
                     </button>
-                    <button onclick="app.state.leaderboardViewMode='list'; app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'list' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
+                    <button onclick="app.state.leaderboardViewMode='list'; app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'list' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
                         <i class="fas fa-list"></i>
                     </button>
                 </div>
@@ -6009,10 +5968,10 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
             ${closeRoundBannerHtml}
 
             <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200">
-                <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
+                <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
                     <i class="fas fa-star mr-1"></i> Netto (Stableford)
                 </button>
-                <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: 'brutto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'brutto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
+                <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: 'brutto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'brutto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
                     <i class="fas fa-trophy mr-1"></i> Brutto (Zählspiel)
                 </button>
             </div>
@@ -6021,7 +5980,7 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
                 ${app.state.leaderboardViewMode === 'matrix' ? matrixHtml : rowsListHtml}
             </div>
 
-            <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: '${mode}' })" class="w-full bg-zinc-100 border border-zinc-200 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-xs transition">
+            <button onclick="app.router.navigate('leaderboard', { id: '${spieltagId}', mode: '${mode}' })" class="w-full bg-zinc-100 border border-zinc-200 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-xs transition">
                 <i class="fas fa-sync-alt mr-1"></i> Rangliste aktualisieren
             </button>
         </div>
@@ -6091,9 +6050,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
             const match = dbScores.find(
                 function(sc)
                 {
-                    if (sc.hole === undefined || sc.hole === null) return false;
-                    const scHole = parseInt(sc.hole);
-                    return scHole === hNr || scHole === (hNr - 9);
+                    return sc.hole !== undefined && parseInt(sc.hole) === hNr;
                 }
             );
             
@@ -6306,15 +6263,10 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
 
 app.views = app.views || {};
 
-// Zuweisung für CamelCase (Router) & Unterstrich (Abwärtskompatibilität)
-app.views.liveDashboard = app.views.live_dashboard = function()
+app.views.live_dashboard = function()
 {
     const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
-    
-    // Saisonstart flexibel wählen (Fallback auf 2026-01-01, damit September 2026 sicher dabei ist)
-    const saisonStart = (app.state.saisonStartDatum && app.state.saisonStartDatum < '2026-09-01') 
-        ? app.state.saisonStartDatum 
-        : '2026-01-01';
+    const saisonStart = app.state.saisonStartDatum || '2020-01-01';
 
     // Runden für die aktuelle Saison filtern
     const saisonRunden = (app.state.spieltage || []).filter(
@@ -6330,10 +6282,7 @@ app.views.liveDashboard = app.views.live_dashboard = function()
 
             const statusNorm = String(st.status || '').toLowerCase().trim();
             const isDone = (statusNorm === 'beendet' || statusNorm === 'abgeschlossen');
-            
-            // Flexibel auf date oder datum prüfen
-            const rundenDatum = st.date || st.datum || '';
-            const dateOk = rundenDatum ? (rundenDatum >= saisonStart) : true;
+            const dateOk = st.date ? (st.date >= saisonStart) : true;
 
             return isDone && dateOk;
         }
@@ -6380,7 +6329,7 @@ app.views.liveDashboard = app.views.live_dashboard = function()
                     scs.forEach(
                         function(sc)
                         {
-                            const rawPutt = sc.putts !== undefined ? sc.putts : (sc.puts !== undefined ? sc.puts : sc.putt);
+                            const rawPutt = sc.putts !== undefined ? sc.putts : sc.putt;
                             if (rawPutt !== undefined && rawPutt !== null && String(rawPutt).trim() !== "")
                             {
                                 const puttsVal = parseInt(rawPutt);
@@ -6425,7 +6374,7 @@ app.views.liveDashboard = app.views.live_dashboard = function()
                     const ids = String(st.teilnehmerCsv || "").split(',').map(i => i.trim());
                     return ids.includes(String(sp.id).trim());
                 }
-            ).sort((a, b) => new Date(b.date || b.datum) - new Date(a.date || a.datum));
+            ).sort((a, b) => new Date(b.date) - new Date(a.date));
 
             rundenGespielt = spRunden.length;
 
@@ -6457,7 +6406,7 @@ app.views.liveDashboard = app.views.live_dashboard = function()
                                 if (strokes === par) pars++;
                             }
 
-                            const ladyVal = parseInt(sc.ladies) || parseInt(sc.lady) || (sc.lady === true ? 1 : 0);
+                            const ladyVal = parseInt(sc.ladies) || parseInt(sc.lady) || 0;
                             if (ladyVal > 0) ladies += ladyVal;
                         }
                     );
@@ -6496,7 +6445,7 @@ app.views.liveDashboard = app.views.live_dashboard = function()
                                     ? app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe) 
                                     : (strokes > 0 ? 1 : 0);
 
-                                if (strokes === 0 || netto === 0 || sc.maxscore === true || sc.isStrich === true)
+                                if (strokes === 0 || netto === 0)
                                 {
                                     strichCountLast10++;
                                 }
@@ -6921,73 +6870,24 @@ app.logic.requestMailPin = function()
 
 ##### <Views_ScoreEingabe.js>:
 ----------------------------------------------------------------------
-// =========================================================================
-// BMAssistent / LIE Scorecard - Score Eingabe (mit 9/18 Loch Filter)
-// Views_ScoreEingabe.js
-// BSD (Allman) Style
-// =========================================================================
-
-app.views = app.views || {};
-
-app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, holeNumberParam, targetFlightSeqParam)
+// Erweiterung des globalen app.views Namespaces für Flight-übergreifende Eingaben
+app.views.score_eingabe = function(spieltagId, holeNumber, targetFlightSeq)
 {
-    // Parameter entpacken (falls als Objekt vom Router oder als Einzelparameter übergeben)
-    let spieltagId = spieltagIdParam;
-    let holeNumber = holeNumberParam;
-    let targetFlightSeq = targetFlightSeqParam;
-
-    if (typeof spieltagIdParam === 'object' && spieltagIdParam !== null)
-    {
-        spieltagId = spieltagIdParam.id || spieltagIdParam.spieltagId;
-        holeNumber = spieltagIdParam.hole || spieltagIdParam.holeNumber;
-        targetFlightSeq = spieltagIdParam.flightSeq || spieltagIdParam.targetFlightSeq;
-    }
-
-    // LiveScores-State absichern
-    app.state.liveScores = app.state.liveScores || {};
-
-    const spieltage = app.state.spieltage || [];
-    const spieltag = spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-    const kurs = (app.state.kurse || []).find(function(k) { return spieltag && String(k.id) === String(spieltag.kursId); });
+    const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
+    const kurs = app.state.kurse.find(function(k) { return String(k.id) === String(spieltag.kursId); });
     
-    const is9Loch = (spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9')));
-    const kursBahnen = (app.state.bahnen || []).filter(function(b) { return spieltag && String(b.kursId).trim() === String(spieltag.kursId).trim(); });
+    const maxBahnenFuerDiesenKurs = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+    const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(spieltag.kursId).trim(); });
     kursBahnen.sort(function(a, b) { return parseInt(a.nr) - parseInt(b.nr); });
-
-    // Bahnbereich basierend auf Rundentyp festlegen (1-9, 10-18 oder 1-18)
-    let startHole = 1;
-    let endHole = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
-
-    if (spieltag && spieltag.rundenTyp === '9-Front')
-    {
-        startHole = 1;
-        endHole = 9;
-    }
-    else if (spieltag && spieltag.rundenTyp === '9-Back')
-    {
-        startHole = 10;
-        endHole = 18;
-    }
-    else if (is9Loch)
-    {
-        startHole = 1;
-        endHole = 9;
-    }
-
+    
     const anzuzeigendeBahnen = [];
-    for (let i = startHole; i <= endHole; i++)
+    for (let i = 0; i < maxBahnenFuerDiesenKurs; i++)
     {
-        const bMatch = kursBahnen.find(b => parseInt(b.nr) === i);
-        if (bMatch) anzuzeigendeBahnen.push(bMatch);
-        else anzuzeigendeBahnen.push({ nr: i, par: 4, si: i, kursId: spieltag ? spieltag.kursId : "" });
+        if (kursBahnen[i]) anzuzeigendeBahnen.push(kursBahnen[i]);
+        else anzuzeigendeBahnen.push({ nr: i + 1, par: 4, si: 10, kursId: spieltag.kursId });
     }
 
-    // Aktuelle Bahn im gewählten Bereich ermitteln
-    let targetHole = parseInt(holeNumber) || startHole;
-    if (targetHole < startHole) targetHole = startHole;
-    if (targetHole > endHole) targetHole = endHole;
-
-    const aktuelleBahnIndex = anzuzeigendeBahnen.findIndex(function(b) { return parseInt(b.nr) === targetHole; });
+    const aktuelleBahnIndex = anzuzeigendeBahnen.findIndex(function(b) { return parseInt(b.nr) === parseInt(holeNumber); });
     const sichererIndex = aktuelleBahnIndex !== -1 ? aktuelleBahnIndex : 0;
     const bahnDaten = anzuzeigendeBahnen[sichererIndex];
     const currentHoleNr = parseInt(bahnDaten.nr);
@@ -6999,6 +6899,7 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         const bNr = parseInt(b.nr);
         const isCurrent = bNr === currentHoleNr;
         const activeClass = isCurrent ? 'bg-emerald-600 text-white font-bold scale-110' : 'bg-stone-100 text-stone-600';
+        // WICHTIG: Wir müssen die aktuell gewählte Flight-Sequenz beim Blättern der Löcher mitschicken!
         const fSeqParam = targetFlightSeq ? `, ${targetFlightSeq}` : '';
         holeNavHtml += `
             <button onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${bNr}${fSeqParam ? ', flightSeq: ' + targetFlightSeq : ''} })" class="w-9 h-9 rounded-lg text-xs flex-shrink-0 transition-all ${activeClass}">
@@ -7011,11 +6912,13 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
     const meinIdString = app.state.currentUser ? String(app.state.currentUser.id).trim() : "";
     const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
     
+    // Alle Flights dieses Spieltags aus dem Speicher holen
     const tagesFlights = app.state.flights ? app.state.flights.filter(function(f) { return String(f.spieltagId).trim() === String(spieltagId).trim(); }) : [];
 
     let gewaehlterFlight = null;
     let flightSeq = 1;
 
+    // A. Wenn ein expliziter Flight vom Admin angefordert wurde
     if (isLeiter && targetFlightSeq)
     {
         gewaehlterFlight = tagesFlights.find(function(f) 
@@ -7026,6 +6929,7 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         flightSeq = parseInt(targetFlightSeq);
     }
     
+    // B. Standard-Fallback: Suche den eigenen Flight des Users
     if (!gewaehlterFlight)
     {
         gewaehlterFlight = tagesFlights.find(function(f)
@@ -7041,12 +6945,14 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         }
     }
 
+    // C. Absoluter Not-Fallback (falls kein Flight Match existiert)
     if (!gewaehlterFlight && tagesFlights.length > 0)
     {
         gewaehlterFlight = tagesFlights[0];
         flightSeq = 1;
     }
 
+    // Teilnehmer-IDs extrahieren
     let teilnehmerIds = [];
     if (gewaehlterFlight)
     {
@@ -7054,14 +6960,15 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
     }
     else
     {
-        const csvString = String(spieltag ? spieltag.teilnehmerCsv : "").trim();
+        // Fallback falls gar keine Flights existieren (Tages-Gesamtliste)
+        const csvString = String(spieltag.teilnehmerCsv || "").trim();
         if (csvString !== "")
         {
             teilnehmerIds = csvString.split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
         }
     }
 
-    // Flight Switcher
+    // INTERAKTIVES FLIGHT-SWITCHER BAND FÜR LEITER RENDERN
     let flightSwitcherHtml = "";
     if (isLeiter && tagesFlights.length > 1)
     {
@@ -7086,16 +6993,21 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         `;
     }
 
-    // Spieler-Karten generieren
+    // Spieler-Karten generieren (Fehlersichere Zuweisung & Berechnungen)
     let spielerKartenHtml = teilnehmerIds.map(function(spielerId)
     {
-        const spieler = (app.state.spieler || []).find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
+        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
         if (!spieler) 
         {
             return "";
         }
 
-        let spielvorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : null, bahnDaten.si, is9Loch);
+        let spielvorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahnDaten.si);
+        if (maxBahnenFuerDiesenKurs !== 18)
+        {
+            spielvorgabe = Math.round(spielvorgabe * (maxBahnenFuerDiesenKurs / 18));
+        }
+        
         const maxErlaubteSchlaege = parseInt(bahnDaten.par) + parseInt(spielvorgabe) + 2;
         
         const currentScoreKey = `${spieltagId}_${spielerId}_${currentHoleNr}`;
@@ -7103,7 +7015,7 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         const currentPutsKey = `${spieltagId}_${spielerId}_${currentHoleNr}_puts`;
         const currentMaxScoreKey = `${spieltagId}_${spielerId}_${currentHoleNr}_maxscore`;
 
-        const dbScores = (app.state.scoreCards || []).filter(function(sc) { return String(sc.spieltagId) === String(spieltagId) && String(sc.spielerId) === String(spielerId); });
+        const dbScores = app.state.scoreCards.filter(function(sc) { return String(sc.spieltagId) === String(spieltagId) && String(sc.spielerId) === String(spielerId); });
         const dbMatch = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === currentHoleNr; });
         
         const hatDbScore = dbMatch ? parseInt(dbMatch.strokes) : undefined;
@@ -7111,6 +7023,7 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         const hatDbPuts = dbMatch ? parseInt(dbMatch.puts) : undefined;
         const hatDbMaxScore = dbMatch ? (dbMatch.maxscore === true || String(dbMatch.maxscore).toUpperCase() === "TRUE") : false;
         
+        // === Live-Scores laden & explizit im Funktions-Scope deklarieren ===
         let aktuelleLady = app.state.liveScores[currentLadyKey];
         if (aktuelleLady === undefined)
         {
@@ -7148,6 +7061,7 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         
         const nettoPunkte = app.logic.calculateNettoStableford(aktuellerScore, bahnDaten.par, spielvorgabe);
 
+        // Dynamische Button-Zustände (Jetzt garantiert nach der Variablen-Initialisierung)
         const ladyBtnStyle = aktuelleLady 
             ? 'bg-red-500 border-red-600 text-white font-black shadow-xs' 
             : 'bg-white border-stone-300 text-stone-500 hover:bg-stone-50';
@@ -7187,10 +7101,10 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                     </button>
                 </div>
 
-                <!-- BEREICH 2: Spezial-Eingaben -->
-                <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; background-color: #e4e4e7; border: 1px solid #d4d4d8; padding: 4px; border-radius: 12px;">
+                <!-- BEREICH 2: Spezial-Eingaben (Mit Inline-Styles erzwungene Kantenbündigkeit) -->
+                <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; background-color: #e4e4e7; border: 1px solid #d4d4d8; padding: 4px; border-radius: 12px; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);">
                     
-                    <!-- Lady -->
+                    <!-- Lady (Links) -->
                     <button id="lady-btn-${spielerId}" onclick="app.logic.toggleLiveBoolean('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'lady')" class="${ladyBtnStyle} select-none" style="grid-column: span 1 / span 1; display: flex; align-items: center; justify-content: center; height: 32px !important; min-height: 32px !important; border-radius: 8px; border: 1px solid #d4d4d8; padding: 0; margin: 0;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
                             <i class="fas ${aktuelleLady ? 'fa-beer-mug-empty' : 'fa-wine-glass-empty'}" style="font-size: 11px;"></i>
@@ -7198,23 +7112,27 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                         </div>
                     </button>
 
-                    <!-- Putts -->
-                    <div style="grid-column: span 2 / span 2; display: flex; align-items: center; background-color: #ffffff; border: 1px solid #d4d4d8; border-radius: 8px; padding: 2px; height: 32px !important; min-height: 32px !important;">
-                        <button onclick="app.logic.adjustLiveValue('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'puts', -1)" style="width: 28px !important; height: 26px !important; background-color: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+                    <!-- Putts (Mitte - Flexbox mit erzwungener Höhe) -->
+                    <div style="grid-column: span 2 / span 2; display: flex; align-items: center; background-color: #ffffff; border: 1px solid #d4d4d8; border-radius: 8px; padding: 2px; height: 32px !important; min-height: 32px !important; box-sizing: border-box;">
+                        
+                        <!-- Minus -->
+                        <button onclick="app.logic.adjustLiveValue('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'puts', -1)" style="width: 28px !important; height: 26px !important; min-height: 26px !important; background-color: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0; margin: 0; cursor: pointer;">
                             <i class="fas fa-minus" style="font-size: 8px; color: #57534e;"></i>
                         </button>
                         
-                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <!-- Zahl & Text -->
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; height: 100%;">
                             <span id="puts-val-${spielerId}" style="font-size: 13px; font-weight: 900; color: #1c1917; line-height: 1;">${aktuellePuts}</span>
-                            <span style="font-size: 7px; color: #a8a29e; text-transform: uppercase; font-weight: 900; margin-top: 2px;">Putts</span>
+                            <span style="font-size: 7px; color: #a8a29e; text-transform: uppercase; font-weight: 900; letter-spacing: -0.05em; margin-top: 2px;">Putts</span>
                         </div>
                         
-                        <button onclick="app.logic.adjustLiveValue('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'puts', 1)" style="width: 28px !important; height: 26px !important; background-color: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+                        <!-- Plus -->
+                        <button onclick="app.logic.adjustLiveValue('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'puts', 1)" style="width: 28px !important; height: 26px !important; min-height: 26px !important; background-color: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0; margin: 0; cursor: pointer;">
                             <i class="fas fa-plus" style="font-size: 8px; color: #57534e;"></i>
                         </button>
                     </div>
 
-                    <!-- MaxScore -->
+                    <!-- MaxScore (Rechts) -->
                     <button id="maxscore-btn-${spielerId}" onclick="app.logic.toggleMaxScore('${spieltagId}', '${spielerId}', ${currentHoleNr}, ${maxErlaubteSchlaege}, ${bahnDaten.par}, ${spielvorgabe})" class="${maxScoreBtnStyle} select-none" style="grid-column: span 1 / span 1; display: flex; align-items: center; justify-content: center; height: 32px !important; min-height: 32px !important; border-radius: 8px; border: 1px solid #d4d4d8; padding: 0; margin: 0;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
                             <i class="fas ${aktuellerMaxScore ? 'fa-stroke' : 'fa-ban'}" style="font-size: 11px;"></i>
@@ -7235,8 +7153,10 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
 
     const fSeqParamStr = targetFlightSeq ? `, flightSeq: ${targetFlightSeq}` : '';
 
+    // === ZUSATZ-LOGIK: DYNAMISCHES OVERLAY FÜR LEADERBOARD OPENING ===
     app.logic.openLeaderboardOverlay = function(stId) 
     {
+        // Rendert das originale Leaderboard mit dem aktuellen Zustand im globalen Speicher
         const mode = app.state.lastLeaderboardMode || 'netto';
         const html = app.views.leaderboard(stId, mode);
         
@@ -7244,6 +7164,8 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         if (overlayContent) 
         {
             overlayContent.innerHTML = html;
+            
+            // UI-Kosmetik im Overlay: Back-Button und Admin-Rundenabschluss ausblenden
             const backBtn = overlayContent.querySelector('.fa-arrow-left')?.parentElement;
             if (backBtn) backBtn.style.display = 'none';
             const adminBox = overlayContent.querySelector('.fa-user-shield')?.parentElement;
@@ -7261,10 +7183,11 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                         <button onclick="app.router.navigate('dashboard')" class="text-stone-500 touch-target"><i class="fas fa-arrow-left"></i></button>
                         <div>
                             <h2 class="text-base font-bold text-stone-800">${kurs ? kurs.name : 'Scorekarte'}</h2>
-                            <p class="text-xs text-stone-400 -mt-1">Flight ${flightSeq} &bull; Bahn ${currentHoleNr} &bull; Par ${bahnDaten.par} (${is9Loch ? '9-Loch Match' : '18-Loch Match'})</p>
+                            <p class="text-xs text-stone-400 -mt-1">Flight ${flightSeq} &bull; Bahn ${currentHoleNr} &bull; Par ${bahnDaten.par}</p>
                         </div>
                     </div>
                     
+                    <!-- NEU: Flight-Spion Button im Header integriert -->
                     <div class="flex items-center space-x-1.5">
                         <button onclick="app.logic.openLeaderboardOverlay('${spieltagId}')" class="text-xs bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold px-3 py-2 rounded-xl transition shadow-3xs flex items-center">
                             <i class="fas fa-trophy mr-1 text-amber-900"></i> Spicken
@@ -7296,16 +7219,19 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
             </div>
         </div>
 
-        <!-- Leaderboard Overlay -->
+        <!-- NEU: Vollflächiges Leaderboard Overlay (Flight-Spion) -->
         <div id="score-leaderboard-overlay" class="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs hidden flex flex-col p-4">
             <div class="bg-stone-100 rounded-2xl w-full max-w-md mx-auto my-auto flex flex-col max-h-[85vh] shadow-2xl border border-stone-200 overflow-hidden animate-fade-in">
+                <!-- Overlay Header -->
                 <div class="bg-emerald-700 text-white px-4 py-3 flex justify-between items-center shrink-0">
                     <h3 class="font-bold text-sm tracking-wide"><i class="fas fa-eye mr-1.5 text-amber-400"></i> Flight-Spion (Live-Stand)</h3>
                     <button onclick="document.getElementById('score-leaderboard-overlay').classList.add('hidden')" class="text-white opacity-80 hover:opacity-100 touch-target text-lg">
                         <i class="fas fa-times-circle"></i>
                     </button>
                 </div>
+                <!-- Leaderboard Inhalt -->
                 <div id="overlay-leaderboard-content" class="flex-1 overflow-y-auto p-3 space-y-3">
+                    <!-- Wird dynamisch injiziert -->
                 </div>
             </div>
         </div>
@@ -7313,109 +7239,82 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
 };
 
 
+
 ##### <Views_SpielerEdit.js>:
 ----------------------------------------------------------------------
-/**
- * Views_SpielerEdit.js
- * View for creating or editing player profile details and handicap settings.
- */
-
-app.views = app.views || {};
-
-app.views.spieler_edit = function(params)
+// View: Spieler anlegen oder editieren
+app.views.spieler_edit = function(spielerId)
 {
-    var currentUser = app.state ? app.state.currentUser : null;
-    var isAdmin = currentUser && currentUser.role === 'Admin';
+    const currentUser = app.state.currentUser;
+    const isAdmin = currentUser && currentUser.role === 'Admin';
+    
+    const s = spielerId ? app.state.spieler.find(function(p) { return String(p.id).trim() === String(spielerId).trim(); }) : null;
+    const isNew = s === null;
 
-    // Safely extract target player ID from various param types (string, object, array)
-    var targetId = null;
-    if (typeof params === 'string' || typeof params === 'number')
+    // Sicherheits-Check Guard: Wenn Nicht-Admin versucht ein fremdes Profil zu öffnen -> Abbrechen!
+    if (!isAdmin && s && String(s.id).trim() !== String(currentUser.id).trim())
     {
-        targetId = params;
-    }
-    else if (params && typeof params === 'object')
-    {
-        targetId = params.id || params.spielerId || params[0] || null;
-    }
-
-    var s = null;
-    if (targetId !== null && targetId !== undefined && app.state && app.state.spieler)
-    {
-        s = app.state.spieler.find(function(p)
-        {
-            return String(p.id).trim() === String(targetId).trim();
-        });
-    }
-
-    var isNew = (s === null || s === undefined);
-
-    // Security check guard: non-admin trying to edit another user's profile
-    if (!isAdmin && s && String(s.id).trim() !== String(currentUser ? currentUser.id : '').trim())
-    {
-        setTimeout(function()
-        {
-            if (app.logic && app.logic.showToast)
-            {
-                app.logic.showToast("Zugriff verweigert! Du kannst nur dein eigenes Profil bearbeiten.", "error");
-            }
+        setTimeout(function() {
+            app.logic.showToast("Zugriff verweigert! Du kannst nur dein eigenes Profil bearbeiten.", "error");
             app.router.navigate('spieler');
         }, 10);
-
         return '<p class="text-stone-400 p-4">Zugriff verweigert...</p>';
     }
 
-    var title = isNew ? "Neuen Spieler anlegen" : (isAdmin ? "Spielerprofil bearbeiten" : "Mein Profil bearbeiten");
-    var disabledAttrForUsers = isAdmin ? '' : 'disabled class="bg-stone-100 border border-stone-200 text-stone-400 text-xs rounded-xl px-3 py-2 outline-none font-bold cursor-not-allowed"';
-    var inputStyleForUsers = isAdmin ? 'class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none font-bold"' : disabledAttrForUsers;
+    const title = isNew ? "Neuen Spieler anlegen" : (isAdmin ? "Spielerprofil bearbeiten" : "Mein Profil bearbeiten");
+    const disabledAttrForUsers = isAdmin ? '' : 'disabled class="bg-stone-100 border border-stone-200 text-stone-400 text-xs rounded-xl px-3 py-2 outline-none font-bold cursor-not-allowed"';
+    const inputStyleForUsers = isAdmin ? 'class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none font-bold"' : disabledAttrForUsers;
 
     return `
         <div class="space-y-4">
             <div class="flex items-center space-x-2">
-                <button onclick="app.router.navigate('gruppe')" class="text-stone-500 touch-target">
-                    <i class="fas fa-arrow-left"></i>
-                </button>
+                <button onclick="app.router.navigate('spieler')" class="text-stone-500 touch-target"><i class="fas fa-arrow-left"></i></button>
                 <h2 class="text-lg font-bold text-stone-800">${title}</h2>
             </div>
 
             <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs space-y-4">
                 
                 <div class="grid grid-cols-3 gap-2">
+                    <!-- ID-Feld nur für Admins anzeigen -->
                     ${isAdmin ? `
                         <div class="flex flex-col space-y-1 col-span-1">
                             <label class="text-[10px] font-bold text-stone-500 uppercase">ID *</label>
                             <input type="text" id="edit-sp-id" value="${!isNew ? s.id : ''}" ${!isNew ? 'disabled class="bg-stone-100 border border-stone-200 text-stone-400 text-xs rounded-xl px-3 py-2 outline-none font-bold"' : 'class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none font-bold" placeholder="z.B. 106"'} />
                         </div>
                     ` : `
-                        <input type="hidden" id="edit-sp-id" value="${!isNew ? s.id : ''}" />
+                        <!-- Verstecktes ID-Feld für die Logik beim Speichern -->
+                        <input type="hidden" id="edit-sp-id" value="${s.id}" />
                     `}
                     
                     <div class="flex flex-col space-y-1 ${isAdmin ? 'col-span-2' : 'col-span-3'}">
                         <label class="text-[10px] font-bold text-stone-500 uppercase">Kürzel / Nickname *</label>
-                        <input type="text" id="edit-sp-nickname" value="${!isNew && s.nickname ? s.nickname : ''}" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none font-semibold" placeholder="z.B. Tiger" />
+                        <input type="text" id="edit-sp-nickname" value="${!isNew ? s.nickname : ''}" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none font-semibold" placeholder="z.B. Tiger" />
                     </div>
                 </div>
 
                 <div class="flex flex-col space-y-1">
                     <label class="text-[10px] font-bold text-stone-500 uppercase">Vollständiger Name *</label>
-                    <input type="text" id="edit-sp-name" value="${!isNew && s.name ? s.name : ''}" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none" placeholder="Vorname Nachname" />
+                    <input type="text" id="edit-sp-name" value="${!isNew ? s.name : ''}" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none" placeholder="Vorname Nachname" />
                 </div>
 
                 <div class="flex flex-col space-y-1">
                     <label class="text-[10px] font-bold text-stone-500 uppercase">E-Mail-Adresse *</label>
-                    <input type="email" id="edit-sp-email" value="${!isNew && s.email ? s.email : ''}" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none font-mono" placeholder="spieler@example.com" />
+                    <input type="email" id="edit-sp-email" value="${!isNew ? s.email : ''}" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none font-mono" placeholder="spieler@example.com" />
                 </div>
 
+                <!-- Nur Admins dürfen Handicaps verändern -->
                 <div class="grid grid-cols-2 gap-3">
                     <div class="flex flex-col space-y-1">
                         <label class="text-[10px] font-bold text-stone-500 uppercase">DGV-Handicap ${!isAdmin ? '🔒' : ''}</label>
-                        <input type="number" step="0.1" id="edit-sp-hcpoff" value="${!isNew && s.hcpOfficial !== undefined ? s.hcpOfficial : '54.0'}" ${inputStyleForUsers} />
+                        <input type="number" step="0.1" id="edit-sp-hcpoff" value="${!isNew ? s.hcpOfficial : '54.0'}" ${inputStyleForUsers} />
                     </div>
                     <div class="flex flex-col space-y-1">
                         <label class="text-[10px] font-bold text-stone-500 uppercase">LIE-Handicap ${!isAdmin ? '🔒' : ''}</label>
-                        <input type="number" id="edit-sp-hcplie" value="${!isNew && s.hcpLIE !== undefined ? s.hcpLIE : '54'}" ${inputStyleForUsers} />
+                        <input type="number" id="edit-sp-hcplie" value="${!isNew ? s.hcpLIE : '54'}" ${inputStyleForUsers} />
                     </div>
                 </div>
 
+                <!-- Nur Admins dürfen Tee & Rolle verändern -->
                 <div class="grid grid-cols-2 gap-3">
                     <div class="flex flex-col space-y-1">
                         <label class="text-[10px] font-bold text-stone-500 uppercase">Abschlag (Tee) ${!isAdmin ? '🔒' : ''}</label>
@@ -7445,9 +7344,6 @@ app.views.spieler_edit = function(params)
     `;
 };
 
-// Alias app.views.spielerEdit to app.views.spieler_edit for backward compatibility in routing
-app.views.spielerEdit = app.views.spieler_edit;
-
 
 ##### <Views_Spieltage.js>:
 ----------------------------------------------------------------------
@@ -7463,18 +7359,6 @@ app.views.spielerEdit = app.views.spieler_edit;
        // Filter-Modus ermitteln ('all' oder 'my')
        let activeFilter = filterParam || app.state.spieltageFilterMode || 'all';
        app.state.spieltageFilterMode = activeFilter;
-   
-       // Button für Spielleiter/Admins definieren
-       let newRoundBtnHeader = "";
-       if (isLeiter)
-       {
-           newRoundBtnHeader = `
-               <button onclick="app.router.navigate('spieltag_neu')" 
-                       class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5 touch-target shrink-0">
-                   <i class="fas fa-plus"></i> Neue Runde
-               </button>
-           `;
-       }
    
        // 1. Alle aktiven (nicht gelöschten/abgebrochenen) Runden filtern
        const activeRounds = app.state.spieltage ? app.state.spieltage.filter(function(st) 
@@ -7493,8 +7377,7 @@ app.views.spielerEdit = app.views.spieler_edit;
        activeRounds.sort((a, b) => new Date(b.date) - new Date(a.date));
    
        // 2. Anzahl der eigenen Runden für den Button-Badge berechnen
-       const myRoundsCount = activeRounds.filter(st => 
-       {
+       const myRoundsCount = activeRounds.filter(st => {
            if (!currentUser) return false;
            const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
            return ids.includes(String(currentUser.id).trim());
@@ -7504,8 +7387,7 @@ app.views.spielerEdit = app.views.spieler_edit;
        let roundsToDisplay = activeRounds;
        if (activeFilter === 'my' && currentUser)
        {
-           roundsToDisplay = activeRounds.filter(st => 
-           {
+           roundsToDisplay = activeRounds.filter(st => {
                const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
                return ids.includes(String(currentUser.id).trim());
            });
@@ -7514,12 +7396,11 @@ app.views.spielerEdit = app.views.spieler_edit;
        let html = `
            <div class="space-y-5 max-w-4xl mx-auto pb-12">
                <!-- Header Section -->
-               <div class="border-b border-stone-200 pb-3 flex justify-between items-center">
+               <div class="border-b border-stone-200 pb-3 flex justify-between items-end">
                    <div>
                        <h1 class="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">Spieltage</h1>
                        <p class="text-xs sm:text-sm text-stone-500 mt-0.5">Übersicht aller aktiven und vergangenen Runden</p>
                    </div>
-                   ${newRoundBtnHeader}
                </div>
    
                <!-- Filter-Schalter (Alle Runden vs. Meine Runden) -->
@@ -7569,7 +7450,7 @@ app.views.spielerEdit = app.views.spieler_edit;
                }
                else
                {
-                   statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplanned</span>`;
+                   statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplant</span>`;
                }
    
                const kurs = app.state.kurse ? app.state.kurse.find(k => k.id === st.kursId) : null;
@@ -7583,10 +7464,7 @@ app.views.spielerEdit = app.views.spieler_edit;
                    {
                        datumFormatted = d.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
                    }
-               } 
-               catch (e) 
-               {
-               }
+               } catch (e) {}
    
                const teilnehmerAnzahl = st.teilnehmerCsv ? st.teilnehmerCsv.split(',').filter(Boolean).length : 0;
    
@@ -7596,8 +7474,7 @@ app.views.spielerEdit = app.views.spieler_edit;
                    let myFlightSeq = 1;
                    if (currentUser && app.state.flights)
                    {
-                       const myFlight = app.state.flights.find(f => 
-                       {
+                       const myFlight = app.state.flights.find(f => {
                            if (String(f.spieltagId).trim() !== String(st.id).trim()) return false;
                            const ids = (f.spielerIdsCsv || "").split(',');
                            return ids.includes(String(currentUser.id).trim());
@@ -7692,14 +7569,12 @@ app.views.spielerEdit = app.views.spieler_edit;
 ##### <Views_SpieltagNeu.js>:
 ----------------------------------------------------------------------
 // =========================================================================
-// BMAssistent / LIE Scorecard - Spieltag Anlegen & Flight-Auslosung (9/18 Loch Support)
+// BMAssistent / LIE Scorecard - Spieltag Anlegen & Flight-Auslosung
 // Views_SpieltagNeu.js
 // BSD (Allman) Style
 // =========================================================================
 
-app.views = app.views || {};
-
-app.views.spieltagNeu = app.views.spieltag_neu = function()
+app.views.spieltag_neu = function()
 {
     // Prefill-Daten aus Kalender auslesen
     const prefill = app.state.neuerSpieltagVorausgefuellt || {};
@@ -7811,8 +7686,8 @@ app.views.spieltagNeu = app.views.spieltag_neu = function()
             <!-- Formular Container -->
             <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs space-y-4">
                 
-                <!-- Datum, Kurs & 9/18-Loch Auswahl -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <!-- Datum & Kurs -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="flex flex-col space-y-1">
                         <label class="text-[10px] font-bold text-stone-500 uppercase">Datum</label>
                         <input type="date" id="new-spieltag-date" value="${today}" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2.5 focus:border-emerald-600 outline-none font-semibold">
@@ -7821,14 +7696,6 @@ app.views.spieltagNeu = app.views.spieltag_neu = function()
                         <label class="text-[10px] font-bold text-stone-500 uppercase">Golfplatz / Kurs</label>
                         <select id="new-spieltag-kurs" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2.5 focus:border-emerald-600 outline-none font-semibold">
                             ${kurseOptionsHtml}
-                        </select>
-                    </div>
-                    <div class="flex flex-col space-y-1">
-                        <label class="text-[10px] font-bold text-stone-500 uppercase">Rundentyp / Löcher</label>
-                        <select id="new-spieltag-rundentyp" class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2.5 focus:border-emerald-600 outline-none font-semibold">
-                            <option value="18" selected>18 Loch (Gesamter Platz)</option>
-                            <option value="9-Front">9 Loch - Front Nine (Loch 1-9)</option>
-                            <option value="9-Back">9 Loch - Back Nine (Loch 10-18)</option>
                         </select>
                     </div>
                 </div>

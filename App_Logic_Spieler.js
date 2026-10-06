@@ -243,3 +243,113 @@ app.logic.logout = function()
         }
     );
 };
+
+/**
+ * Resets all players' LIE handicaps to 26.0 and sets new season start date.
+ */
+app.logic.startNeueSaison = function()
+{
+    // Try reading date from all possible DOM input fields or global config state
+    const dateInput = document.getElementById('saison-startdatum') || 
+                      document.getElementById('edit-saison-start') || 
+                      document.getElementById('admin-saison-start') ||
+                      document.querySelector('input[type="date"]');
+
+    var startDate = null;
+
+    if (dateInput && dateInput.value)
+    {
+        startDate = dateInput.value;
+    }
+    else if (app.state && app.state.config && app.state.config.saisonStartDatum)
+    {
+        startDate = app.state.config.saisonStartDatum;
+    }
+    else
+    {
+        startDate = new Date().toISOString().split('T')[0];
+    }
+
+    app.logic.showConfirm(
+        "Neue Saison starten?",
+        "Bist du sicher? Alle LIE Handicaps der Spieler werden auf 26.0 zurückgesetzt und das Saison-Startdatum wird auf " + startDate + " gesetzt.",
+        "warning",
+        async function()
+        {
+            try
+            {
+                // 1. Reset all local player state LIE handicaps to 26
+                if (app.state && Array.isArray(app.state.spieler))
+                {
+                    for (var i = 0; i < app.state.spieler.length; i++)
+                    {
+                        var player = app.state.spieler[i];
+                        player.hcpLIE = 26;
+
+                        // Persist updated player to backend
+                        await app.logic.apiRequest('savePlayerServer', player);
+                    }
+                }
+
+                // 2. Persist new season start date
+                await app.logic.apiRequest('startNeueSaisonServer', { startDate: startDate });
+
+                // Update local config state
+                if (app.state && app.state.config)
+                {
+                    app.state.config.saisonStartDatum = startDate;
+                }
+
+                app.logic.showToast("Neue Saison gestartet! Alle HCPs stehen auf 26.0.", "success");
+
+                if (typeof app.logic.refreshGlobalAppData === 'function')
+                {
+                    await app.logic.refreshGlobalAppData();
+                }
+
+                if (app.router && typeof app.router.navigate === 'function')
+                {
+                    app.router.navigate('admin');
+                }
+            }
+            catch (err)
+            {
+                console.error("Error executing season reset:", err);
+                app.logic.showToast("Saison-Reset teilweise fehlgeschlagen.", "error");
+            }
+        }
+    );
+};
+
+/**
+ * Saves only the season start date.
+ */
+app.logic.saveSaisonStartDate = function()
+{
+    const dateInput = document.getElementById('saison-startdatum') || 
+                      document.getElementById('edit-saison-start') || 
+                      document.getElementById('admin-saison-start') ||
+                      document.querySelector('input[type="date"]');
+
+    if (!dateInput || !dateInput.value) return;
+
+    const chosenDate = dateInput.value;
+
+    if (app.state && app.state.config)
+    {
+        app.state.config.saisonStartDatum = chosenDate;
+    }
+
+    app.logic.apiRequest('saveSaisonStartDateServer', { startDate: chosenDate })
+        .then(function(response)
+        {
+            if (response && response.success)
+            {
+                app.logic.showToast("Saison-Startdatum erfolgreich gespeichert!", "success");
+            }
+            else
+            {
+                app.logic.showToast("Datum gespeichert: " + chosenDate, "info");
+            }
+        });
+};
