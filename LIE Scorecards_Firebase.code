@@ -3004,7 +3004,7 @@ function sendTempPinEmail(spielerId, tempPin)
 var isWindowAvailable = (typeof window !== 'undefined');
 
 var configData = {
-    appVersion: '4.9.1.7',
+    appVersion: '4.9.1.8',
     appName: 'lie-scorecard',
     gasUrl: 'https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec'
 };
@@ -3844,6 +3844,29 @@ app.logic.adminDeleteSpieler = function()
         }
     );
 };
+
+// =========================================================================
+// HILFSFUNKTION FÜR DIE SPIELER-SORTIERUNG (NEU)
+// =========================================================================
+app.logic.moveSpielerOrder = function(index, direction)
+{
+    if (!app.state.selectedSpielerIds) return;
+
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= app.state.selectedSpielerIds.length) return;
+
+    // Plätze in der Auswahlliste tauschen
+    const temp = app.state.selectedSpielerIds[index];
+    app.state.selectedSpielerIds[index] = app.state.selectedSpielerIds[targetIndex];
+    app.state.selectedSpielerIds[targetIndex] = temp;
+
+    // Ansicht neu rendern
+    if (typeof app.router.renderCurrentView === 'function')
+    {
+        app.router.renderCurrentView();
+    }
+};
+
 
 
 ##### <Views_AdminGruppe.js>:
@@ -6311,10 +6334,8 @@ app.views.liveDashboard = app.views.live_dashboard = function()
 {
     const isAdmin = app.state.currentUser && app.state.currentUser.role === 'Admin';
     
-    // Saisonstart flexibel wählen (Fallback auf 2026-01-01, damit September 2026 sicher dabei ist)
-    const saisonStart = (app.state.saisonStartDatum && app.state.saisonStartDatum < '2026-09-01') 
-        ? app.state.saisonStartDatum 
-        : '2026-01-01';
+    // Saisonstart direkt übernehmen (Fallback nur falls gar kein Datum gesetzt ist)
+    const saisonStart = app.state.saisonStartDatum || '2026-01-01';
 
     // Runden für die aktuelle Saison filtern
     const saisonRunden = (app.state.spieltage || []).filter(

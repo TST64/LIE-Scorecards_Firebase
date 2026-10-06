@@ -164,8 +164,11 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
     }
 
     // Spieler-Karten generieren
-    let spielerKartenHtml = teilnehmerIds.map(function(spielerId)
+    let spielerKartenHtml = teilnehmerIds.map(function(spielerId, index)
     {
+        const isFirst = index === 0;
+        const isLast = index === teilnehmerIds.length - 1;
+        
         const spieler = (app.state.spieler || []).find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
         if (!spieler) 
         {
@@ -241,8 +244,12 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                         <h4 class="font-bold text-stone-800 text-sm">${spieler.nickname}</h4>
                         <p class="text-[10px] text-stone-400 uppercase tracking-wider">HCP: ${spieler.hcpLIE} | Vorgabe: +${spielvorgabe}</p>
                     </div>
-                    <div class="text-right">
-                        <span id="netto-badge-${spielerId}" class="text-[11px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-lg">
+                    <div class="flex items-center space-x-2 text-right">
+                        <div class="flex space-x-1">
+                            <button onclick="app.logic.movePlayerInFlight('${spieltagId}', ${flightSeq}, '${spielerId}', -1, ${currentHoleNr})" class="w-7 h-7 bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-700 rounded-lg flex items-center justify-center transition disabled:opacity-30 touch-target" ${isFirst ? 'disabled' : ''}><i class="fas fa-arrow-up text-[10px]"></i></button>
+                            <button onclick="app.logic.movePlayerInFlight('${spieltagId}', ${flightSeq}, '${spielerId}', 1, ${currentHoleNr})" class="w-7 h-7 bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-700 rounded-lg flex items-center justify-center transition disabled:opacity-30 touch-target" ${isLast ? 'disabled' : ''}><i class="fas fa-arrow-down text-[10px]"></i></button>
+                        </div>
+                        <span id="netto-badge-${spielerId}" class="text-[11px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-lg whitespace-nowrap">
                             ${nettoPunkte} Netto-Pkt
                         </span>
                     </div>
@@ -337,7 +344,10 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                     <div class="flex items-center space-x-2">
                         <button onclick="app.router.navigate('dashboard')" class="text-stone-500 touch-target"><i class="fas fa-arrow-left"></i></button>
                         <div>
-                            <h2 class="text-base font-bold text-stone-800">${kurs ? kurs.name : 'Scorekarte'}</h2>
+                            <h2 class="text-base font-bold text-stone-800 flex items-center">
+                                ${kurs ? kurs.name : 'Scorekarte'}
+                                ${isLeiter ? `<button onclick="app.logic.openEditSpieltagModal('${spieltagId}', ${currentHoleNr}, ${flightSeq})" class="ml-2 text-stone-400 hover:text-emerald-600 transition touch-target flex items-center justify-center" title="Spieltag bearbeiten"><i class="fas fa-cog text-xs"></i></button>` : ''}
+                            </h2>
                             <p class="text-xs text-stone-400 -mt-1">Flight ${flightSeq} &bull; Bahn ${currentHoleNr} &bull; Par ${bahnDaten.par} (${is9Loch ? '9-Loch Match' : '18-Loch Match'})</p>
                         </div>
                     </div>

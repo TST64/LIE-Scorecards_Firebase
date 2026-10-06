@@ -712,3 +712,164 @@ app.logic.finishRoundWithWinners = function(spieltagId)
     // Bestehende Schließungs-Logik ausführen
     app.logic.closeActiveSpieltag(spieltagId, bruttoSieger, nettoSieger);
 };
+
+
+// =========================================================================
+// NEU: Spieler-Reihenfolge innerhalb eines Flights (oder des Spieltags) anpassen
+// =========================================================================
+app.logic.movePlayerInFlight = async function(spieltagId, flightSeq, spielerId, direction, currentHoleNr)
+{
+    let updateCollection = "";
+    let updateDocId = "";
+    let newCsv = "";
+
+    const flights = app.state.flights ? app.state.flights.filter(f => String(f.spieltagId) === String(spieltagId)) : [];
+    let flight = flights.find(f => {
+        const parts = f.id.split('-');
+        return parseInt(parts[parts.length-1]) === parseInt(flightSeq);
+    });
+
+    if (flight) 
+    {
+        let ids = (flight.spielerIdsCsv || "").split(',').map(id => id.trim()).filter(Boolean);
+        const idx = ids.indexOf(String(spielerId));
+        if (idx === -1) return;
+        
+        const newIdx = idx + direction;
+        if (newIdx < 0 || newIdx >= ids.length) return;
+        
+        // Plätze tauschen
+        const temp = ids[idx];
+        ids[idx] = ids[newIdx];
+        ids[newIdx] = temp;
+        
+        newCsv = ids.join(',');
+        flight.spielerIdsCsv = newCsv; // Lokalen State sofort aktualisieren
+        
+        updateCollection = 'flights';
+        updateDocId = flight.id;
+    } 
+    else 
+    {
+        // Fallback: Wenn kein Flight-Objekt existiert, die globale Teilnehmerliste des Spieltags sortieren
+        const st = app.state.spieltage.find(s => String(s.id) === String(spieltagId));
+        if(!st) return;
+        
+        let ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim()).filter(Boolean);
+        const idx = ids.indexOf(String(spielerId));
+        if (idx === -1) return;
+        
+        const newIdx = idx + direction;
+        if (newIdx < 0 || newIdx >= ids.length) return;
+        
+        const temp = ids[idx];
+        ids[idx] = ids[newIdx];
+        ids[newIdx] = temp;
+        
+        newCsv = ids.join(',');
+        st.teilnehmerCsv = newCsv;
+        
+        updateCollection = 'spieltage';
+        updateDocId = st.id;
+    }
+
+    // UI sofort neu rendern (Optimistic UI)
+    app.router.navigate('score_eingabe', { id: spieltagId, hole: currentHoleNr, flightSeq: flightSeq });
+
+    // Änderung leise über die Bridge speichern
+    await app.logic.apiRequest('updateFirestoreDoc', { 
+        collectionName: updateCollection, 
+        docId: updateDocId, 
+        data: { 
+            [updateCollection === 'flights' ? 'spielerIdsCsv' : 'teilnehmerCsv']: newCsv 
+        } 
+    });
+};
+
+// =========================================================================
+// NEU: Modal zum nachträglichen Bearbeiten von Platz & Rundentyp öffnen
+// =========================================================================
+app.logic.openEditSpieltagModal = function(spieltagId, currentHoleNr, flightSeq) 
+{
+    const spieltag = app.state.spieltage.find(st => String(st.id) === String(spieltagId));
+    if(!spieltag) return;
+    
+    let kurseOptionsHtml = "";
+    if (app.state.kurse) 
+    {
+        kurseOptionsHtml = app.state.kurse.map(k => {
+            const platz = app.state.golfplaetze ? app.state.golfplaetze.find(p => String(p.id) === String(k.platzId)) : null;
+            const isSelected = String(k.id) === String(spieltag.kursId) ? 'selected' : '';
+            return `<option value="${k.id}" ${isSelected}>${platz ? platz.name : ''} - ${k.name}</option>`;
+        }).join('');
+    }
+
+    const modalHtml = `
+        <div id="edit-spieltag-modal" class="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+            <div class="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+                <h3 class="font-bold text-stone-800 text-base mb-4 flex items-center"><i class="fas fa-cog text-stone-400 mr-2"></i> Spieltag bearbeiten</h3>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-stone-500 uppercase mb-1 block">Datum</label>
+                        <input type="date" id="edit-st-date" value="${spieltag.date || ''}" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold focus:border-emerald-600 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-stone-500 uppercase mb-1 block">Golfplatz / Kurs</label>
+                        <select id="edit-st-kurs" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold focus:border-emerald-600 outline-none">
+                            ${kurseOptionsHtml}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-stone-500 uppercase mb-1 block">Rundentyp</label>
+                        <select id="edit-st-typ" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-semibold focus:border-emerald-600 outline-none">
+                            <option value="18" ${spieltag.rundenTyp === '18' ? 'selected' : ''}>18 Loch (Gesamter Platz)</option>
+                            <option value="9-Front" ${spieltag.rundenTyp === '9-Front' ? 'selected' : ''}>9 Loch - Front Nine (Loch 1-9)</option>
+                            <option value="9-Back" ${spieltag.rundenTyp === '9-Back' ? 'selected' : ''}>9 Loch - Back Nine (Loch 10-18)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-2 mt-6 pt-4 border-t border-stone-100">
+                    <button onclick="document.getElementById('edit-spieltag-modal').remove()" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-xs transition">Abbrechen</button>
+                    <button onclick="app.logic.saveEditSpieltag('${spieltagId}', ${currentHoleNr}, ${flightSeq})" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-xs">Speichern</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
+
+// =========================================================================
+// NEU: Geänderten Spieltag speichern
+// =========================================================================
+app.logic.saveEditSpieltag = async function(spieltagId, currentHoleNr, flightSeq) 
+{
+    const dateVal = document.getElementById('edit-st-date').value;
+    const kursId = document.getElementById('edit-st-kurs').value;
+    const rundenTyp = document.getElementById('edit-st-typ').value;
+    const bahnAnzahl = rundenTyp.startsWith('9') ? 9 : 18;
+
+    const spieltag = app.state.spieltage.find(st => String(st.id) === String(spieltagId));
+    if(!spieltag) return;
+
+    // Lokalen State der Runde aktualisieren
+    spieltag.date = dateVal;
+    spieltag.kursId = kursId;
+    spieltag.rundenTyp = rundenTyp;
+    spieltag.bahnAnzahl = bahnAnzahl;
+
+    // Modal schließen und Toast ausgeben
+    document.getElementById('edit-spieltag-modal').remove();
+    app.logic.showToast("Runde erfolgreich angepasst", "success");
+
+    // UI sofort mit den aktualisierten Parametern neu laden (Netto rechnet sich dadurch on the fly neu!)
+    app.router.navigate('score_eingabe', { id: spieltagId, hole: currentHoleNr, flightSeq: flightSeq });
+
+    // Daten im Hintergrund asynchron an die Cloud senden
+    await app.logic.apiRequest('updateFirestoreDoc', {
+        collectionName: 'spieltage',
+        docId: spieltagId,
+        data: { date: dateVal, kursId: kursId, rundenTyp: rundenTyp, bahnAnzahl: bahnAnzahl }
+    });
+};

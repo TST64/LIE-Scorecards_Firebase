@@ -207,3 +207,25 @@ app.logic.adminDeleteSpieler = function()
         }
     );
 };
+
+// =========================================================================
+// HILFSFUNKTION FÜR DIE SPIELER-SORTIERUNG (NEU)
+// =========================================================================
+app.logic.moveSpielerOrder = function(index, direction)
+{
+    if (!app.state.selectedSpielerIds) return;
+
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= app.state.selectedSpielerIds.length) return;
+
+    // Plätze in der Auswahlliste tauschen
+    const temp = app.state.selectedSpielerIds[index];
+    app.state.selectedSpielerIds[index] = app.state.selectedSpielerIds[targetIndex];
+    app.state.selectedSpielerIds[targetIndex] = temp;
+
+    // Ansicht neu rendern
+    if (typeof app.router.renderCurrentView === 'function')
+    {
+        app.router.renderCurrentView();
+    }
+};
