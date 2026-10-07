@@ -37,6 +37,9 @@ app.router.navigate = function(viewName, params)
         case 'score_eingabe':
             html = app.views.scoreEingabe ? app.views.scoreEingabe(params) : "";
             break;
+        case 'score_schnellerfassung':
+            html = (app.views.scoreSchnellerfassung || app.views.score_schnellerfassung) ? (app.views.scoreSchnellerfassung || app.views.score_schnellerfassung)(params) : "";
+            break;
         case 'leaderboard':
             html = app.views.leaderboard ? app.views.leaderboard(params) : "";
             break;
@@ -119,7 +122,7 @@ app.router.updateNavState = function(activeView)
         const el = document.getElementById('nav-stats');
         if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
     }
-    else if (activeView === 'spieltage' || activeView === 'spieltag_neu' || activeView === 'score_eingabe' || activeView === 'leaderboard')
+    else if (activeView === 'spieltage' || activeView === 'spieltag_neu' || activeView === 'score_eingabe' || activeView === 'score_schnellerfassung' || activeView === 'leaderboard')
     {
         const el = document.getElementById('nav-rounds');
         if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }

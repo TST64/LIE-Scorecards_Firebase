@@ -346,12 +346,16 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                         <div>
                             <h2 class="text-base font-bold text-stone-800 flex items-center">
                                 ${kurs ? kurs.name : 'Scorekarte'}
-                                ${isLeiter ? `<button onclick="app.logic.openEditSpieltagModal('${spieltagId}', ${currentHoleNr}, ${flightSeq})" class="ml-2 text-stone-400 hover:text-emerald-600 transition touch-target flex items-center justify-center" title="Spieltag bearbeiten"><i class="fas fa-cog text-xs"></i></button>` : ''}
+                                ${isLeiter ? `
+                                    <button onclick="app.router.navigate('score_schnellerfassung', { id: '${spieltagId}', flightSeq: ${flightSeq} })" class="ml-3 text-stone-400 hover:text-blue-600 transition touch-target flex items-center justify-center" title="Tabellarische Schnelleingabe">
+                                        <i class="fas fa-table text-sm"></i>
+                                    </button>
+                                    <button onclick="app.logic.openEditSpieltagModal('${spieltagId}', ${currentHoleNr}, ${flightSeq})" class="ml-2 text-stone-400 hover:text-emerald-600 transition touch-target flex items-center justify-center" title="Spieltag bearbeiten">
+                                        <i class="fas fa-cog text-sm"></i>
+                                    </button>
+                                ` : ''}
                             </h2>
-                            <p class="text-xs text-stone-400 -mt-1">Flight ${flightSeq} &bull; Bahn ${currentHoleNr} &bull; Par ${bahnDaten.par} (${is9Loch ? '9-Loch Match' : '18-Loch Match'})</p>
                         </div>
-                    </div>
-                    
                     <div class="flex items-center space-x-1.5">
                         <button onclick="app.logic.openLeaderboardOverlay('${spieltagId}')" class="text-xs bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold px-3 py-2 rounded-xl transition shadow-3xs flex items-center">
                             <i class="fas fa-trophy mr-1 text-amber-900"></i> Spicken

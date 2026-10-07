@@ -38,7 +38,8 @@ app.logic.refreshGlobalAppData = async function()
             plaetzeSnap, 
             bahnenSnap,
             handicapsSnap,
-            kalenderSnap
+            kalenderSnap,
+            configSnap // <--- NEU: Hinzugefügt für das Saison-Datum
         ] = await Promise.all([
             app.db.collection('spieler').get().catch(
                 function() 
@@ -122,6 +123,16 @@ app.logic.refreshGlobalAppData = async function()
                 }
             ),
             app.db.collection('kalender_termine').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            // <--- NEU: Config Collection abrufen
+            app.db.collection('config').get().catch(
                 function() 
                 { 
                     return (
@@ -226,6 +237,21 @@ app.logic.refreshGlobalAppData = async function()
             }
         );
         app.state.kalenderTermine = kalenderData;
+
+        // <--- NEU: Config-Daten (Saison-Start) verarbeiten und im State speichern
+        configSnap.forEach(
+            function(doc)
+            {
+                if (doc.id === 'saison')
+                {
+                    const sData = doc.data();
+                    if (sData && sData.saisonStartDatum)
+                    {
+                        app.state.saisonStartDatum = sData.saisonStartDatum;
+                    }
+                }
+            }
+        );
 
         if (app.state.currentUser)
         {

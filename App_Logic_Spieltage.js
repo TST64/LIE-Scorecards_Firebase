@@ -873,3 +873,35 @@ app.logic.saveEditSpieltag = async function(spieltagId, currentHoleNr, flightSeq
         data: { date: dateVal, kursId: kursId, rundenTyp: rundenTyp, bahnAnzahl: bahnAnzahl }
     });
 };
+
+// =========================================================================
+// NEU: Logik für die Tabellarische Schnellerfassung
+// =========================================================================
+app.logic.updateRapidScoreState = function(spieltagId, spielerId, holeNr, type, value)
+{
+    // Die Live-Score Keys müssen exakt mit denen der Views_ScoreEingabe.js übereinstimmen
+    const key = type === 'strokes' 
+        ? `${spieltagId}_${spielerId}_${holeNr}` 
+        : `${spieltagId}_${spielerId}_${holeNr}_puts`;
+
+    // Wert bereinigen (leere Felder erlauben)
+    const strVal = String(value).trim();
+    
+    if (strVal === "")
+    {
+        // Wenn das Feld geleert wird, löschen wir den Key aus dem State
+        delete app.state.liveScores[key];
+    }
+    else
+    {
+        const intVal = parseInt(strVal);
+        if (!isNaN(intVal))
+        {
+            app.state.liveScores[key] = intVal;
+        }
+    }
+    
+    // WICHTIG: Wir rufen hier ganz bewusst NICHT den Router oder eine Render-Funktion auf!
+    // Dadurch wird das DOM nicht zerstört, das Input-Feld behält den Fokus und 
+    // das zeilenweise TAB-Springen funktioniert blitzschnell und reibungslos.
+};

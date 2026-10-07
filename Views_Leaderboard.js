@@ -152,8 +152,7 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
         );
     }
 
-    // Bahnen festlegen
-    const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+    // Bahnen festlegen (Front/Back/18 Loch Filter)
     const kursBahnen = (app.state.bahnen || []).filter(
         function(b) 
         { 
@@ -167,18 +166,31 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
         }
     );
 
-    const anzuzeigendeBahnen = [];
-    for (let i = 0; i < maxBahnen; i++)
-    {
-        if (kursBahnen[i]) 
-        {
-            anzuzeigendeBahnen.push(kursBahnen[i]);
-        }
-        else 
-        {
-            anzuzeigendeBahnen.push({ nr: i + 1, par: 4, si: i + 1 });
-        }
+    const is9Loch = spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9'));
+    let startHole = 1;
+    let endHole = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+
+    if (spieltag && spieltag.rundenTyp === '9-Front') {
+        startHole = 1;
+        endHole = 9;
+    } else if (spieltag && spieltag.rundenTyp === '9-Back') {
+        startHole = 10;
+        endHole = 18;
+    } else if (is9Loch) {
+        startHole = 1;
+        endHole = 9;
     }
+
+    const anzuzeigendeBahnen = [];
+    for (let i = startHole; i <= endHole; i++)
+    {
+        const bMatch = kursBahnen.find(b => parseInt(b.nr) === i);
+        if (bMatch) anzuzeigendeBahnen.push(bMatch);
+        else anzuzeigendeBahnen.push({ nr: i, par: 4, si: i, kursId: spieltag ? spieltag.kursId : "" });
+    }
+
+    // Die echte Anzahl der zu spielenden Bahnen für die Text-Anzeige (z.B. "Gespielt 3 / 9")
+    const maxBahnen = anzuzeigendeBahnen.length;
 
     // 3. DATEN-AGGREGATION
     const leaderboardData = teilnehmerIds.map(
