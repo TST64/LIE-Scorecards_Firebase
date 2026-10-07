@@ -32,6 +32,7 @@ var ASSETS_TO_CACHE = [
     './Views_Spieltage.js',
     './Views_SpieltagNeu.js',
     './Views_ScoreEingabe.js',
+    './Views_ScoreSchnellerfassung.js', // <-- NEU HINZUGEFÜGT
     './Views_Leaderboard.js',
     './Views_Admin.js',
     './Views_AdminGruppe.js',

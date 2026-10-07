@@ -1,70 +1,129 @@
 /* =========================================================================
-   BMAssistent / LIE Scorecard - Modern Apple / Glassmorphism Theme
+   BMAssistent / LIE Scorecard - Modern Apple / Glassmorphism Theme 2.0
    Style.css
    BSD (Allman) Style
    ========================================================================= */
 
-:root
-{
-    --color-header-bg: #042f2e;       /* Deep Midnight Emerald */
-    --color-bg-body: #f8fafc;         /* Ultra-clean Slate 50 */
-    --color-card-bg: rgba(255, 255, 255, 0.85);
-    --color-emerald-accent: #059669;  /* Modern Emerald 600 */
-    --color-amber-accent: #d97706;    /* Warm Amber 600 */
-}
+   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-html, body
-{
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden;
-    background-color: var(--color-bg-body);
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-}
-
-/* App Shell Canvas mit modernem Glassmorphism-Schatten */
-#app-container
-{
-    width: 100%;
-    box-sizing: border-box;
-    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Deaktiviert die unschöne graue Tap-Fläche auf Mobilgeräten */
-button, a, .nav-btn
-{
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
-}
-
-/* One-Hand Safe Input Targets */
-.touch-target
-{
-    min-height: 44px;
-    min-width: 44px;
-}
-
-/* Custom Scrollbar für Loch-Navigation & Listen */
-.scrollbar-none::-webkit-scrollbar
-{
-    display: none;
-}
-.scrollbar-none
-{
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-/* Sanfte Animationen */
-@keyframes fadeIn 
-{
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in 
-{
-    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
+   :root
+   {
+       /* Angepasste Farbpalette für mehr Leuchtkraft */
+       --color-header-bg: rgba(4, 47, 46, 0.88); /* Deep Emerald mit Transparenz für Glass-Effekt */
+       --color-emerald-accent: #10b981;  /* Fresher, brighter Emerald */
+       --color-amber-accent: #f59e0b;    /* Brighter, warmer Amber */
+   }
+   
+   html, body
+   {
+       width: 100%;
+       margin: 0;
+       padding: 0;
+       overflow-x: hidden;
+       /* Subtiler, moderner Farbverlauf statt flachem Grau für mehr Premium-Gefühl */
+       background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+       background-attachment: fixed;
+       /* Neue Premium-Schriftart 'Inter' als Fallback-Kaskade */
+       font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+       -webkit-font-smoothing: antialiased;
+       -moz-osx-font-smoothing: grayscale;
+   }
+   
+   /* App Shell Canvas */
+   #app-container
+   {
+       width: 100%;
+       box-sizing: border-box;
+       transition: opacity 0.3s ease;
+   }
+   
+   /* ==========================================
+      Glassmorphism & Apple-like UI Overrides
+      ========================================== */
+   
+   /* Header bekommt echten Milchglas-Effekt */
+   header 
+   {
+       background-color: var(--color-header-bg) !important;
+       backdrop-filter: blur(12px);
+       -webkit-backdrop-filter: blur(12px);
+       border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+   }
+   
+   /* Bottom Nav bekommt echten Milchglas-Effekt */
+   #bottom-nav 
+   {
+       background-color: rgba(255, 255, 255, 0.85) !important;
+       backdrop-filter: blur(16px);
+       -webkit-backdrop-filter: blur(16px);
+       border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+       box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.03) !important;
+   }
+   
+   /* Karten-Schatten weicher machen (Apple Style) */
+   .bg-white, .bg-stone-50 
+   {
+       box-shadow: 0 4px 24px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.01) !important;
+   }
+   
+   /* ==========================================
+      Interaction & Feedback (UX)
+      ========================================== */
+   
+   /* Deaktiviert die unschöne graue Tap-Fläche auf Android/iOS */
+   button, a, .nav-btn, input, select
+   {
+       -webkit-tap-highlight-color: transparent;
+       outline: none;
+   }
+   
+   /* Sanftes taktiles Feedback für ALLE Buttons (iOS Feeling) */
+   button 
+   {
+       transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, opacity 0.2s ease;
+   }
+   
+   button:active 
+   {
+       transform: scale(0.96);
+   }
+   
+   /* Ausnahme für die Navigationsleiste unten, damit sie organisch drückt */
+   #bottom-nav button:active 
+   {
+       transform: scale(0.90);
+   }
+   
+   /* One-Hand Safe Input Targets */
+   .touch-target
+   {
+       min-height: 44px;
+       min-width: 44px;
+   }
+   
+   /* ==========================================
+      Utilities
+      ========================================== */
+   
+   /* Custom Scrollbar für Loch-Navigation & Listen */
+   .scrollbar-none::-webkit-scrollbar
+   {
+       display: none;
+   }
+   .scrollbar-none
+   {
+       -ms-overflow-style: none;
+       scrollbar-width: none;
+   }
+   
+   /* Weichere, flüssigere Einblend-Animationen */
+   @keyframes fadeIn 
+   {
+       from { opacity: 0; transform: translateY(8px); }
+       to { opacity: 1; transform: translateY(0); }
+   }
+   
+   .animate-fade-in 
+   {
+       animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+   }
