@@ -410,34 +410,75 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
     const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
     let closeRoundBannerHtml = "";
 
-    if (spieltag && spieltag.status === 'Aktiv' && isLeiter)
+    if (spieltag)
     {
-        closeRoundBannerHtml = `
-            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between shadow-2xs">
-                <div class="flex items-center space-x-2 text-amber-900 text-xs">
-                    <i class="fas fa-flag-checkered text-amber-600"></i>
-                    <span class="font-bold">Match noch aktiv</span>
+        // Statistik-Daten vorbereiten
+        let datumFormatted = spieltag.date;
+        try {
+            const d = new Date(spieltag.date);
+            if (!isNaN(d.getTime())) {
+                datumFormatted = d.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            }
+        } catch (e) {}
+
+        const anzahlSpieler = teilnehmerIds.length;
+        const kursName = kurs ? kurs.name : (spieltag.kursId || "Kurs");
+
+        // Runden-Typ lesbar machen
+        let rundenInfo = "18 Loch";
+        if (spieltag.rundenTyp === '9-Front') rundenInfo = "9 Loch (Front-Nine)";
+        else if (spieltag.rundenTyp === '9-Back') rundenInfo = "9 Loch (Back-Nine)";
+        else if (spieltag.bahnAnzahl === 9) rundenInfo = "9 Loch";
+
+        const statsString = `${datumFormatted} &bull; ${kursName} (${rundenInfo}) &bull; ${anzahlSpieler} Spieler`;
+
+        if (spieltag.status === 'Aktiv' && isLeiter)
+        {
+            closeRoundBannerHtml = `
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between shadow-2xs gap-3 sm:gap-2">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-amber-900 text-xs min-w-0 w-full sm:w-auto">
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <i class="fas fa-flag-checkered text-amber-600"></i>
+                            <span class="font-bold whitespace-nowrap">Match noch aktiv</span>
+                        </div>
+                        <span class="text-[10px] text-amber-700/80 font-medium hidden sm:inline-block border-l border-amber-300 pl-3 truncate">
+                            ${statsString}
+                        </span>
+                    </div>
+                    <button onclick="app.logic.finishRoundWithWinners('${spieltag.id}')" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-xs touch-target whitespace-nowrap shrink-0">
+                        Runde offiziell beenden
+                    </button>
+                    <!-- Mobile Fallback -->
+                    <div class="text-[10px] text-amber-700/80 font-medium sm:hidden w-full text-left">
+                        ${statsString}
+                    </div>
                 </div>
-                <button onclick="app.logic.finishRoundWithWinners('${spieltag.id}')" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-xs touch-target">
-                    Runde offiziell beenden
-                </button>
-            </div>
-        `;
-    }
-    else if (spieltag && spieltag.status === 'Beendet')
-    {
-        closeRoundBannerHtml = `
-            <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-2xs">
-                <div class="flex items-center space-x-2 text-emerald-900 text-xs">
-                    <i class="fas fa-flag-checkered text-emerald-600"></i>
-                    <span class="font-bold">Runde beendet</span>
+            `;
+        }
+        else if (spieltag.status === 'Beendet')
+        {
+            closeRoundBannerHtml = `
+                <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between shadow-2xs gap-3 sm:gap-2">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-emerald-900 text-xs min-w-0 w-full sm:w-auto">
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <i class="fas fa-flag-checkered text-emerald-600"></i>
+                            <span class="font-bold whitespace-nowrap">Runde beendet</span>
+                        </div>
+                        <span class="text-[10px] text-emerald-700/80 font-medium hidden sm:inline-block border-l border-emerald-300 pl-3 truncate">
+                            ${statsString}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] shrink-0">
+                        ${spieltag.bruttoSieger ? `<span class="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-bold truncate max-w-[120px]">🏆 ${spieltag.bruttoSieger}</span>` : ''}
+                        ${spieltag.nettoSieger ? `<span class="bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold truncate max-w-[120px]">🥇 ${spieltag.nettoSieger}</span>` : ''}
+                    </div>
+                    <!-- Mobile Fallback -->
+                    <div class="text-[10px] text-emerald-700/80 font-medium sm:hidden w-full text-left">
+                        ${statsString}
+                    </div>
                 </div>
-                <div class="flex items-center gap-2 text-[11px]">
-                    ${spieltag.bruttoSieger ? `<span class="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">🏆 ${spieltag.bruttoSieger}</span>` : ''}
-                    ${spieltag.nettoSieger ? `<span class="bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold">🥇 ${spieltag.nettoSieger}</span>` : ''}
-                </div>
-            </div>
-        `;
+            `;
+        }
     }
 
     return `
@@ -503,6 +544,13 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
         return;
     }
 
+    const kurs = (app.state.kurse || []).find(
+        function(k) 
+        { 
+            return String(k.id).trim() === String(spieltag.kursId).trim(); 
+        }
+    );
+
     const kursBahnen = (app.state.bahnen || [])
         .filter(
             function(b)
@@ -516,6 +564,42 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                 return parseInt(a.nr) - parseInt(b.nr);
             }
         );
+
+    // =====================================================================
+    // NEU: BAHNEN FILTERN (Front-9 / Back-9) für das Modal
+    // =====================================================================
+    const is9Loch = spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9'));
+    let startHole = 1;
+    let endHole = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+
+    if (spieltag && spieltag.rundenTyp === '9-Front') {
+        startHole = 1;
+        endHole = 9;
+    } else if (spieltag && spieltag.rundenTyp === '9-Back') {
+        startHole = 10;
+        endHole = 18;
+    } else if (is9Loch) {
+        startHole = 1;
+        endHole = 9;
+    }
+
+    const anzuzeigendeBahnen = [];
+    for (let i = startHole; i <= endHole; i++)
+    {
+        const bMatch = kursBahnen.find(b => parseInt(b.nr) === i);
+        if (bMatch) anzuzeigendeBahnen.push(bMatch);
+        else anzuzeigendeBahnen.push({ nr: i, par: 4, si: i, kursId: spieltag.kursId });
+    }
+    // =====================================================================
+
+    // Datum formatieren
+    let datumFormatted = spieltag.date;
+    try {
+        const d = new Date(spieltag.date);
+        if (!isNaN(d.getTime())) {
+            datumFormatted = d.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        }
+    } catch (e) {}
 
     const dbScores = (app.state.scoreCards || []).filter(
         function(sc)
@@ -539,7 +623,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
         played: 0 
     };
     
-    let rowsHtml = kursBahnen.map(
+    let rowsHtml = anzuzeigendeBahnen.map(
         function(bahn)
         {
             const hNr = parseInt(bahn.nr);
@@ -682,7 +766,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                 <div class="p-4 bg-emerald-800 text-white flex items-center justify-between">
                     <div>
                         <h3 class="font-bold text-base">${spieler.nickname || spieler.name}</h3>
-                        <p class="text-xs text-emerald-200">Stv: ${spieler.hcp || '36'} &bull; Löcher: ${stats.played}/${kursBahnen.length}</p>
+                        <p class="text-xs text-emerald-200"><i class="far fa-calendar-alt mr-0.5"></i> ${datumFormatted} &bull; Stv: ${spieler.hcpLIE || spieler.hcp || '36'} &bull; Löcher: ${stats.played}/${anzuzeigendeBahnen.length}</p>
                     </div>
                     <button onclick="document.getElementById('player-detail-modal').remove()" class="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-700 text-white hover:bg-emerald-600 transition">
                         <i class="fas fa-times"></i>

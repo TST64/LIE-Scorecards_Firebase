@@ -1,5 +1,5 @@
 /* ==========================================
-   VIEWS: SPIELTAGE (Mit 'Meine Runden' Filter)
+   VIEWS: SPIELTAGE (Mit erweiterten Filtern)
    ========================================== */
 
    app.views.spieltage = function(filterParam)
@@ -7,8 +7,8 @@
        const currentUser = app.state.currentUser;
        const isLeiter = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Spielleiter');
    
-       // Filter-Modus ermitteln ('all' oder 'my')
-       let activeFilter = filterParam || app.state.spieltageFilterMode || 'all';
+       // Filter-Modus ermitteln ('month', 'season', 'my' oder 'all') - Default ist 'month'
+       let activeFilter = filterParam || app.state.spieltageFilterMode || 'month';
        app.state.spieltageFilterMode = activeFilter;
    
        // Button für Spielleiter/Admins definieren
@@ -39,24 +39,61 @@
        // Chronologisch sortieren (Neueste zuerst)
        activeRounds.sort((a, b) => new Date(b.date) - new Date(a.date));
    
-       // 2. Anzahl der eigenen Runden für den Button-Badge berechnen
-       const myRoundsCount = activeRounds.filter(st => 
-       {
-           if (!currentUser) return false;
-           const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
-           return ids.includes(String(currentUser.id).trim());
-       }).length;
+       // 2. Filter-Logik
+       const now = new Date();
+       const currentYear = now.getFullYear();
+       const currentMonth = now.getMonth();
+       
+       // Saisonstart aus State holen (Fallback: 1.1.2026)
+       const saisonStart = app.state.saisonStartDatum ? new Date(app.state.saisonStartDatum) : new Date('2026-01-01');
    
-       // 3. Runden basierend auf gewähltem Filter filtern
-       let roundsToDisplay = activeRounds;
-       if (activeFilter === 'my' && currentUser)
+       // Zähler für die Buttons vorbereiten
+       let countMonth = 0;
+       let countSeason = 0;
+       let countMy = 0;
+       const countAll = activeRounds.length;
+
+       let roundsToDisplay = [];
+
+       activeRounds.forEach(st => 
        {
-           roundsToDisplay = activeRounds.filter(st => 
+           const stDate = new Date(st.date);
+           let isMyRound = false;
+
+           // Gehört die Runde mir?
+           if (currentUser)
            {
                const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
-               return ids.includes(String(currentUser.id).trim());
-           });
-       }
+               isMyRound = ids.includes(String(currentUser.id).trim());
+               if (isMyRound) countMy++;
+           }
+
+           // Ist die Runde in diesem Monat?
+           const isThisMonth = stDate.getFullYear() === currentYear && stDate.getMonth() === currentMonth;
+           if (isThisMonth) countMonth++;
+
+           // Ist die Runde in dieser Saison? (Datum >= Saisonstart)
+           const isThisSeason = stDate >= saisonStart;
+           if (isThisSeason) countSeason++;
+
+           // Entscheiden, ob die Runde aktuell angezeigt werden soll
+           if (activeFilter === 'all') 
+           {
+               roundsToDisplay.push(st);
+           } 
+           else if (activeFilter === 'my' && isMyRound) 
+           {
+               roundsToDisplay.push(st);
+           }
+           else if (activeFilter === 'season' && isThisSeason)
+           {
+               roundsToDisplay.push(st);
+           }
+           else if (activeFilter === 'month' && isThisMonth)
+           {
+               roundsToDisplay.push(st);
+           }
+       });
    
        let html = `
            <div class="space-y-5 max-w-4xl mx-auto pb-12">
@@ -69,15 +106,23 @@
                    ${newRoundBtnHeader}
                </div>
    
-               <!-- Filter-Schalter (Alle Runden vs. Meine Runden) -->
-               <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200 max-w-xs">
-                   <button onclick="app.router.navigate('spieltage', 'all')" 
-                           class="py-1.5 text-xs font-bold rounded-lg transition-all ${activeFilter !== 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
-                       <i class="fas fa-globe mr-1"></i> Alle Runden (${activeRounds.length})
+               <!-- Filter-Schalter (Dieser Monat | Diese Saison | Meine Runden | Alle) -->
+               <div class="flex overflow-x-auto gap-1 p-1 bg-zinc-100 rounded-xl border border-zinc-200 scrollbar-none">
+                   <button onclick="app.router.navigate('spieltage', 'month')" 
+                           class="flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all ${activeFilter === 'month' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="far fa-calendar-alt mr-1"></i> Dieser Monat (${countMonth})
+                   </button>
+                   <button onclick="app.router.navigate('spieltage', 'season')" 
+                           class="flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all ${activeFilter === 'season' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-flag-checkered mr-1"></i> Diese Saison (${countSeason})
                    </button>
                    <button onclick="app.router.navigate('spieltage', 'my')" 
-                           class="py-1.5 text-xs font-bold rounded-lg transition-all ${activeFilter === 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
-                       <i class="fas fa-user-check mr-1"></i> Meine Runden (${myRoundsCount})
+                           class="flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all ${activeFilter === 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-user-check mr-1"></i> Meine Runden (${countMy})
+                   </button>
+                   <button onclick="app.router.navigate('spieltage', 'all')" 
+                           class="flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all ${activeFilter === 'all' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-globe mr-1"></i> Alle Runden (${countAll})
                    </button>
                </div>
    
@@ -87,9 +132,10 @@
    
        if (roundsToDisplay.length === 0)
        {
-           const emptyMsg = activeFilter === 'my' 
-               ? "Du hast bisher an keinen gespielten Runden teilgenommen." 
-               : "Es wurden noch keine Runden angelegt oder alle wurden gelöscht.";
+           let emptyMsg = "Es wurden noch keine Runden angelegt oder alle wurden gelöscht.";
+           if (activeFilter === 'my') emptyMsg = "Du hast bisher an keinen gespielten Runden teilgenommen.";
+           else if (activeFilter === 'month') emptyMsg = "In diesem Monat wurden noch keine Runden gespielt.";
+           else if (activeFilter === 'season') emptyMsg = "In der aktuellen Saison wurden noch keine Runden gespielt.";
    
            html += `
                <div class="bg-stone-50 border border-dashed border-stone-300 rounded-xl p-8 text-center">
@@ -116,7 +162,7 @@
                }
                else
                {
-                   statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplanned</span>`;
+                   statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplant</span>`;
                }
    
                const kurs = app.state.kurse ? app.state.kurse.find(k => k.id === st.kursId) : null;
