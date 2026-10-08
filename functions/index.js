@@ -344,12 +344,27 @@ exports.requestTempPin = onCall(async (request) =>
 
     const tempPin = String(crypto.randomInt(100000, 1000000));
 
+    // Bisherigen PIN-Zustand sichern, damit wir ihn bei einem
+    // fehlgeschlagenen E-Mail-Versand wiederherstellen können.
+    const previousPinState =
+    {
+        pinHash: data.pinHash,
+        pin: data.pin,
+        mustChangePin: data.mustChangePin,
+        tempPinSentAt: data.tempPinSentAt
+    };
+
+    // Neuen Einmal-Code zunächst aktivieren.
     await ref.set(
     {
         pinHash: hashPin(tempPin),
         pin: FieldValue.delete(),
         mustChangePin: true,
-        tempPinSentAt: admin.firestore.FieldValue.serverTimestamp()
+        tempPinSentAt: admin.firestore.FieldValue.serverTimestamp(),
+
+        // Ein neuer Einmal-Code startet einen frischen Anmeldeversuch.
+        failedPinAttempts: 0,
+        pinLockUntil: FieldValue.delete()
     },
     { merge: true });
 
@@ -374,6 +389,7 @@ exports.requestTempPin = onCall(async (request) =>
         }
 
         let result = null;
+
         try
         {
             result = JSON.parse(text);
@@ -392,7 +408,34 @@ exports.requestTempPin = onCall(async (request) =>
     catch (err)
     {
         console.error("[requestTempPin] E-Mail-Versand:", err);
-        throw new HttpsError("internal", "Der Einmal-Code konnte nicht versendet werden.");
+
+        // E-Mail konnte nicht versendet werden:
+        // vorherigen PIN-Zustand wiederherstellen.
+        const rollback =
+        {
+            pinHash: previousPinState.pinHash !== undefined
+                ? previousPinState.pinHash
+                : FieldValue.delete(),
+
+            pin: previousPinState.pin !== undefined
+                ? previousPinState.pin
+                : FieldValue.delete(),
+
+            mustChangePin: previousPinState.mustChangePin !== undefined
+                ? previousPinState.mustChangePin
+                : FieldValue.delete(),
+
+            tempPinSentAt: previousPinState.tempPinSentAt !== undefined
+                ? previousPinState.tempPinSentAt
+                : FieldValue.delete()
+        };
+
+        await ref.set(rollback, { merge: true });
+
+        throw new HttpsError(
+            "internal",
+            "Der Einmal-Code konnte nicht versendet werden."
+        );
     }
 
     return { success: true };
