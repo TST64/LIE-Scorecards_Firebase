@@ -180,6 +180,16 @@ exports.verifyPlayerPin = onCall(async (request) =>
 
     const storedHash = data.pinHash || "";
     const storedLegacyPin = data.pin != null ? String(data.pin).trim() : "";
+
+    console.log("[verifyPlayerPin] Diagnose", {
+        playerId: playerId,
+        hasPinHash: !!storedHash,
+        hasLegacyPin: !!storedLegacyPin,
+        mustChangePin: data.mustChangePin === true,
+        hasLockUntil: !!data.pinLockUntil,
+        failedPinAttempts: Number(data.failedPinAttempts || 0)
+    });
+
     let valid = false;
     let migrated = false;
 
@@ -191,7 +201,7 @@ exports.verifyPlayerPin = onCall(async (request) =>
     {
         // Übergangskompatibilität: bestehende Klartext-PINs werden beim
         // ersten erfolgreichen Login sofort in einen scrypt-Hash umgewandelt.
-        valid = storedLegacyPin ? storedLegacyPin === pin : pin === "0000";
+        valid = storedLegacyPin ? storedLegacyPin === pin : pin === "4227";
         migrated = valid;
     }
 
