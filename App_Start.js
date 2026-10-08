@@ -66,7 +66,37 @@ app.initStart = async function()
         }
 
 
-        const authUser = firebase.auth().currentUser;
+        // Nach einem Reload muss Firebase Auth zunächst die gespeicherte
+        // Sitzung aus dem Browser wiederherstellen. currentUser kann direkt
+        // nach der Initialisierung noch kurzzeitig null sein.
+        const authUser = await new Promise(function(resolve)
+        {
+            let unsubscribe = null;
+
+            unsubscribe = firebase.auth().onAuthStateChanged(
+                function(user)
+                {
+                    if (unsubscribe)
+                    {
+                        unsubscribe();
+                    }
+
+                    resolve(user);
+                },
+                function(error)
+                {
+                    console.error("[Auth] Wiederherstellung der Sitzung fehlgeschlagen:", error);
+
+                    if (unsubscribe)
+                    {
+                        unsubscribe();
+                    }
+
+                    resolve(null);
+                }
+            );
+        });
+
         let claims = {};
 
         if (authUser)
