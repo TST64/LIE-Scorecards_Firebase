@@ -327,7 +327,9 @@ app.logic.loadLoginPlayers = async function()
 // Abstraction layer for API requests
 app.logic.apiRequest = async function(action, payload = {})
 {
-    console.log(`[Bridge Firestore Request] Action: ${action}`, payload);
+    // Payload absichtlich nicht protokollieren:
+    // API-Aufrufe können PINs oder andere sensible Daten enthalten.
+    console.log(`[Bridge Firestore Request] Action: ${action}`);
 
     try
     {

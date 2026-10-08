@@ -241,29 +241,59 @@ app.logic.deletePlayer = function(spielerId)
 app.logic.logout = function()
 {
     app.logic.showConfirm(
-        "Abmelden?", 
-        "Möchtest du dich wirklich aus der LIE Scorecard abmelden?", 
-        "standard", 
-        function() 
+        "Abmelden?",
+        "Möchtest du dich wirklich aus der LIE Scorecard abmelden?",
+        "standard",
+        async function()
         {
-            if (typeof firebase !== 'undefined' && firebase.auth)
+            try
             {
-                firebase.auth().signOut()
-                    .catch(function(e) { console.warn("Firebase signout error:", e); });
-            }
+                // Firebase-Sitzung vollständig beenden.
+                if (typeof firebase !== 'undefined' && firebase.auth)
+                {
+                    await firebase.auth().signOut();
+                }
 
-            if (app.state)
-            {
-                app.state.currentUser = null;
-                app.state.spieler = [];
+                // Geschützte Benutzerdaten aus dem lokalen App-Zustand entfernen.
+                if (app.state)
+                {
+                    app.state.currentUser = null;
+                    app.state.spieler = [];
+                }
+
+                localStorage.removeItem('lie_scorecard_user_id');
+
+                if (app.logic.updateHeaderRoleIcon)
+                {
+                    app.logic.updateHeaderRoleIcon();
+                }
+
+                // Nach dem Logout nur die minimale öffentliche Spielerliste
+                // für die Namensauswahl neu laden.
+                await app.logic.loadLoginPlayers();
+
+                app.router.navigate('login');
+                app.logic.showToast("Erfolgreich abgemeldet.", "success");
             }
-            localStorage.removeItem('lie_scorecard_user_id');
-            if (app.logic.updateHeaderRoleIcon)
+            catch (err)
             {
-                app.logic.updateHeaderRoleIcon();
+                console.error("[Logout] Fehler:", err);
+
+                // Auch bei einem Fehler keine alten Benutzerdaten anzeigen.
+                if (app.state)
+                {
+                    app.state.currentUser = null;
+                    app.state.spieler = [];
+                }
+
+                localStorage.removeItem('lie_scorecard_user_id');
+
+                app.router.navigate('login');
+                app.logic.showToast(
+                    "Abmeldung nicht vollständig abgeschlossen. Bitte Seite neu laden.",
+                    "error"
+                );
             }
-            app.router.navigate('login');
-            app.logic.showToast("Erfolgreich abgemeldet.", "success");
         }
     );
 };
