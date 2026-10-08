@@ -32,7 +32,7 @@ var ASSETS_TO_CACHE = [
     './Views_Spieltage.js',
     './Views_SpieltagNeu.js',
     './Views_ScoreEingabe.js',
-    './Views_ScoreSchnellerfassung.js', // <-- NEU HINZUGEFÜGT
+    './Views_ScoreSchnellerfassung.js',
     './Views_Leaderboard.js',
     './Views_Admin.js',
     './Views_AdminGruppe.js',
@@ -79,20 +79,16 @@ self.addEventListener('activate', function(event)
 
 self.addEventListener('fetch', function(event)
 {
-    var requestUrl = event.request.url;
+    var requestUrl = new URL(event.request.url);
 
-    if (requestUrl.includes('firestore.googleapis.com') ||  
-        requestUrl.includes('google.firestore') ||
-        requestUrl.includes('firebase') ||
-        requestUrl.includes('script.google.com') ||
-        requestUrl.includes('cdnjs.cloudflare.com') ||
-        requestUrl.includes('gstatic.com') ||
-        requestUrl.includes('googleapis.com') ||
-        requestUrl.includes('open-meteo.com'))
+    // 1. GOLDENE REGEL: Ignoriere ALLE externen Anfragen (Firebase, Fonts, Wetter-API etc.)
+    // Der Service Worker fängt ab sofort nur noch lokale HTML/CSS/JS Dateien ab.
+    if (requestUrl.origin !== location.origin)
     {
-        return;
+        return; 
     }
 
+    // 2. Nur GET-Anfragen cachen
     if (event.request.method !== 'GET')
     {
         return;
@@ -103,6 +99,7 @@ self.addEventListener('fetch', function(event)
         {
             if (cachedResponse)
             {
+                // Im Hintergrund lautlos die neueste Version vom Server holen
                 fetch(event.request).then(function(networkResponse)
                 {
                     if (networkResponse && networkResponse.status === 200)
@@ -117,6 +114,7 @@ self.addEventListener('fetch', function(event)
                 return cachedResponse;
             }
 
+            // Wenn nicht im Cache, normal aus dem Netz laden und dann cachen
             return fetch(event.request).then(function(networkResponse)
             {
                 if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic')
