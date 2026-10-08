@@ -36,6 +36,7 @@ PROJEKTSTRUKTUR:
 ├── Views_LiveDashboard.js
 ├── Views_Login.js
 ├── Views_ScoreEingabe.js
+├── Views_ScoreSchnellerfassung.js
 ├── Views_SpielerEdit.js
 ├── Views_Spieltage.js
 ├── Views_SpieltagNeu.js
@@ -175,7 +176,8 @@ app.logic.refreshGlobalAppData = async function()
             plaetzeSnap, 
             bahnenSnap,
             handicapsSnap,
-            kalenderSnap
+            kalenderSnap,
+            configSnap // <--- NEU: Hinzugefügt für das Saison-Datum
         ] = await Promise.all([
             app.db.collection('spieler').get().catch(
                 function() 
@@ -259,6 +261,16 @@ app.logic.refreshGlobalAppData = async function()
                 }
             ),
             app.db.collection('kalender_termine').get().catch(
+                function() 
+                { 
+                    return (
+                    { 
+                        forEach: function() {} 
+                    }); 
+                }
+            ),
+            // <--- NEU: Config Collection abrufen
+            app.db.collection('config').get().catch(
                 function() 
                 { 
                     return (
@@ -363,6 +375,21 @@ app.logic.refreshGlobalAppData = async function()
             }
         );
         app.state.kalenderTermine = kalenderData;
+
+        // <--- NEU: Config-Daten (Saison-Start) verarbeiten und im State speichern
+        configSnap.forEach(
+            function(doc)
+            {
+                if (doc.id === 'saison')
+                {
+                    const sData = doc.data();
+                    if (sData && sData.saisonStartDatum)
+                    {
+                        app.state.saisonStartDatum = sData.saisonStartDatum;
+                    }
+                }
+            }
+        );
 
         if (app.state.currentUser)
         {
@@ -2380,6 +2407,38 @@ app.logic.saveEditSpieltag = async function(spieltagId, currentHoleNr, flightSeq
     });
 };
 
+// =========================================================================
+// NEU: Logik für die Tabellarische Schnellerfassung
+// =========================================================================
+app.logic.updateRapidScoreState = function(spieltagId, spielerId, holeNr, type, value)
+{
+    // Die Live-Score Keys müssen exakt mit denen der Views_ScoreEingabe.js übereinstimmen
+    const key = type === 'strokes' 
+        ? `${spieltagId}_${spielerId}_${holeNr}` 
+        : `${spieltagId}_${spielerId}_${holeNr}_puts`;
+
+    // Wert bereinigen (leere Felder erlauben)
+    const strVal = String(value).trim();
+    
+    if (strVal === "")
+    {
+        // Wenn das Feld geleert wird, löschen wir den Key aus dem State
+        delete app.state.liveScores[key];
+    }
+    else
+    {
+        const intVal = parseInt(strVal);
+        if (!isNaN(intVal))
+        {
+            app.state.liveScores[key] = intVal;
+        }
+    }
+    
+    // WICHTIG: Wir rufen hier ganz bewusst NICHT den Router oder eine Render-Funktion auf!
+    // Dadurch wird das DOM nicht zerstört, das Input-Feld behält den Fokus und 
+    // das zeilenweise TAB-Springen funktioniert blitzschnell und reibungslos.
+};
+
 
 ##### <App_Logic_UI.js>:
 ----------------------------------------------------------------------
@@ -2665,6 +2724,9 @@ app.router.navigate = function(viewName, params)
         case 'score_eingabe':
             html = app.views.scoreEingabe ? app.views.scoreEingabe(params) : "";
             break;
+        case 'score_schnellerfassung':
+            html = (app.views.scoreSchnellerfassung || app.views.score_schnellerfassung) ? (app.views.scoreSchnellerfassung || app.views.score_schnellerfassung)(params) : "";
+            break;
         case 'leaderboard':
             html = app.views.leaderboard ? app.views.leaderboard(params) : "";
             break;
@@ -2747,7 +2809,7 @@ app.router.updateNavState = function(activeView)
         const el = document.getElementById('nav-stats');
         if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
     }
-    else if (activeView === 'spieltage' || activeView === 'spieltag_neu' || activeView === 'score_eingabe' || activeView === 'leaderboard')
+    else if (activeView === 'spieltage' || activeView === 'spieltag_neu' || activeView === 'score_eingabe' || activeView === 'score_schnellerfassung' || activeView === 'leaderboard')
     {
         const el = document.getElementById('nav-rounds');
         if (el) { el.classList.remove('text-zinc-400'); el.classList.add('text-emerald-700'); }
@@ -3165,18 +3227,18 @@ function sendTempPinEmail(spielerId, tempPin)
 var isWindowAvailable = (typeof window !== 'undefined');
 
 var configData = {
-    appVersion: '4.9.2.1',
+    appVersion: '5.0.0.2',
     appName: 'lie-scorecard',
     gasUrl: 'https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec'
 };
 
 var firebaseData = {
-    apiKey: "AIzaSyBH6Rb8RLKw6tUrOM-j8Qcfnqlkte3crCM",
-    authDomain: "liescorecard-70c5e.firebaseapp.com",
-    projectId: "liescorecard-70c5e",
-    storageBucket: "liescorecard-70c5e.firebasestorage.app",
-    messagingSenderId: "163868016379",
-    appId: "1:163868016379:web:0b7f1aeb29d80f9ca37a5e"
+    apiKey: "xxx",
+    authDomain: "xxx",
+    projectId: "xxx",
+    storageBucket: "xxx",
+    messagingSenderId: "xxx",
+    appId: "xxx"
 };
 
 if (isWindowAvailable)
@@ -3359,6 +3421,7 @@ else if (typeof self !== 'undefined')
                     "Views_Spieltage.js",
                     "Views_SpieltagNeu.js",
                     "Views_ScoreEingabe.js",
+                    "Views_ScoreSchnellerfassung.js",
                     "Views_Leaderboard.js",
                     "Views_Admin.js",
                     "Views_AdminGruppe.js",
@@ -3407,76 +3470,134 @@ else if (typeof self !== 'undefined')
 ##### <Style.css>:
 ----------------------------------------------------------------------
 /* =========================================================================
-   BMAssistent / LIE Scorecard - Modern Apple / Glassmorphism Theme
+   BMAssistent / LIE Scorecard - Modern Apple / Glassmorphism Theme 2.0
    Style.css
    BSD (Allman) Style
    ========================================================================= */
 
-:root
-{
-    --color-header-bg: #042f2e;       /* Deep Midnight Emerald */
-    --color-bg-body: #f8fafc;         /* Ultra-clean Slate 50 */
-    --color-card-bg: rgba(255, 255, 255, 0.85);
-    --color-emerald-accent: #059669;  /* Modern Emerald 600 */
-    --color-amber-accent: #d97706;    /* Warm Amber 600 */
-}
+   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-html, body
-{
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden;
-    background-color: var(--color-bg-body);
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-}
-
-/* App Shell Canvas mit modernem Glassmorphism-Schatten */
-#app-container
-{
-    width: 100%;
-    box-sizing: border-box;
-    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Deaktiviert die unschöne graue Tap-Fläche auf Mobilgeräten */
-button, a, .nav-btn
-{
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
-}
-
-/* One-Hand Safe Input Targets */
-.touch-target
-{
-    min-height: 44px;
-    min-width: 44px;
-}
-
-/* Custom Scrollbar für Loch-Navigation & Listen */
-.scrollbar-none::-webkit-scrollbar
-{
-    display: none;
-}
-.scrollbar-none
-{
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-/* Sanfte Animationen */
-@keyframes fadeIn 
-{
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in 
-{
-    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
+   :root
+   {
+       /* Angepasste Farbpalette für mehr Leuchtkraft */
+       --color-header-bg: rgba(4, 47, 46, 0.88); /* Deep Emerald mit Transparenz für Glass-Effekt */
+       --color-emerald-accent: #10b981;  /* Fresher, brighter Emerald */
+       --color-amber-accent: #f59e0b;    /* Brighter, warmer Amber */
+   }
+   
+   html, body
+   {
+       width: 100%;
+       margin: 0;
+       padding: 0;
+       overflow-x: hidden;
+       /* Subtiler, moderner Farbverlauf statt flachem Grau für mehr Premium-Gefühl */
+       background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+       background-attachment: fixed;
+       /* Neue Premium-Schriftart 'Inter' als Fallback-Kaskade */
+       font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+       -webkit-font-smoothing: antialiased;
+       -moz-osx-font-smoothing: grayscale;
+   }
+   
+   /* App Shell Canvas */
+   #app-container
+   {
+       width: 100%;
+       box-sizing: border-box;
+       transition: opacity 0.3s ease;
+   }
+   
+   /* ==========================================
+      Glassmorphism & Apple-like UI Overrides
+      ========================================== */
+   
+   /* Header bekommt echten Milchglas-Effekt */
+   header 
+   {
+       background-color: var(--color-header-bg) !important;
+       backdrop-filter: blur(12px);
+       -webkit-backdrop-filter: blur(12px);
+       border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+   }
+   
+   /* Bottom Nav bekommt echten Milchglas-Effekt */
+   #bottom-nav 
+   {
+       background-color: rgba(255, 255, 255, 0.85) !important;
+       backdrop-filter: blur(16px);
+       -webkit-backdrop-filter: blur(16px);
+       border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+       box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.03) !important;
+   }
+   
+   /* Karten-Schatten weicher machen (Apple Style) */
+   .bg-white, .bg-stone-50 
+   {
+       box-shadow: 0 4px 24px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.01) !important;
+   }
+   
+   /* ==========================================
+      Interaction & Feedback (UX)
+      ========================================== */
+   
+   /* Deaktiviert die unschöne graue Tap-Fläche auf Android/iOS */
+   button, a, .nav-btn, input, select
+   {
+       -webkit-tap-highlight-color: transparent;
+       outline: none;
+   }
+   
+   /* Sanftes taktiles Feedback für ALLE Buttons (iOS Feeling) */
+   button 
+   {
+       transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, opacity 0.2s ease;
+   }
+   
+   button:active 
+   {
+       transform: scale(0.96);
+   }
+   
+   /* Ausnahme für die Navigationsleiste unten, damit sie organisch drückt */
+   #bottom-nav button:active 
+   {
+       transform: scale(0.90);
+   }
+   
+   /* One-Hand Safe Input Targets */
+   .touch-target
+   {
+       min-height: 44px;
+       min-width: 44px;
+   }
+   
+   /* ==========================================
+      Utilities
+      ========================================== */
+   
+   /* Custom Scrollbar für Loch-Navigation & Listen */
+   .scrollbar-none::-webkit-scrollbar
+   {
+       display: none;
+   }
+   .scrollbar-none
+   {
+       -ms-overflow-style: none;
+       scrollbar-width: none;
+   }
+   
+   /* Weichere, flüssigere Einblend-Animationen */
+   @keyframes fadeIn 
+   {
+       from { opacity: 0; transform: translateY(8px); }
+       to { opacity: 1; transform: translateY(0); }
+   }
+   
+   .animate-fade-in 
+   {
+       animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+   }
 
 
 ##### <sw.js>:
@@ -3515,6 +3636,7 @@ var ASSETS_TO_CACHE = [
     './Views_Spieltage.js',
     './Views_SpieltagNeu.js',
     './Views_ScoreEingabe.js',
+    './Views_ScoreSchnellerfassung.js', // <-- NEU HINZUGEFÜGT
     './Views_Leaderboard.js',
     './Views_Admin.js',
     './Views_AdminGruppe.js',
@@ -5873,8 +5995,7 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
         );
     }
 
-    // Bahnen festlegen
-    const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+    // Bahnen festlegen (Front/Back/18 Loch Filter)
     const kursBahnen = (app.state.bahnen || []).filter(
         function(b) 
         { 
@@ -5888,18 +6009,31 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
         }
     );
 
-    const anzuzeigendeBahnen = [];
-    for (let i = 0; i < maxBahnen; i++)
-    {
-        if (kursBahnen[i]) 
-        {
-            anzuzeigendeBahnen.push(kursBahnen[i]);
-        }
-        else 
-        {
-            anzuzeigendeBahnen.push({ nr: i + 1, par: 4, si: i + 1 });
-        }
+    const is9Loch = spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9'));
+    let startHole = 1;
+    let endHole = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+
+    if (spieltag && spieltag.rundenTyp === '9-Front') {
+        startHole = 1;
+        endHole = 9;
+    } else if (spieltag && spieltag.rundenTyp === '9-Back') {
+        startHole = 10;
+        endHole = 18;
+    } else if (is9Loch) {
+        startHole = 1;
+        endHole = 9;
     }
+
+    const anzuzeigendeBahnen = [];
+    for (let i = startHole; i <= endHole; i++)
+    {
+        const bMatch = kursBahnen.find(b => parseInt(b.nr) === i);
+        if (bMatch) anzuzeigendeBahnen.push(bMatch);
+        else anzuzeigendeBahnen.push({ nr: i, par: 4, si: i, kursId: spieltag ? spieltag.kursId : "" });
+    }
+
+    // Die echte Anzahl der zu spielenden Bahnen für die Text-Anzeige (z.B. "Gespielt 3 / 9")
+    const maxBahnen = anzuzeigendeBahnen.length;
 
     // 3. DATEN-AGGREGATION
     const leaderboardData = teilnehmerIds.map(
@@ -6119,34 +6253,75 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
     const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
     let closeRoundBannerHtml = "";
 
-    if (spieltag && spieltag.status === 'Aktiv' && isLeiter)
+    if (spieltag)
     {
-        closeRoundBannerHtml = `
-            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between shadow-2xs">
-                <div class="flex items-center space-x-2 text-amber-900 text-xs">
-                    <i class="fas fa-flag-checkered text-amber-600"></i>
-                    <span class="font-bold">Match noch aktiv</span>
+        // Statistik-Daten vorbereiten
+        let datumFormatted = spieltag.date;
+        try {
+            const d = new Date(spieltag.date);
+            if (!isNaN(d.getTime())) {
+                datumFormatted = d.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            }
+        } catch (e) {}
+
+        const anzahlSpieler = teilnehmerIds.length;
+        const kursName = kurs ? kurs.name : (spieltag.kursId || "Kurs");
+
+        // Runden-Typ lesbar machen
+        let rundenInfo = "18 Loch";
+        if (spieltag.rundenTyp === '9-Front') rundenInfo = "9 Loch (Front-Nine)";
+        else if (spieltag.rundenTyp === '9-Back') rundenInfo = "9 Loch (Back-Nine)";
+        else if (spieltag.bahnAnzahl === 9) rundenInfo = "9 Loch";
+
+        const statsString = `${datumFormatted} &bull; ${kursName} (${rundenInfo}) &bull; ${anzahlSpieler} Spieler`;
+
+        if (spieltag.status === 'Aktiv' && isLeiter)
+        {
+            closeRoundBannerHtml = `
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between shadow-2xs gap-3 sm:gap-2">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-amber-900 text-xs min-w-0 w-full sm:w-auto">
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <i class="fas fa-flag-checkered text-amber-600"></i>
+                            <span class="font-bold whitespace-nowrap">Match noch aktiv</span>
+                        </div>
+                        <span class="text-[10px] text-amber-700/80 font-medium hidden sm:inline-block border-l border-amber-300 pl-3 truncate">
+                            ${statsString}
+                        </span>
+                    </div>
+                    <button onclick="app.logic.finishRoundWithWinners('${spieltag.id}')" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-xs touch-target whitespace-nowrap shrink-0">
+                        Runde offiziell beenden
+                    </button>
+                    <!-- Mobile Fallback -->
+                    <div class="text-[10px] text-amber-700/80 font-medium sm:hidden w-full text-left">
+                        ${statsString}
+                    </div>
                 </div>
-                <button onclick="app.logic.finishRoundWithWinners('${spieltag.id}')" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-xs touch-target">
-                    Runde offiziell beenden
-                </button>
-            </div>
-        `;
-    }
-    else if (spieltag && spieltag.status === 'Beendet')
-    {
-        closeRoundBannerHtml = `
-            <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-2xs">
-                <div class="flex items-center space-x-2 text-emerald-900 text-xs">
-                    <i class="fas fa-flag-checkered text-emerald-600"></i>
-                    <span class="font-bold">Runde beendet</span>
+            `;
+        }
+        else if (spieltag.status === 'Beendet')
+        {
+            closeRoundBannerHtml = `
+                <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between shadow-2xs gap-3 sm:gap-2">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-emerald-900 text-xs min-w-0 w-full sm:w-auto">
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <i class="fas fa-flag-checkered text-emerald-600"></i>
+                            <span class="font-bold whitespace-nowrap">Runde beendet</span>
+                        </div>
+                        <span class="text-[10px] text-emerald-700/80 font-medium hidden sm:inline-block border-l border-emerald-300 pl-3 truncate">
+                            ${statsString}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] shrink-0">
+                        ${spieltag.bruttoSieger ? `<span class="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-bold truncate max-w-[120px]">🏆 ${spieltag.bruttoSieger}</span>` : ''}
+                        ${spieltag.nettoSieger ? `<span class="bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold truncate max-w-[120px]">🥇 ${spieltag.nettoSieger}</span>` : ''}
+                    </div>
+                    <!-- Mobile Fallback -->
+                    <div class="text-[10px] text-emerald-700/80 font-medium sm:hidden w-full text-left">
+                        ${statsString}
+                    </div>
                 </div>
-                <div class="flex items-center gap-2 text-[11px]">
-                    ${spieltag.bruttoSieger ? `<span class="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">🏆 ${spieltag.bruttoSieger}</span>` : ''}
-                    ${spieltag.nettoSieger ? `<span class="bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold">🥇 ${spieltag.nettoSieger}</span>` : ''}
-                </div>
-            </div>
-        `;
+            `;
+        }
     }
 
     return `
@@ -6212,6 +6387,13 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
         return;
     }
 
+    const kurs = (app.state.kurse || []).find(
+        function(k) 
+        { 
+            return String(k.id).trim() === String(spieltag.kursId).trim(); 
+        }
+    );
+
     const kursBahnen = (app.state.bahnen || [])
         .filter(
             function(b)
@@ -6225,6 +6407,42 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                 return parseInt(a.nr) - parseInt(b.nr);
             }
         );
+
+    // =====================================================================
+    // NEU: BAHNEN FILTERN (Front-9 / Back-9) für das Modal
+    // =====================================================================
+    const is9Loch = spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9'));
+    let startHole = 1;
+    let endHole = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+
+    if (spieltag && spieltag.rundenTyp === '9-Front') {
+        startHole = 1;
+        endHole = 9;
+    } else if (spieltag && spieltag.rundenTyp === '9-Back') {
+        startHole = 10;
+        endHole = 18;
+    } else if (is9Loch) {
+        startHole = 1;
+        endHole = 9;
+    }
+
+    const anzuzeigendeBahnen = [];
+    for (let i = startHole; i <= endHole; i++)
+    {
+        const bMatch = kursBahnen.find(b => parseInt(b.nr) === i);
+        if (bMatch) anzuzeigendeBahnen.push(bMatch);
+        else anzuzeigendeBahnen.push({ nr: i, par: 4, si: i, kursId: spieltag.kursId });
+    }
+    // =====================================================================
+
+    // Datum formatieren
+    let datumFormatted = spieltag.date;
+    try {
+        const d = new Date(spieltag.date);
+        if (!isNaN(d.getTime())) {
+            datumFormatted = d.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        }
+    } catch (e) {}
 
     const dbScores = (app.state.scoreCards || []).filter(
         function(sc)
@@ -6248,7 +6466,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
         played: 0 
     };
     
-    let rowsHtml = kursBahnen.map(
+    let rowsHtml = anzuzeigendeBahnen.map(
         function(bahn)
         {
             const hNr = parseInt(bahn.nr);
@@ -6391,7 +6609,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                 <div class="p-4 bg-emerald-800 text-white flex items-center justify-between">
                     <div>
                         <h3 class="font-bold text-base">${spieler.nickname || spieler.name}</h3>
-                        <p class="text-xs text-emerald-200">Stv: ${spieler.hcp || '36'} &bull; Löcher: ${stats.played}/${kursBahnen.length}</p>
+                        <p class="text-xs text-emerald-200"><i class="far fa-calendar-alt mr-0.5"></i> ${datumFormatted} &bull; Stv: ${spieler.hcpLIE || spieler.hcp || '36'} &bull; Löcher: ${stats.played}/${anzuzeigendeBahnen.length}</p>
                     </div>
                     <button onclick="document.getElementById('player-detail-modal').remove()" class="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-700 text-white hover:bg-emerald-600 transition">
                         <i class="fas fa-times"></i>
@@ -7431,12 +7649,16 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                         <div>
                             <h2 class="text-base font-bold text-stone-800 flex items-center">
                                 ${kurs ? kurs.name : 'Scorekarte'}
-                                ${isLeiter ? `<button onclick="app.logic.openEditSpieltagModal('${spieltagId}', ${currentHoleNr}, ${flightSeq})" class="ml-2 text-stone-400 hover:text-emerald-600 transition touch-target flex items-center justify-center" title="Spieltag bearbeiten"><i class="fas fa-cog text-xs"></i></button>` : ''}
+                                ${isLeiter ? `
+                                    <button onclick="app.router.navigate('score_schnellerfassung', { id: '${spieltagId}', flightSeq: ${flightSeq} })" class="ml-3 text-stone-400 hover:text-blue-600 transition touch-target flex items-center justify-center" title="Tabellarische Schnelleingabe">
+                                        <i class="fas fa-table text-sm"></i>
+                                    </button>
+                                    <button onclick="app.logic.openEditSpieltagModal('${spieltagId}', ${currentHoleNr}, ${flightSeq})" class="ml-2 text-stone-400 hover:text-emerald-600 transition touch-target flex items-center justify-center" title="Spieltag bearbeiten">
+                                        <i class="fas fa-cog text-sm"></i>
+                                    </button>
+                                ` : ''}
                             </h2>
-                            <p class="text-xs text-stone-400 -mt-1">Flight ${flightSeq} &bull; Bahn ${currentHoleNr} &bull; Par ${bahnDaten.par} (${is9Loch ? '9-Loch Match' : '18-Loch Match'})</p>
                         </div>
-                    </div>
-                    
                     <div class="flex items-center space-x-1.5">
                         <button onclick="app.logic.openLeaderboardOverlay('${spieltagId}')" class="text-xs bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold px-3 py-2 rounded-xl transition shadow-3xs flex items-center">
                             <i class="fas fa-trophy mr-1 text-amber-900"></i> Spicken
@@ -7478,6 +7700,236 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                     </button>
                 </div>
                 <div id="overlay-leaderboard-content" class="flex-1 overflow-y-auto p-3 space-y-3">
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+
+##### <Views_ScoreSchnellerfassung.js>:
+----------------------------------------------------------------------
+// =========================================================================
+// BMAssistent / LIE Scorecard - Tabellarische Schnellerfassung
+// Views_ScoreSchnellerfassung.js
+// BSD (Allman) Style
+// =========================================================================
+
+app.views = app.views || {};
+
+app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(params)
+{
+    let spieltagId = params;
+    let targetFlightSeq = 1;
+
+    // Parameter intelligent entpacken (wg. Router)
+    if (typeof params === 'object' && params !== null)
+    {
+        spieltagId = params.id || params.spieltagId;
+        targetFlightSeq = params.flightSeq || params.targetFlightSeq || 1;
+    }
+    targetFlightSeq = parseInt(targetFlightSeq) || 1;
+
+    app.state.liveScores = app.state.liveScores || {};
+
+    const spieltage = app.state.spieltage || [];
+    const spieltag = spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
+    const kurs = (app.state.kurse || []).find(function(k) { return spieltag && String(k.id) === String(spieltag.kursId); });
+
+    if (!spieltag) return `<div class="p-4 text-center">Spieltag nicht gefunden.</div>`;
+
+    const is9Loch = (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9'));
+    const kursBahnen = (app.state.bahnen || []).filter(function(b) { return String(b.kursId).trim() === String(spieltag.kursId).trim(); });
+    kursBahnen.sort(function(a, b) { return parseInt(a.nr) - parseInt(b.nr); });
+
+    let startHole = 1;
+    let endHole = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
+
+    if (spieltag.rundenTyp === '9-Front') { startHole = 1; endHole = 9; }
+    else if (spieltag.rundenTyp === '9-Back') { startHole = 10; endHole = 18; }
+    else if (is9Loch) { startHole = 1; endHole = 9; }
+
+    const anzuzeigendeBahnen = [];
+    for (let i = startHole; i <= endHole; i++)
+    {
+        const bMatch = kursBahnen.find(b => parseInt(b.nr) === i);
+        if (bMatch) anzuzeigendeBahnen.push(bMatch);
+        else anzuzeigendeBahnen.push({ nr: i, par: 4, si: i, kursId: spieltag.kursId });
+    }
+
+    // =====================================================================
+    // FLIGHT-LOGIK (Für korrekte Sortierung und Gruppierung)
+    // =====================================================================
+    const tagesFlights = app.state.flights ? app.state.flights.filter(function(f) { return String(f.spieltagId).trim() === String(spieltagId).trim(); }) : [];
+
+    let gewaehlterFlight = tagesFlights.find(function(f) {
+        const parts = f.id.split('-');
+        return parseInt(parts[parts.length - 1]) === targetFlightSeq;
+    });
+
+    if (!gewaehlterFlight && tagesFlights.length > 0) {
+        gewaehlterFlight = tagesFlights[0];
+        const idParts = gewaehlterFlight.id.split('-');
+        targetFlightSeq = parseInt(idParts[idParts.length - 1]) || 1;
+    }
+
+    let teilnehmerIds = [];
+    if (gewaehlterFlight) {
+        // Hier wird die maßgeschneiderte Sortierung aus dem Flight gelesen!
+        teilnehmerIds = String(gewaehlterFlight.spielerIdsCsv || "").split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
+    } else {
+        const csvString = String(spieltag.teilnehmerCsv || "").trim();
+        if (csvString !== "") {
+            teilnehmerIds = csvString.split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
+        }
+    }
+
+    const spielerListe = teilnehmerIds.map(function(id)
+    {
+        return (app.state.spieler || []).find(function(s) { return String(s.id).trim() === String(id).trim(); });
+    }).filter(Boolean);
+
+    // =====================================================================
+    // FLIGHT-SWITCHER UI
+    // =====================================================================
+    let flightSwitcherHtml = "";
+    const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
+
+    if (isLeiter && tagesFlights.length > 1)
+    {
+        let switcherButtons = tagesFlights.map(function(f)
+        {
+            const idParts = f.id.split('-');
+            const fNr = parseInt(idParts[idParts.length - 1]) || 1;
+            const isCurrentFlight = fNr === targetFlightSeq;
+
+            return `
+                <button onclick="app.router.navigate('score_schnellerfassung', { id: '${spieltagId}', flightSeq: ${fNr} })" class="px-3 py-1 text-xs font-bold rounded-lg transition-all ${isCurrentFlight ? 'bg-emerald-700 text-white shadow-3xs' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}">
+                    Flight ${fNr}
+                </button>
+            `;
+        }).join('');
+
+        flightSwitcherHtml = `
+            <div class="flex items-center space-x-2 bg-stone-100 p-1.5 rounded-xl border border-stone-200 mt-3 mb-1">
+                <span class="text-[10px] uppercase font-bold text-stone-500 pl-1"><i class="fas fa-exchange-alt"></i> Flight:</span>
+                <div class="flex space-x-1">${switcherButtons}</div>
+            </div>
+        `;
+    }
+
+    // Tabellen-Kopf (Spieler)
+    let thHtml = `<th class="px-2 py-2 text-left text-[10px] font-bold text-stone-500 uppercase sticky left-0 bg-stone-100 z-10 w-12 border-r border-stone-300">Loch</th>`;
+    spielerListe.forEach(function(sp)
+    {
+        thHtml += `
+            <th class="px-2 py-2 text-center text-xs font-bold text-stone-800 border-r border-stone-300 min-w-[70px]">
+                ${sp.nickname || sp.name}
+                <div class="flex justify-around text-[9px] text-stone-400 mt-1 font-normal tracking-wide">
+                    <span>Schläge</span>
+                    <span>Putts</span>
+                </div>
+            </th>
+        `;
+    });
+
+    // Tabellen-Reihen (Bahnen)
+    let trHtml = "";
+    anzuzeigendeBahnen.forEach(function(bahn, bahnIndex)
+    {
+        const hNr = parseInt(bahn.nr);
+
+        let rowHtml = `
+            <td class="px-2 py-2 font-bold text-stone-700 bg-stone-50 sticky left-0 border-r border-stone-300 z-10 shadow-[1px_0_2px_rgba(0,0,0,0.05)]">
+                <div class="flex flex-col items-center">
+                    <span class="text-sm">${hNr}</span>
+                    <span class="text-[8px] text-stone-400 font-normal">Par ${bahn.par}</span>
+                </div>
+            </td>
+        `;
+
+        spielerListe.forEach(function(sp, spielerIndex)
+        {
+            const sId = sp.id;
+            const currentScoreKey = `${spieltagId}_${sId}_${hNr}`;
+            const currentPutsKey = `${spieltagId}_${sId}_${hNr}_puts`;
+
+            // DB Fallback suchen
+            const dbScores = (app.state.scoreCards || []).filter(function(sc) { return String(sc.spieltagId) === String(spieltagId) && String(sc.spielerId) === String(sId); });
+            const dbMatch = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
+
+            let aktuelleSchlaege = app.state.liveScores[currentScoreKey];
+            if (aktuelleSchlaege === undefined && dbMatch && dbMatch.strokes !== undefined) aktuelleSchlaege = dbMatch.strokes;
+
+            let aktuellePutts = app.state.liveScores[currentPutsKey];
+            if (aktuellePutts === undefined && dbMatch && dbMatch.puts !== undefined) aktuellePutts = dbMatch.puts;
+
+            const valSchlaege = aktuelleSchlaege !== undefined && aktuelleSchlaege !== null ? aktuelleSchlaege : '';
+            const valPutts = aktuellePutts !== undefined && aktuellePutts !== null ? aktuellePutts : '';
+
+            // Tab-Index Berechnung für zeilenweises Lesen
+            const spielerAnzahl = spielerListe.length;
+            const baseIndex = (bahnIndex * spielerAnzahl * 2);
+            const tabStrokes = baseIndex + (spielerIndex * 2) + 1;
+            const tabPutts = baseIndex + (spielerIndex * 2) + 2;
+
+            // HTML Optik verbessert: Inputs sitzen bündig wie in Excel
+            rowHtml += `
+                <td class="px-0 py-0 border-r border-stone-200">
+                    <div class="flex h-full min-h-[44px]">
+                        <input type="tel" pattern="[0-9]*" tabindex="${tabStrokes}" 
+                               oninput="app.logic.updateRapidScoreState('${spieltagId}', '${sId}', ${hNr}, 'strokes', this.value)" 
+                               class="w-1/2 text-center font-black text-base text-stone-900 bg-white outline-none focus:bg-amber-50 focus:ring-inset focus:ring-2 focus:ring-amber-400 transition-colors" 
+                               value="${valSchlaege}">
+                        <input type="tel" pattern="[0-9]*" tabindex="${tabPutts}" 
+                               oninput="app.logic.updateRapidScoreState('${spieltagId}', '${sId}', ${hNr}, 'putts', this.value)" 
+                               class="w-1/2 text-center font-bold text-sm text-stone-500 bg-stone-50/50 outline-none border-l border-stone-100 focus:bg-amber-50 focus:ring-inset focus:ring-2 focus:ring-amber-400 transition-colors" 
+                               value="${valPutts}">
+                    </div>
+                </td>
+            `;
+        });
+
+        trHtml += `<tr class="border-b border-stone-200 hover:bg-stone-50 transition-colors">${rowHtml}</tr>`;
+    });
+
+    return `
+        <div class="space-y-4 pb-28 animate-fade-in">
+            <!-- Header -->
+            <div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <button onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: 1, flightSeq: ${targetFlightSeq} })" class="text-stone-500 touch-target w-10 h-10 flex items-center justify-center bg-stone-100 rounded-xl hover:bg-stone-200 transition">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <div>
+                            <h2 class="text-base font-bold text-stone-800 flex items-center">Schnellerfassung</h2>
+                            <p class="text-[10px] text-stone-400 -mt-0.5 uppercase tracking-wider">${kurs ? kurs.name : 'Scorekarte'}</p>
+                        </div>
+                    </div>
+
+                    <button onclick="app.logic.syncScoresWithServer('${spieltagId}', ${targetFlightSeq})" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl transition shadow-3xs flex items-center h-10">
+                        <i class="fas fa-cloud-upload-alt mr-2"></i> Alles sichern
+                    </button>
+                </div>
+                ${flightSwitcherHtml}
+            </div>
+
+            <!-- Tabelle Container -->
+            <div class="bg-white border border-stone-200 rounded-2xl shadow-sm overflow-hidden">
+                <div class="overflow-x-auto scrollbar-none">
+                    <table class="w-full min-w-max border-collapse">
+                        <thead class="bg-stone-100 border-b border-stone-300">
+                            <tr>${thHtml}</tr>
+                        </thead>
+                        <tbody>
+                            ${trHtml}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-3 bg-amber-50 border-t border-amber-100 text-[10px] text-amber-800 flex items-start gap-2">
+                    <i class="fas fa-info-circle mt-0.5 text-amber-600"></i>
+                    <p>Tippe eine Zahl und drücke "Weiter" / "TAB". Der Cursor springt automatisch in Lesereihenfolge (Schläge, dann Putts, dann nächster Spieler) weiter. Ladies und Striche können hier nicht erfasst werden.</p>
                 </div>
             </div>
         </div>
@@ -7624,7 +8076,7 @@ app.views.spielerEdit = app.views.spieler_edit;
 ##### <Views_Spieltage.js>:
 ----------------------------------------------------------------------
 /* ==========================================
-   VIEWS: SPIELTAGE (Mit 'Meine Runden' Filter)
+   VIEWS: SPIELTAGE (Mit erweiterten Filtern)
    ========================================== */
 
    app.views.spieltage = function(filterParam)
@@ -7632,8 +8084,8 @@ app.views.spielerEdit = app.views.spieler_edit;
        const currentUser = app.state.currentUser;
        const isLeiter = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Spielleiter');
    
-       // Filter-Modus ermitteln ('all' oder 'my')
-       let activeFilter = filterParam || app.state.spieltageFilterMode || 'all';
+       // Filter-Modus ermitteln ('month', 'season', 'my' oder 'all') - Default ist 'month'
+       let activeFilter = filterParam || app.state.spieltageFilterMode || 'month';
        app.state.spieltageFilterMode = activeFilter;
    
        // Button für Spielleiter/Admins definieren
@@ -7664,24 +8116,61 @@ app.views.spielerEdit = app.views.spieler_edit;
        // Chronologisch sortieren (Neueste zuerst)
        activeRounds.sort((a, b) => new Date(b.date) - new Date(a.date));
    
-       // 2. Anzahl der eigenen Runden für den Button-Badge berechnen
-       const myRoundsCount = activeRounds.filter(st => 
-       {
-           if (!currentUser) return false;
-           const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
-           return ids.includes(String(currentUser.id).trim());
-       }).length;
+       // 2. Filter-Logik
+       const now = new Date();
+       const currentYear = now.getFullYear();
+       const currentMonth = now.getMonth();
+       
+       // Saisonstart aus State holen (Fallback: 1.1.2026)
+       const saisonStart = app.state.saisonStartDatum ? new Date(app.state.saisonStartDatum) : new Date('2026-01-01');
    
-       // 3. Runden basierend auf gewähltem Filter filtern
-       let roundsToDisplay = activeRounds;
-       if (activeFilter === 'my' && currentUser)
+       // Zähler für die Buttons vorbereiten
+       let countMonth = 0;
+       let countSeason = 0;
+       let countMy = 0;
+       const countAll = activeRounds.length;
+
+       let roundsToDisplay = [];
+
+       activeRounds.forEach(st => 
        {
-           roundsToDisplay = activeRounds.filter(st => 
+           const stDate = new Date(st.date);
+           let isMyRound = false;
+
+           // Gehört die Runde mir?
+           if (currentUser)
            {
                const ids = (st.teilnehmerCsv || "").split(',').map(id => id.trim());
-               return ids.includes(String(currentUser.id).trim());
-           });
-       }
+               isMyRound = ids.includes(String(currentUser.id).trim());
+               if (isMyRound) countMy++;
+           }
+
+           // Ist die Runde in diesem Monat?
+           const isThisMonth = stDate.getFullYear() === currentYear && stDate.getMonth() === currentMonth;
+           if (isThisMonth) countMonth++;
+
+           // Ist die Runde in dieser Saison? (Datum >= Saisonstart)
+           const isThisSeason = stDate >= saisonStart;
+           if (isThisSeason) countSeason++;
+
+           // Entscheiden, ob die Runde aktuell angezeigt werden soll
+           if (activeFilter === 'all') 
+           {
+               roundsToDisplay.push(st);
+           } 
+           else if (activeFilter === 'my' && isMyRound) 
+           {
+               roundsToDisplay.push(st);
+           }
+           else if (activeFilter === 'season' && isThisSeason)
+           {
+               roundsToDisplay.push(st);
+           }
+           else if (activeFilter === 'month' && isThisMonth)
+           {
+               roundsToDisplay.push(st);
+           }
+       });
    
        let html = `
            <div class="space-y-5 max-w-4xl mx-auto pb-12">
@@ -7694,15 +8183,23 @@ app.views.spielerEdit = app.views.spieler_edit;
                    ${newRoundBtnHeader}
                </div>
    
-               <!-- Filter-Schalter (Alle Runden vs. Meine Runden) -->
-               <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200 max-w-xs">
-                   <button onclick="app.router.navigate('spieltage', 'all')" 
-                           class="py-1.5 text-xs font-bold rounded-lg transition-all ${activeFilter !== 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
-                       <i class="fas fa-globe mr-1"></i> Alle Runden (${activeRounds.length})
+               <!-- Filter-Schalter (Dieser Monat | Diese Saison | Meine Runden | Alle) -->
+               <div class="flex overflow-x-auto gap-1 p-1 bg-zinc-100 rounded-xl border border-zinc-200 scrollbar-none">
+                   <button onclick="app.router.navigate('spieltage', 'month')" 
+                           class="flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all ${activeFilter === 'month' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="far fa-calendar-alt mr-1"></i> Dieser Monat (${countMonth})
+                   </button>
+                   <button onclick="app.router.navigate('spieltage', 'season')" 
+                           class="flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all ${activeFilter === 'season' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-flag-checkered mr-1"></i> Diese Saison (${countSeason})
                    </button>
                    <button onclick="app.router.navigate('spieltage', 'my')" 
-                           class="py-1.5 text-xs font-bold rounded-lg transition-all ${activeFilter === 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
-                       <i class="fas fa-user-check mr-1"></i> Meine Runden (${myRoundsCount})
+                           class="flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all ${activeFilter === 'my' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-user-check mr-1"></i> Meine Runden (${countMy})
+                   </button>
+                   <button onclick="app.router.navigate('spieltage', 'all')" 
+                           class="flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-lg transition-all ${activeFilter === 'all' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}">
+                       <i class="fas fa-globe mr-1"></i> Alle Runden (${countAll})
                    </button>
                </div>
    
@@ -7712,9 +8209,10 @@ app.views.spielerEdit = app.views.spieler_edit;
    
        if (roundsToDisplay.length === 0)
        {
-           const emptyMsg = activeFilter === 'my' 
-               ? "Du hast bisher an keinen gespielten Runden teilgenommen." 
-               : "Es wurden noch keine Runden angelegt oder alle wurden gelöscht.";
+           let emptyMsg = "Es wurden noch keine Runden angelegt oder alle wurden gelöscht.";
+           if (activeFilter === 'my') emptyMsg = "Du hast bisher an keinen gespielten Runden teilgenommen.";
+           else if (activeFilter === 'month') emptyMsg = "In diesem Monat wurden noch keine Runden gespielt.";
+           else if (activeFilter === 'season') emptyMsg = "In der aktuellen Saison wurden noch keine Runden gespielt.";
    
            html += `
                <div class="bg-stone-50 border border-dashed border-stone-300 rounded-xl p-8 text-center">
@@ -7741,7 +8239,7 @@ app.views.spielerEdit = app.views.spieler_edit;
                }
                else
                {
-                   statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplanned</span>`;
+                   statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full border border-amber-200">Geplant</span>`;
                }
    
                const kurs = app.state.kurse ? app.state.kurse.find(k => k.id === st.kursId) : null;
