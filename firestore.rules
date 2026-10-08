@@ -39,7 +39,7 @@ service cloud.firestore
     // Geschützte Spielerdaten inklusive E-Mail und PIN-Hash.
     match /spieler/{spielerId}
     {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || isOwnPlayer(spielerId);
 
       allow create, delete: if isAdmin();
 

@@ -29,20 +29,29 @@ app.views.spieler = app.views.adminGruppe = function()
             const rolle = s.role || 'Spieler';
 
             let adminActionsHtml = "";
-            if (isAdmin)
+
+            // Admin darf jeden Spieler bearbeiten und löschen.
+            // Ein normaler Spieler darf ausschließlich sein eigenes Profil bearbeiten.
+            if (isAdmin || istEigenerUser)
             {
                 adminActionsHtml = `
                     <div class="flex items-center space-x-1">
-                        <button onclick="app.router.navigate('spieler_edit', { id: '${s.id}' })" class="text-zinc-400 hover:text-emerald-600 p-2.5 rounded-xl transition touch-target" title="Bearbeiten">
+                        <button onclick="app.router.navigate('spieler_edit', { id: '${s.id}' })"
+                                class="text-zinc-400 hover:text-emerald-600 p-2.5 rounded-xl transition touch-target"
+                                title="${isAdmin ? 'Bearbeiten' : 'Mein Profil bearbeiten'}">
                             <i class="fas fa-pen-to-square text-xs"></i>
                         </button>
-                        <button onclick="app.logic.deletePlayer('${s.id}')" class="text-zinc-400 hover:text-red-600 p-2.5 rounded-xl transition touch-target" title="Löschen">
-                            <i class="fas fa-trash-alt text-xs"></i>
-                        </button>
+
+                        ${isAdmin ? `
+                            <button onclick="app.logic.deletePlayer('${s.id}')"
+                                    class="text-zinc-400 hover:text-red-600 p-2.5 rounded-xl transition touch-target"
+                                    title="Löschen">
+                                <i class="fas fa-trash-alt text-xs"></i>
+                            </button>
+                        ` : ''}
                     </div>
                 `;
             }
-
             return `
                 <div class="bg-white/80 backdrop-blur-md border ${istEigenerUser ? 'border-emerald-500/80 shadow-sm shadow-emerald-500/10' : 'border-zinc-200/80'} rounded-2xl p-4 flex justify-between items-center transition">
                     <div class="space-y-1">

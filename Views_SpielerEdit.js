@@ -51,6 +51,41 @@ app.views.spieler_edit = function(params)
     var disabledAttrForUsers = isAdmin ? '' : 'disabled class="bg-stone-100 border border-stone-200 text-stone-400 text-xs rounded-xl px-3 py-2 outline-none font-bold cursor-not-allowed"';
     var inputStyleForUsers = isAdmin ? 'class="bg-stone-50 border border-stone-200 text-xs rounded-xl px-3 py-2 focus:border-emerald-600 outline-none font-bold"' : disabledAttrForUsers;
 
+    // Bei einem normalen Spieler stammt die Spielerliste aus "spieler_public".
+    // Die private E-Mail-Adresse wird deshalb nur für das eigene Profil
+    // gezielt aus "spieler" nachgeladen.
+    if (!isAdmin && s && currentUser &&
+        String(s.id).trim() === String(currentUser.id).trim())
+    {
+        setTimeout(async function()
+        {
+            try
+            {
+                const doc = await app.db
+                    .collection('spieler')
+                    .doc(String(currentUser.id).trim())
+                    .get();
+
+                if (!doc.exists)
+                {
+                    return;
+                }
+
+                const privateData = doc.data() || {};
+                const emailInput = document.getElementById('edit-sp-email');
+
+                if (emailInput && privateData.email)
+                {
+                    emailInput.value = privateData.email;
+                }
+            }
+            catch (err)
+            {
+                console.error('[Profil] Eigene Profildaten konnten nicht geladen werden:', err);
+            }
+        }, 0);
+    }
+
     return `
         <div class="space-y-4">
             <div class="flex items-center space-x-2">

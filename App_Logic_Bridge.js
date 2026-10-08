@@ -28,6 +28,21 @@ app.logic.refreshGlobalAppData = async function()
             throw new Error('Firestore database instance (app.db) is not initialized.');
         }
 
+        // Ohne angemeldeten Firebase-Benutzer dürfen die geschützten
+        // Firestore-Daten nicht geladen werden.
+        // Auf der Login-Seite wird stattdessen nur die minimale Spielerliste geladen.
+        if (!firebase.auth().currentUser)
+        {
+            await app.logic.loadLoginPlayers();
+
+            if (app.router && typeof app.router.renderCurrentView === 'function')
+            {
+                app.router.renderCurrentView();
+            }
+
+            return;
+        }
+
         const [
             spielerSnap,
             spieltageSnap,
@@ -491,28 +506,93 @@ app.logic.apiRequest = async function(action, payload = {})
         {
             const sp = Object.assign({}, payload);
 
-            // isNew ist ausschließlich ein internes Steuerfeld und darf nicht
-            // in das Firestore-Spielerdokument geschrieben werden.
+            // isNew ist ausschließlich ein internes Steuerfeld.
             const isNewPlayer = !!sp.isNew;
             delete sp.isNew;
 
-            const publicData = {
-                nickname: sp.nickname || '',
-                name: sp.name || '',
-                teeColor: sp.teeColor || 'Gelb',
-                hcpOfficial: Number.isFinite(Number(sp.hcpOfficial)) ? Number(sp.hcpOfficial) : 54,
-                hcpLIE: Number.isFinite(Number(sp.hcpLIE)) ? Number(sp.hcpLIE) : 54,
-                role: sp.role || 'Spieler'
-            };
-
-            if (isNewPlayer)
+            const authUser = firebase.auth().currentUser;
+            if (!authUser)
             {
-                sp.mustChangePin = true;
+                throw new Error('Nicht angemeldet.');
             }
 
+            const tokenResult = await authUser.getIdTokenResult();
+            const claims = tokenResult.claims || {};
+            const isAdmin = claims.role === 'Admin';
+            const ownPlayer =
+                String(claims.playerId || '').trim() === String(sp.id || '').trim();
+
+            if (isAdmin)
+            {
+                // Admin darf vollständige Spielerdaten verwalten.
+                const publicData = {
+                    nickname: sp.nickname || '',
+                    name: sp.name || '',
+                    teeColor: sp.teeColor || 'Gelb',
+                    hcpOfficial: Number.isFinite(Number(sp.hcpOfficial))
+                        ? Number(sp.hcpOfficial)
+                        : 54,
+                    hcpLIE: Number.isFinite(Number(sp.hcpLIE))
+                        ? Number(sp.hcpLIE)
+                        : 54,
+                    role: sp.role || 'Spieler'
+                };
+
+                if (isNewPlayer)
+                {
+                    sp.mustChangePin = true;
+                }
+
+                const batch = app.db.batch();
+
+                batch.set(
+                    app.db.collection('spieler').doc(String(sp.id)),
+                    sp,
+                    { merge: true }
+                );
+
+                batch.set(
+                    app.db.collection('spieler_public').doc(String(sp.id)),
+                    publicData,
+                    { merge: true }
+                );
+
+                await batch.commit();
+
+                return ({ success: true });
+            }
+
+            if (!ownPlayer || isNewPlayer)
+            {
+                throw new Error('Keine Berechtigung zum Bearbeiten dieses Spielers.');
+            }
+
+            // Ein normaler Spieler darf ausschließlich sein eigenes Profil ändern.
+            const privateData = {
+                nickname: sp.nickname || '',
+                name: sp.name || '',
+                email: sp.email || ''
+            };
+
+            const publicData = {
+                nickname: sp.nickname || '',
+                name: sp.name || ''
+            };
+
             const batch = app.db.batch();
-            batch.set(app.db.collection('spieler').doc(String(sp.id)), sp, { merge: true });
-            batch.set(app.db.collection('spieler_public').doc(String(sp.id)), publicData, { merge: true });
+
+            batch.set(
+                app.db.collection('spieler').doc(String(sp.id)),
+                privateData,
+                { merge: true }
+            );
+
+            batch.set(
+                app.db.collection('spieler_public').doc(String(sp.id)),
+                publicData,
+                { merge: true }
+            );
+
             await batch.commit();
 
             return ({ success: true });

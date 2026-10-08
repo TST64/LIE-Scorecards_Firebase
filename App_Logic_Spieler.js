@@ -152,17 +152,25 @@ app.logic.savePlayer = function(isNew)
 
     if (!idInput || !nicknameInput || !nameInput || !emailInput) return;
 
+    const currentUser = app.state ? app.state.currentUser : null;
+    const isAdmin = currentUser && currentUser.role === 'Admin';
+
     const spielerObj = {
         isNew: isNew,
         id: idInput.value.trim(),
         nickname: nicknameInput.value.trim(),
         name: nameInput.value.trim(),
-        email: emailInput.value.trim(),
-        teeColor: teeSelect ? teeSelect.value : 'Gelb',
-        hcpOfficial: parseFloat(hcpOffInput ? hcpOffInput.value : 54.0),
-        hcpLIE: parseInt(hcpLieInput ? hcpLieInput.value : 54),
-        role: roleSelect ? roleSelect.value : 'Spieler'
+        email: emailInput.value.trim()
     };
+
+    // Nur ein Admin darf administrative Spielerdaten übertragen.
+    if (isAdmin)
+    {
+        spielerObj.teeColor = teeSelect ? teeSelect.value : 'Gelb';
+        spielerObj.hcpOfficial = parseFloat(hcpOffInput ? hcpOffInput.value : 54.0);
+        spielerObj.hcpLIE = parseInt(hcpLieInput ? hcpLieInput.value : 54);
+        spielerObj.role = roleSelect ? roleSelect.value : 'Spieler';
+    }
 
     if (!spielerObj.id || !spielerObj.nickname || !spielerObj.name || !spielerObj.email)
     {
@@ -184,7 +192,11 @@ app.logic.savePlayer = function(isNew)
             {
                 app.logic.showToast("Spielerprofil erfolgreich gespeichert!", "success");
 
-                if (app.state.currentUser && String(app.state.currentUser.id).trim() === String(spielerObj.id).trim())
+                if (
+                    isAdmin &&
+                    app.state.currentUser &&
+                    String(app.state.currentUser.id).trim() === String(spielerObj.id).trim()
+                )
                 {
                     app.state.currentUser.role = spielerObj.role;
                 }
@@ -408,4 +420,24 @@ app.logic.saveSaisonStartDate = function()
         });
 };
 
+app.logic.loadOwnPrivateProfile = async function()
+{
+    if (!app.state || !app.state.currentUser || !app.db)
+    {
+        return null;
+    }
 
+    const playerId = String(app.state.currentUser.id).trim();
+
+    const doc = await app.db
+        .collection('spieler')
+        .doc(playerId)
+        .get();
+
+    if (!doc.exists)
+    {
+        return null;
+    }
+
+    return doc.data();
+};
