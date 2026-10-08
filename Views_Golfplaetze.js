@@ -98,16 +98,18 @@ app.views.golfplaetze = function()
                                 `}
                             </div>
 
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="${isAdmin ? 'grid grid-cols-2' : 'grid grid-cols-1'} gap-2">
                                 <button onclick="app.logic.openVorgabetabelleModal('${platz.id}')" class="bg-emerald-700 hover:bg-emerald-800 text-white py-2 px-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-2xs touch-target">
                                     <i class="fas fa-table-list"></i>
                                     <span>Vorgabetabelle</span>
                                 </button>
 
-                                <button onclick="app.logic.openGolfplatzEditModal('${platz.id}')" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 py-2 px-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 touch-target">
-                                    <i class="fas fa-pen text-zinc-500"></i>
-                                    <span>Bearbeiten</span>
-                                </button>
+                                ${isAdmin ? `
+                                    <button onclick="app.logic.openGolfplatzEditModal('${platz.id}')" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 py-2 px-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 touch-target">
+                                        <i class="fas fa-pen text-zinc-500"></i>
+                                        <span>Bearbeiten</span>
+                                    </button>
+                                ` : ''}
                             </div>
 
                             ${platz.website ? `
