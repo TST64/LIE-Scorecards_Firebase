@@ -221,3 +221,5 @@ app.views.spieltagNeu = app.views.spieltag_neu = function()
         </div>
     `;
 };
+
+

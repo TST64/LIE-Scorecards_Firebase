@@ -402,3 +402,5 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         </div>
     `;
 };
+
+

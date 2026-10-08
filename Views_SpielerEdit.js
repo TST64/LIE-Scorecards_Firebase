@@ -130,3 +130,5 @@ app.views.spieler_edit = function(params)
 
 // Alias app.views.spielerEdit to app.views.spieler_edit for backward compatibility in routing
 app.views.spielerEdit = app.views.spieler_edit;
+
+

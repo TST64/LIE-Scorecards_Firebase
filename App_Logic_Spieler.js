@@ -7,7 +7,7 @@
 var app = app || {};
 app.logic = app.logic || {};
 
-app.logic.submitPin = function(event) 
+app.logic.submitPin = async function(event) 
 {
     if (event) 
     {
@@ -34,28 +34,39 @@ app.logic.submitPin = function(event)
     }
 
     app.logic.apiRequest('verifyPlayerPin', { spielerId: spielerId, pin: pin })
-        .then(function(response)
+        .then(async function(response)
         {
             if (response && response.success)
             {
-                const ausgewaehlterSpieler = (app.state && app.state.spieler) 
-                    ? app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); }) 
+                // Die Cloud Function hat die PIN serverseitig geprüft und liefert
+                // ausschließlich bei Erfolg ein kurzlebiges Firebase Custom Token.
+                // Damit entsteht jetzt die echte, geschützte Firebase-Sitzung.
+                if (!response.customToken)
+                {
+                    throw new Error('Anmeldetoken fehlt.');
+                }
+
+                await firebase.auth().signInWithCustomToken(response.customToken);
+                await app.logic.apiRequest('getInitialAppData');
+
+                const ausgewaehlterSpieler = (app.state && app.state.spieler)
+                    ? app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); })
                     : null;
 
                 if (!ausgewaehlterSpieler)
                 {
-                    app.logic.showToast("Spielerdaten nicht geladen!", "error");
+                    app.logic.showToast("Spielerdaten konnten nicht geladen werden!", "error");
                     resetButton(btn);
                     return;
                 }
 
                 app.state = app.state || {};
                 app.state.currentUser = ausgewaehlterSpieler;
+                app.state.currentUser.mustChangePin = !!response.mustChangePin;
                 localStorage.setItem('lie_scorecard_user_id', ausgewaehlterSpieler.id);
 
                 if (app.logic.updateHeaderRoleIcon) app.logic.updateHeaderRoleIcon();
 
-                // Force user to change PIN if they logged in with a temporary PIN
                 if (response.mustChangePin)
                 {
                     app.logic.showToast("Bitte lege eine neue persönliche PIN fest.", "warning");
@@ -108,8 +119,13 @@ app.logic.changePin = function()
     }
 
     app.logic.apiRequest('updatePlayerPin', { spielerId: app.state.currentUser.id, newPin: val1 })
-        .then(function(response) {
+        .then(async function(response) {
             if (response && response.success) {
+                if (firebase.auth().currentUser)
+                {
+                    await firebase.auth().currentUser.getIdToken(true);
+                }
+                app.state.currentUser.mustChangePin = false;
                 app.logic.showToast("PIN dauerhaft gespeichert!", "success");
                 app.router.navigate('dashboard');
             } else {
@@ -225,13 +241,16 @@ app.logic.logout = function()
         "standard", 
         function() 
         {
-            if (typeof firebase !== 'undefined' && firebase.auth) {
-                firebase.auth().signOut().catch(e => console.warn("Firebase signout error:", e));
+            if (typeof firebase !== 'undefined' && firebase.auth)
+            {
+                firebase.auth().signOut()
+                    .catch(function(e) { console.warn("Firebase signout error:", e); });
             }
 
             if (app.state)
             {
                 app.state.currentUser = null;
+                app.state.spieler = [];
             }
             localStorage.removeItem('lie_scorecard_user_id');
             if (app.logic.updateHeaderRoleIcon)
@@ -353,3 +372,5 @@ app.logic.saveSaisonStartDate = function()
             }
         });
 };
+
+

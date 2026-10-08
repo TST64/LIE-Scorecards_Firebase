@@ -833,3 +833,5 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
+
+

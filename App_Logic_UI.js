@@ -237,3 +237,5 @@ app.logic.closePixelGolfGame = function()
         modal.classList.add('hidden');
     }
 };
+
+

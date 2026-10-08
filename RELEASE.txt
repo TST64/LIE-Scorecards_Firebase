@@ -1,0 +1,4 @@
+LIE Scorecard 5.2.0-custom-auth
+Build: 2026-10-08
+Login: Name auswählen → PIN eingeben → Firebase Custom Token
+Anonymous Authentication: nicht erforderlich

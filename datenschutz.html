@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Datenschutzerklärung – LIE Scorecard</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.65;max-width:900px;margin:0 auto;padding:32px 20px;color:#292524;background:#fafaf9}
+h1,h2,h3{color:#064e3b} a{color:#047857}.box{background:white;border:1px solid #e7e5e4;border-radius:16px;padding:24px;margin:20px 0}
+li{margin:.4rem 0}small{color:#78716c}
+</style>
+</head>
+<body>
+<p><a href="index.html">← zurück zur LIE Scorecard</a></p>
+<h1>Datenschutzerklärung</h1>
+<p><small>Stand: 8. Oktober 2026</small></p>
+
+<div class="box">
+<h2>1. Verantwortlicher</h2>
+<p><strong>Thomas Stockhinger</strong><br>
+Drosselweg 4a<br>
+28790 Schwanewede<br>
+Deutschland</p>
+<p>E-Mail: <a href="mailto:lochihnein@gmail.com">lochihnein@gmail.com</a></p>
+</div>
+
+<h2>2. Zweck und Geltungsbereich</h2>
+<p>Diese Datenschutzerklärung gilt für die LIE Scorecard unter <strong>app.lochihnein.de</strong>. Die Anwendung ist für eine private Golf- und Freundesgruppe bestimmt und nicht für Kinder oder Jugendliche vorgesehen.</p>
+<p>Verarbeitet werden nur Daten, die für Anmeldung, Gruppenorganisation, Spieltage, Score-Erfassung, Handicap-/Statistikfunktionen und die optional angeforderte Wetteranzeige erforderlich sind.</p>
+
+<h2>3. Welche Daten werden verarbeitet?</h2>
+<ul>
+<li>Spielerstammdaten wie Name, Spitzname, E-Mail-Adresse, Rolle und Golf-/LIE-Handicap.</li>
+<li>Spieldaten wie Spieltage, Flights, Scores und zugehörige Ergebnisse.</li>
+<li>Technische Authentifizierungsdaten von Firebase, insbesondere die für die Sitzung verwendete interne Spielerkennung und Authentifizierungstokens.</li>
+<li>Eine lokal im Browser gespeicherte Spielerkennung, damit die Sitzung beim nächsten Aufruf wiedererkannt werden kann.</li>
+<li>Bei Nutzung der Wetterfunktion: die vom Browser freigegebenen Standortkoordinaten. Diese werden zur Abfrage der Wetterdaten an Open-Meteo übermittelt und von der Anwendung nicht als dauerhafter Standortverlauf in Firestore gespeichert.</li>
+<li>Bei Anforderung eines Einmal-Codes: E-Mail-Adresse und ein zeitlich begrenzter temporärer Anmeldecode.</li>
+</ul>
+
+<h2>4. Anmeldung mit Name und PIN</h2>
+<p>Die Bedienung bleibt bewusst einfach: Spieler auswählen, PIN eingeben, fertig. Die PIN wird nicht mehr vom Browser aus Firestore gelesen oder dort im Klartext geprüft. Die Prüfung erfolgt serverseitig über Firebase Cloud Functions. PINs werden als kryptografisch abgeleitete Hashwerte gespeichert.</p>
+<p>Nach erfolgreicher serverseitiger PIN-Prüfung erzeugt Firebase ein benutzerdefiniertes Anmeldetoken (Custom Token). Die App verwendet dieses Token für die Firebase-Authentifizierung; anschließend erhält die Sitzung ein Authentifizierungsmerkmal, das den Zugriff auf die geschützten Firestore-Daten ermöglicht. Nicht angemeldete Sitzungen können keine geschützten Spiel- oder Profildaten aus Firestore lesen.</p>
+
+<h2>5. Firebase / Google</h2>
+<p>Die Anwendung verwendet Firebase-Dienste von Google, insbesondere Firebase Authentication, Cloud Firestore und Cloud Functions. Diese Dienste verarbeiten die für Anmeldung und Datenhaltung erforderlichen Informationen. Die Firebase-Web-SDKs werden von <strong>gstatic.com</strong> geladen.</p>
+<p>Die Speicherung der Spiel- und Profildaten erfolgt in der mit der Anwendung verbundenen Firebase-Projektumgebung. Für die genaue technische Speicherung, Protokollierung und mögliche internationale Datenübermittlungen gelten ergänzend die Informationen und Vertragsbedingungen des jeweiligen Dienstes.</p>
+
+<h2>6. Einmal-Code per E-Mail / Google Apps Script</h2>
+<p>Über „PIN vergessen / Code per Mail anfordern“ kann ein temporärer Code angefordert werden. Die Anwendung erzeugt den Code serverseitig, speichert nur dessen Hash und übermittelt die für den Versand erforderlichen Angaben an das bestehende Google-Apps-Script-Mailbackend. Dieses liest die hinterlegte E-Mail-Adresse aus der administrativen Google-Tabelle und versendet den Code.</p>
+<p>Die E-Mail-Adresse wird ausschließlich für diesen Zweck und für die in der Gruppe vorgesehene Kommunikation verwendet.</p>
+
+<h2>7. Wetter und Standort</h2>
+<p>Die Wetteransicht kann den Browser um Zugriff auf den aktuellen Standort bitten. Dies geschieht nur nach Freigabe durch den Nutzer. Die Koordinaten werden an <strong>Open-Meteo</strong> übermittelt, damit passende Wetterdaten abgefragt werden können. Die Anwendung speichert keinen dauerhaften Bewegungs- oder Standortverlauf.</p>
+<p>Wenn der Standortzugriff verweigert wird, kann die Wetterfunktion je nach App-Version mit einem voreingestellten Ersatzstandort arbeiten.</p>
+
+<h2>8. Externe Bibliotheken und CDNs</h2>
+<p>Die Anwendung lädt technische Bibliotheken von Drittanbietern, unter anderem Tailwind CSS über jsDelivr, Font Awesome über cdnjs und Firebase über gstatic.com. Beim Abruf dieser Ressourcen kann die IP-Adresse des Geräts technisch an den jeweiligen Anbieter übermittelt werden.</p>
+<p>Die Anwendung verwendet nach dem aktuellen Projektstand keine eigene Reichweitenmessung, kein Werbetracking und keine Profilbildung zu Werbezwecken.</p>
+
+<h2>9. Cookies und lokale Speicherung</h2>
+<p>Die Anwendung setzt nach dem aktuellen Projektstand keine eigenen Tracking-Cookies. Für die Sitzungsfunktion verwendet Firebase Authentication technische Browser-Speichermechanismen. Zusätzlich wird die interne Spielerkennung <code>lie_scorecard_user_id</code> im lokalen Speicher des Browsers abgelegt.</p>
+
+<h2>10. Rechtsgrundlage</h2>
+<p>Soweit die DSGVO auf die konkrete Verarbeitung Anwendung findet, erfolgt die Verarbeitung insbesondere auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO zur Organisation der privaten Golfgruppe, zur sicheren Authentifizierung und zur Durchführung der von den Gruppenmitgliedern gewünschten Funktionen. Soweit eine Verarbeitung auf einer anderen Rechtsgrundlage beruht oder eine Einwilligung erforderlich ist, wird diese entsprechend eingeholt.</p>
+
+<h2>11. Speicherdauer</h2>
+<p>Spieler-, Spieltags- und Score-Daten werden so lange gespeichert, wie dies für die Organisation der privaten Gruppe erforderlich ist. Einzelne Daten können auf Wunsch oder nach Ende ihrer Erforderlichkeit gelöscht werden, soweit keine gesetzlichen Aufbewahrungspflichten entgegenstehen.</p>
+<p>Temporäre PINs sind nur für die PIN-Änderung bestimmt. Fehlversuche und technische Authentifizierungsinformationen werden nur soweit verarbeitet, wie dies für die Absicherung der Anmeldung erforderlich ist.</p>
+
+<h2>12. Deine Rechte</h2>
+<p>Betroffene Personen haben – soweit die gesetzlichen Voraussetzungen erfüllt sind – insbesondere Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch gegen Verarbeitungen auf Grundlage berechtigter Interessen. Eine erteilte Einwilligung kann jederzeit mit Wirkung für die Zukunft widerrufen werden.</p>
+<p>Zur Ausübung dieser Rechte genügt eine Nachricht an <a href="mailto:lochihnein@gmail.com">lochihnein@gmail.com</a>.</p>
+
+<h2>13. Beschwerderecht</h2>
+<p>Unabhängig von anderen Rechtsbehelfen besteht das Recht, sich bei einer Datenschutzaufsichtsbehörde zu beschweren. Für Niedersachsen ist dies insbesondere der</p>
+<div class="box">
+<p><strong>Der Landesbeauftragte für den Datenschutz Niedersachsen</strong><br>
+Prinzenstraße 5<br>
+30159 Hannover<br>
+Telefon: +49 511 120-4500<br>
+E-Mail: <a href="mailto:poststelle@lfd.niedersachsen.de">poststelle@lfd.niedersachsen.de</a></p>
+</div>
+
+<h2>14. Aktualisierung</h2>
+<p>Diese Datenschutzerklärung wird angepasst, wenn sich die technischen Funktionen, eingesetzten Dienste oder rechtlichen Rahmenbedingungen ändern.</p>
+</body>
+</html>

@@ -326,3 +326,5 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
             app.logic.startLivePolling(spieltagId, null, flightSeq);
         });
 };
+
+

@@ -763,3 +763,5 @@ app.logic.closeVorgabetabelleModal = function()
     const modal = document.getElementById('vorgabetabelle-modal');
     if (modal) modal.classList.add('hidden');
 };
+
+

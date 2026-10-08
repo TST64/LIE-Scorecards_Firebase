@@ -1,0 +1,171 @@
+rules_version = '2';
+
+service cloud.firestore
+{
+  match /databases/{database}/documents
+  {
+    function signedIn()
+    {
+      return request.auth != null
+        && request.auth.token.playerId != null;
+    }
+
+    function playerId()
+    {
+      return request.auth.token.playerId;
+    }
+
+    function isAdmin()
+    {
+      return signedIn()
+        && request.auth.token.role == 'Admin';
+    }
+
+    function isSpielleiter()
+    {
+      return signedIn()
+        && (
+          request.auth.token.role == 'Admin'
+          || request.auth.token.role == 'Spielleiter'
+        );
+    }
+
+    function isOwnPlayer(spielerId)
+    {
+      return signedIn()
+        && playerId() == spielerId;
+    }
+
+    // Geschützte Spielerdaten inklusive E-Mail und PIN-Hash.
+    match /spieler/{spielerId}
+    {
+      allow read: if isAdmin();
+
+      allow create, delete: if isAdmin();
+
+      // Admin: alles.
+      // Spielleiter: ausschließlich LIE-Handicap.
+      // Spieler: nur eigene allgemeine Profildaten.
+      allow update: if isAdmin()
+        || (
+          isSpielleiter()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['hcpLIE'])
+        )
+        || (
+          isOwnPlayer(spielerId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'nickname', 'email'])
+        );
+    }
+
+    // Nicht sensible Spielerdaten.
+    match /spieler_public/{spielerId}
+    {
+      allow read: if signedIn();
+
+      allow create, delete: if isAdmin();
+
+      allow update: if isAdmin()
+        || (
+          isSpielleiter()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['hcpLIE'])
+        )
+        || (
+          isOwnPlayer(spielerId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'nickname'])
+        );
+    }
+
+    // Spieltage werden von Spielleitern/Admins verwaltet.
+    match /spieltage/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if isSpielleiter();
+    }
+
+    // Scores dürfen angemeldete Mitglieder erfassen.
+    match /scorecards/{docId}
+    {
+      allow read, write: if signedIn();
+    }
+
+    // Legacy/zusätzliche Score-Daten.
+    match /scores/{docId}
+    {
+      allow read, write: if signedIn();
+    }
+
+    // Flight-Einteilung ist Aufgabe der Spielleitung.
+    match /flights/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if isSpielleiter();
+    }
+
+    // Stammdaten Golfplätze/Kurse nur Admin.
+    match /kurse/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /golfplaetze/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /bahnen/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /handicaps/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Kalender:
+    // Spielleiter/Admin dürfen Termine verwalten.
+    // Jeder Spieler darf ausschließlich seinen eigenen RSVP ändern.
+    match /kalender_termine/{docId}
+    {
+      allow read: if signedIn();
+
+      allow create, delete: if isSpielleiter();
+
+      allow update: if isSpielleiter()
+        || (
+          signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['rsvps'])
+          && request.resource.data.rsvps.diff(resource.data.rsvps)
+               .affectedKeys().hasOnly([playerId()])
+        );
+    }
+
+    // Globale Konfiguration nur Admin.
+    match /config/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /settings/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Alles, was wir nicht ausdrücklich freigegeben haben, bleibt gesperrt.
+    match /{document=**}
+    {
+      allow read, write: if false;
+    }
+  }
+}

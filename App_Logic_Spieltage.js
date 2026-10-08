@@ -905,3 +905,5 @@ app.logic.updateRapidScoreState = function(spieltagId, spielerId, holeNr, type, 
     // Dadurch wird das DOM nicht zerstört, das Input-Feld behält den Fokus und 
     // das zeilenweise TAB-Springen funktioniert blitzschnell und reibungslos.
 };
+
+

@@ -304,3 +304,5 @@ app.logic.getGolfWeatherAdvice = function(temp, windKmH, rainMm)
     }
     return { title: "Perfekte Bedingungen", desc: "Ideal für gute Drives & eine erfolgreiche Runde!", bg: "bg-emerald-50 border-emerald-200 text-emerald-900", icon: "fa-thumbs-up" };
 };
+
+

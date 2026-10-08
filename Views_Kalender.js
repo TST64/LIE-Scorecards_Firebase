@@ -483,3 +483,5 @@ app.logic.deleteTermin = async function(terminId)
         app.logic.showToast("Fehler beim Löschen.", "error");
     }
 };
+
+

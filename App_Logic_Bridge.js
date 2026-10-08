@@ -29,154 +29,152 @@ app.logic.refreshGlobalAppData = async function()
         }
 
         const [
-            spielerSnap, 
-            spieltageSnap, 
-            scorecardsSnap, 
-            scoresSnap, 
-            flightsSnap, 
-            kurseSnap, 
-            plaetzeSnap, 
+            spielerSnap,
+            spieltageSnap,
+            scorecardsSnap,
+            scoresSnap,
+            flightsSnap,
+            kurseSnap,
+            plaetzeSnap,
             bahnenSnap,
             handicapsSnap,
             kalenderSnap,
-            configSnap // <--- NEU: Hinzugefügt für das Saison-Datum
+            configSnap
         ] = await Promise.all([
-            app.db.collection('spieler').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+            app.db.collection('spieler_public').get().catch(
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
             app.db.collection('spieltage').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
             app.db.collection('scorecards').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
             app.db.collection('scores').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
             app.db.collection('flights').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
             app.db.collection('kurse').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
             app.db.collection('golfplaetze').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
             app.db.collection('bahnen').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
             app.db.collection('handicaps').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
             app.db.collection('kalender_termine').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             ),
-            // <--- NEU: Config Collection abrufen
             app.db.collection('config').get().catch(
-                function() 
-                { 
-                    return (
-                    { 
-                        forEach: function() {} 
-                    }); 
+                function()
+                {
+                    return ({ forEach: function() {} });
                 }
             )
         ]);
 
         const spielerData = [];
         spielerSnap.forEach(
-            function(doc) 
-            { 
-                spielerData.push(Object.assign({ id: doc.id }, doc.data())); 
+            function(doc)
+            {
+                spielerData.push(Object.assign({ id: doc.id }, doc.data()));
             }
         );
-        app.state.spieler = spielerData;
+
+        // Sensible Spielerdaten (E-Mail/PIN-Hash) werden nur für Administratoren geladen.
+        let adminSession = !!(app.state.currentUser && app.state.currentUser.role === 'Admin');
+
+        if (!adminSession && firebase && firebase.auth && firebase.auth().currentUser)
+        {
+            try
+            {
+                const tokenResult = await firebase.auth().currentUser.getIdTokenResult();
+                adminSession = tokenResult.claims && tokenResult.claims.role === 'Admin';
+            }
+            catch (claimErr)
+            {
+                console.warn('[Bridge] Rollen-Claim konnte nicht gelesen werden:', claimErr);
+            }
+        }
+
+        if (adminSession)
+        {
+            const fullSpielerSnap = await app.db.collection('spieler').get();
+            const fullSpielerData = [];
+            fullSpielerSnap.forEach(
+                function(doc)
+                {
+                    fullSpielerData.push(Object.assign({ id: doc.id }, doc.data()));
+                }
+            );
+            app.state.spieler = fullSpielerData;
+        }
+        else
+        {
+            app.state.spieler = spielerData;
+        }
 
         const spieltageData = [];
         spieltageSnap.forEach(
-            function(doc) 
-            { 
-                spieltageData.push(Object.assign({ id: doc.id }, doc.data())); 
+            function(doc)
+            {
+                spieltageData.push(Object.assign({ id: doc.id }, doc.data()));
             }
         );
         app.state.spieltage = spieltageData;
 
         const scoresMap = {};
         scorecardsSnap.forEach(
-            function(doc) 
-            { 
+            function(doc)
+            {
                 const data = Object.assign({ id: doc.id }, doc.data());
-                if (data.id) 
+                if (data.id)
                 {
                     scoresMap[data.id] = data;
                 }
             }
         );
         scoresSnap.forEach(
-            function(doc) 
-            { 
+            function(doc)
+            {
                 const data = Object.assign({ id: doc.id }, doc.data());
-                if (data.id) 
+                if (data.id)
                 {
                     scoresMap[data.id] = data;
                 }
@@ -186,59 +184,58 @@ app.logic.refreshGlobalAppData = async function()
 
         const flightsData = [];
         flightsSnap.forEach(
-            function(doc) 
-            { 
-                flightsData.push(Object.assign({ id: doc.id }, doc.data())); 
+            function(doc)
+            {
+                flightsData.push(Object.assign({ id: doc.id }, doc.data()));
             }
         );
         app.state.flights = flightsData;
 
         const kurseData = [];
         kurseSnap.forEach(
-            function(doc) 
-            { 
-                kurseData.push(Object.assign({ id: doc.id }, doc.data())); 
+            function(doc)
+            {
+                kurseData.push(Object.assign({ id: doc.id }, doc.data()));
             }
         );
         app.state.kurse = kurseData;
 
         const plaetzeData = [];
         plaetzeSnap.forEach(
-            function(doc) 
-            { 
-                plaetzeData.push(Object.assign({ id: doc.id }, doc.data())); 
+            function(doc)
+            {
+                plaetzeData.push(Object.assign({ id: doc.id }, doc.data()));
             }
         );
         app.state.golfplaetze = plaetzeData;
 
         const bahnenData = [];
         bahnenSnap.forEach(
-            function(doc) 
-            { 
-                bahnenData.push(Object.assign({ id: doc.id }, doc.data())); 
+            function(doc)
+            {
+                bahnenData.push(Object.assign({ id: doc.id }, doc.data()));
             }
         );
         app.state.bahnen = bahnenData;
 
         const handicapsData = [];
         handicapsSnap.forEach(
-            function(doc) 
-            { 
-                handicapsData.push(Object.assign({ id: doc.id }, doc.data())); 
+            function(doc)
+            {
+                handicapsData.push(Object.assign({ id: doc.id }, doc.data()));
             }
         );
         app.state.handicaps = handicapsData;
 
         const kalenderData = [];
         kalenderSnap.forEach(
-            function(doc) 
-            { 
-                kalenderData.push(Object.assign({ id: doc.id }, doc.data())); 
+            function(doc)
+            {
+                kalenderData.push(Object.assign({ id: doc.id }, doc.data()));
             }
         );
         app.state.kalenderTermine = kalenderData;
 
-        // <--- NEU: Config-Daten (Saison-Start) verarbeiten und im State speichern
         configSnap.forEach(
             function(doc)
             {
@@ -256,9 +253,9 @@ app.logic.refreshGlobalAppData = async function()
         if (app.state.currentUser)
         {
             const freshUserMatch = app.state.spieler.find(
-                function(s) 
-                { 
-                    return String(s.id).trim() === String(app.state.currentUser.id).trim(); 
+                function(s)
+                {
+                    return String(s.id).trim() === String(app.state.currentUser.id).trim();
                 }
             );
             if (freshUserMatch)
@@ -295,10 +292,36 @@ app.logic.refreshGlobalAppData = async function()
                     btn.disabled = false;
                     icon.classList.remove('fa-spin');
                 }
-            }, 
+            },
             300
         );
     }
+};
+
+// Firebase Cloud Functions werden für Authentifizierung und sensible Aktionen verwendet.
+app.logic.callFunction = async function(functionName, payload)
+{
+    if (!firebase || !firebase.functions)
+    {
+        throw new Error('Firebase Functions SDK wurde nicht geladen.');
+    }
+
+    const functions = firebase.app().functions('europe-west1');
+    const callable = functions.httpsCallable(functionName);
+    const result = await callable(payload || {});
+    return result && result.data ? result.data : {};
+};
+
+app.logic.loadLoginPlayers = async function()
+{
+    const response = await app.logic.callFunction('getLoginPlayers', {});
+    if (!response.success)
+    {
+        throw new Error(response.error || 'Spielerliste konnte nicht geladen werden.');
+    }
+
+    app.state.spieler = response.spieler || [];
+    return app.state.spieler;
 };
 
 // Abstraction layer for API requests
@@ -340,10 +363,7 @@ app.logic.apiRequest = async function(action, payload = {})
                 );
                 await batch.commit();
             }
-            return (
-            { 
-                success: true 
-            });
+            return ({ success: true });
         }
         else if (action === 'createNewSpieltag')
         {
@@ -362,10 +382,7 @@ app.logic.apiRequest = async function(action, payload = {})
             );
             await batch.commit();
 
-            return (
-            { 
-                success: true 
-            });
+            return ({ success: true });
         }
         else if (action === 'closeSpieltagServer')
         {
@@ -381,20 +398,40 @@ app.logic.apiRequest = async function(action, payload = {})
             if (handicapUpdates && handicapUpdates.length > 0)
             {
                 const batch = app.db.batch();
+
                 handicapUpdates.forEach(
                     function(upd)
                     {
-                        const spRef = app.db.collection('spieler').doc(String(upd.spielerId));
-                        batch.update(spRef, { hcpLIE: parseInt(upd.newHcpLie) });
+                        const spielerId = String(upd.spielerId);
+                        const newHcpLie = parseInt(upd.newHcpLie, 10);
+
+                        if (!Number.isFinite(newHcpLie))
+                        {
+                            throw new Error('Ungültiges LIE-Handicap für Spieler ' + spielerId + '.');
+                        }
+
+                        // hcpLIE wird bewusst in beiden Collections synchron gehalten:
+                        // - spieler: geschützte vollständige Spielerdaten
+                        // - spieler_public: nicht sensible Daten für die App
+                        const privateRef = app.db.collection('spieler').doc(spielerId);
+                        const publicRef = app.db.collection('spieler_public').doc(spielerId);
+
+                        batch.update(privateRef,
+                        {
+                            hcpLIE: newHcpLie
+                        });
+
+                        batch.update(publicRef,
+                        {
+                            hcpLIE: newHcpLie
+                        });
                     }
                 );
+
                 await batch.commit();
             }
 
-            return (
-            { 
-                success: true 
-            });
+            return ({ success: true });
         }
         else if (action === 'cancelSpieltagServer')
         {
@@ -402,10 +439,7 @@ app.logic.apiRequest = async function(action, payload = {})
             {
                 status: 'Abgebrochen'
             });
-            return (
-            { 
-                success: true 
-            });
+            return ({ success: true });
         }
         else if (action === 'softDeleteSpieltagServer')
         {
@@ -413,158 +447,153 @@ app.logic.apiRequest = async function(action, payload = {})
             {
                 istGeloescht: true
             });
-            return (
-            { 
-                success: true 
-            });
+            return ({ success: true });
+        }
+        else if (action === 'saveSaisonStartDateServer')
+        {
+            const startDate = String(payload.startDate || '').trim();
+
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate))
+            {
+                throw new Error('Ungültiges Saison-Startdatum.');
+            }
+
+            await app.db.collection('config').doc('saison').set(
+                { saisonStartDatum: startDate },
+                { merge: true }
+            );
+
+            app.state.saisonStartDatum = startDate;
+
+            return ({ success: true });
+        }
+        else if (action === 'startNeueSaisonServer')
+        {
+            const startDate = String(payload.startDate || '').trim();
+
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate))
+            {
+                throw new Error('Ungültiges Saison-Startdatum.');
+            }
+
+            await app.db.collection('config').doc('saison').set(
+                { saisonStartDatum: startDate },
+                { merge: true }
+            );
+
+            app.state.saisonStartDatum = startDate;
+
+            return ({ success: true });
         }
         else if (action === 'savePlayerServer')
         {
-            const sp = payload;
-            await app.db.collection('spieler').doc(String(sp.id)).set(sp, { merge: true });
-            return (
-            { 
-                success: true 
-            });
+            const sp = Object.assign({}, payload);
+
+            // isNew ist ausschließlich ein internes Steuerfeld und darf nicht
+            // in das Firestore-Spielerdokument geschrieben werden.
+            const isNewPlayer = !!sp.isNew;
+            delete sp.isNew;
+
+            const publicData = {
+                nickname: sp.nickname || '',
+                name: sp.name || '',
+                teeColor: sp.teeColor || 'Gelb',
+                hcpOfficial: Number.isFinite(Number(sp.hcpOfficial)) ? Number(sp.hcpOfficial) : 54,
+                hcpLIE: Number.isFinite(Number(sp.hcpLIE)) ? Number(sp.hcpLIE) : 54,
+                role: sp.role || 'Spieler'
+            };
+
+            if (isNewPlayer)
+            {
+                sp.mustChangePin = true;
+            }
+
+            const batch = app.db.batch();
+            batch.set(app.db.collection('spieler').doc(String(sp.id)), sp, { merge: true });
+            batch.set(app.db.collection('spieler_public').doc(String(sp.id)), publicData, { merge: true });
+            await batch.commit();
+
+            return ({ success: true });
         }
         else if (action === 'deletePlayerServer')
         {
-            await app.db.collection('spieler').doc(String(payload.spielerId)).delete();
-            return (
-            { 
-                success: true 
-            });
+            const batch = app.db.batch();
+            batch.delete(app.db.collection('spieler').doc(String(payload.spielerId)));
+            batch.delete(app.db.collection('spieler_public').doc(String(payload.spielerId)));
+            await batch.commit();
+
+            return ({ success: true });
         }
         else if (action === 'getVaultLockStatus')
         {
             const doc = await app.db.collection('settings').doc('vault').get();
             const data = doc.exists ? doc.data() : {};
             return (
-            { 
-                success: true, 
-                isUnlocked: !!data.isUnlocked 
+            {
+                success: true,
+                isUnlocked: !!data.isUnlocked
             });
         }
         else if (action === 'toggleVaultLock')
         {
-            await app.db.collection('settings').doc('vault').set({ isUnlocked: !!payload.status }, { merge: true });
+            await app.db.collection('settings').doc('vault').set(
+                { isUnlocked: !!payload.status },
+                { merge: true }
+            );
             return (
-            { 
-                success: true, 
-                isUnlocked: !!payload.status 
+            {
+                success: true,
+                isUnlocked: !!payload.status
             });
         }
         else if (action === 'updateFirestoreDoc')
         {
             const { collectionName, docId, data } = payload;
             await app.db.collection(collectionName).doc(String(docId)).set(data, { merge: true });
-            return (
-            { 
-                success: true 
-            });
+            return ({ success: true });
         }
         else if (action === 'deleteFirestoreDoc')
         {
             const { collectionName, docId } = payload;
             await app.db.collection(collectionName).doc(String(docId)).delete();
-            return (
-            { 
-                success: true 
-            });
+            return ({ success: true });
         }
         else if (action === 'verifyPlayerPin')
         {
-            const spDoc = await app.db.collection('spieler').doc(String(payload.spielerId)).get();
-            if (!spDoc.exists) 
+            return await app.logic.callFunction('verifyPlayerPin',
             {
-                return (
-                { 
-                    success: false, 
-                    error: 'Spieler nicht gefunden' 
-                });
-            }
-            const spData = spDoc.data();
-
-            const dbPin = spData.pin || '0000';
-
-            if (String(dbPin).trim() === String(payload.pin).trim()) 
-            {
-                return (
-                { 
-                    success: true, 
-                    mustChangePin: !!spData.mustChangePin 
-                });
-            } 
-            else 
-            {
-                return (
-                { 
-                    success: false, 
-                    error: 'PIN inkorrekt' 
-                });
-            }
+                spielerId: payload.spielerId,
+                pin: payload.pin
+            });
         }
         else if (action === 'updatePlayerPin')
         {
-            await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: payload.newPin, mustChangePin: false }, { merge: true });
-            return (
-            { 
-                success: true 
+            return await app.logic.callFunction('updatePlayerPin',
+            {
+                spielerId: payload.spielerId,
+                newPin: payload.newPin
             });
         }
         else if (action === 'requestTempPin')
         {
-            const spDoc = await app.db.collection('spieler').doc(String(payload.spielerId)).get();
-            if (!spDoc.exists) 
+            return await app.logic.callFunction('requestTempPin',
             {
-                return (
-                { 
-                    success: false, 
-                    error: 'Spieler nicht gefunden' 
-                });
-            }
-            const spData = spDoc.data();
-
-            const tempPin = Math.floor(1000 + Math.random() * 9000).toString();
-
-            await app.db.collection('spieler').doc(String(payload.spielerId)).set({ pin: tempPin, mustChangePin: true }, { merge: true });
-
-            if (typeof CONFIG !== 'undefined' && CONFIG.gasUrl)
-            {
-                try
-                {
-                    const requestBody = JSON.stringify({ action: 'sendTempPinEmail', spielerId: payload.spielerId, tempPin: tempPin });
-                    await fetch(`${CONFIG.gasUrl}?data=${encodeURIComponent(requestBody)}`, { method: 'GET', mode: 'no-cors' });
-                }
-                catch (mailErr)
-                {
-                    console.warn("[Bridge] GAS email dispatch warning:", mailErr);
-                }
-            }
-
-            return (
-            { 
-                success: true, 
-                tempPin: tempPin, 
-                email: spData.email 
+                spielerId: payload.spielerId
             });
         }
         else
         {
             console.warn(`[Bridge] Unhandled action "${action}", returning success.`);
-            return (
-            { 
-                success: true 
-            });
+            return ({ success: true });
         }
     }
     catch (err)
     {
         console.error(`[Bridge Error] for action "${action}":`, err);
         return (
-        { 
-            success: false, 
-            error: err.message 
+        {
+            success: false,
+            error: err.message
         });
     }
 };

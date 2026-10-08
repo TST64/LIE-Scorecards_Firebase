@@ -56,79 +56,85 @@ app.initStart = async function()
 {
     console.log("[App] Starting LIE Scorecard initialization...");
 
-    // 1. Service Worker für PWA-Installierbarkeit & Auto-Updates registrieren
     app.logic.registerServiceWorker();
 
-    // 2. Initialize core systems and wait for Firebase / app.db to be ready
-    if (typeof app.initCore === 'function')
-    {
-        await app.initCore();
-    }
-
-    // 3. Load initial app data from Firestore
     try
     {
-        const res = await app.logic.apiRequest('getInitialAppData');
-        if (res && res.success)
+        if (typeof app.initCore === 'function')
         {
-            app.state.spieler = res.spieler || [];
-            app.state.spieltage = res.spieltage || [];
-            app.state.scoreCards = res.scoreCards || [];
-            app.state.flights = res.flights || [];
-            app.state.kurse = res.kurse || [];
-            app.state.golfplaetze = res.golfplaetze || [];
-            app.state.bahnen = res.bahnen || [];
-            app.state.handicaps = res.handicaps || [];
-            app.state.kalenderTermine = res.kalenderTermine || [];
+            await app.initCore();
         }
+
+
+        const authUser = firebase.auth().currentUser;
+        let claims = {};
+
+        if (authUser)
+        {
+            const tokenResult = await authUser.getIdTokenResult();
+            claims = tokenResult.claims || {};
+        }
+
+        // Nach einem Seitenwechsel bleibt die Firebase-Session erhalten.
+        // Nur wenn bereits ein gültiger Spieler-Claim vorhanden ist, wird die App direkt geöffnet.
+        if (claims.playerId)
+        {
+            await app.logic.apiRequest('getInitialAppData');
+
+            const savedUserId = String(claims.playerId);
+            const matchedUser = (app.state.spieler || []).find(function(s)
+            {
+                return String(s.id).trim() === savedUserId.trim();
+            });
+
+            if (matchedUser)
+            {
+                app.state.currentUser = matchedUser;
+                app.state.currentUser.mustChangePin = !!claims.mustChangePin;
+
+                localStorage.setItem('lie_scorecard_user_id', savedUserId);
+
+                if (typeof app.logic.updateHeaderRoleIcon === 'function')
+                {
+                    app.logic.updateHeaderRoleIcon();
+                }
+
+                if (claims.mustChangePin)
+                {
+                    app.router.navigate('pin_aendern');
+                }
+                else
+                {
+                    app.router.navigate('dashboard');
+                }
+                return;
+            }
+
+            await firebase.auth().signOut();
+        }
+
+        // Vor dem Login werden ausschließlich die für die Namensauswahl notwendigen
+        // öffentlichen Spielerdaten geladen.
+        await app.logic.loadLoginPlayers();
+        localStorage.removeItem('lie_scorecard_user_id');
+        app.state.currentUser = null;
+        app.router.navigate('login');
     }
     catch (err)
     {
-        console.error("[App] Error loading initial app data:", err);
-    }
-
-    // 4. Check for persisted user session in localStorage
-    const savedUserId = localStorage.getItem('lie_scorecard_user_id');
-    if (savedUserId && app.state.spieler)
-    {
-        const matchedUser = app.state.spieler.find(function(s)
+        console.error("[App] Initialisierung fehlgeschlagen:", err);
+        app.logic.showToast("Die App konnte nicht vollständig gestartet werden.", "error");
+        try
         {
-            return String(s.id).trim() === String(savedUserId).trim();
-        });
-
-        if (matchedUser)
+            await app.logic.loadLoginPlayers();
+            app.router.navigate('login');
+        }
+        catch (loginErr)
         {
-            app.state.currentUser = matchedUser;
-            if (typeof app.logic.updateHeaderRoleIcon === 'function')
-            {
-                app.logic.updateHeaderRoleIcon();
-            }
-            
-            // Route to PIN change if forced, otherwise straight to dashboard
-            if (matchedUser.mustChangePin)
-            {
-                app.router.navigate('pin_aendern');
-            }
-            else
-            {
-                app.router.navigate('dashboard');
-            }
-            return;
+            console.error("[App] Login-Liste konnte nicht geladen werden:", loginErr);
         }
     }
-
-    // 5. Default fallback to login view if no valid session exists
-    app.router.navigate('login');
 };
-
-// Auto-trigger startup when DOM is fully loaded
-window.addEventListener('DOMContentLoaded', function()
-{
-    if (typeof app.initStart === 'function')
-    {
-        app.initStart();
-    }
-});
 
 // Saison-Datum aus Config laden
 if (app.db && typeof app.db.collection === 'function')
@@ -152,3 +158,5 @@ if (app.db && typeof app.db.collection === 'function')
         }
     );
 }
+
+

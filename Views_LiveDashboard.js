@@ -475,3 +475,5 @@ app.logic.scrollToKpiCard = function(index)
         cards[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
 };
+
+

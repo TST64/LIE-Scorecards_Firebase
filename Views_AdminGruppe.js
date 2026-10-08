@@ -98,3 +98,5 @@ app.views.spieler = app.views.adminGruppe = function()
         </div>
     `;
 };
+
+

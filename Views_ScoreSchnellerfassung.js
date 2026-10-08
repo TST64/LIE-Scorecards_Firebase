@@ -224,3 +224,5 @@ app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(pa
         </div>
     `;
 };
+
+

@@ -47,6 +47,12 @@ app.views.login = function()
                         <i class="fas fa-paper-plane mr-1"></i> PIN vergessen / Code per Mail anfordern
                     </button>
                 </div>
+
+                <div class="pt-2 text-center text-[10px] text-stone-400">
+                    <a href="impressum.html" class="hover:text-emerald-700 underline">Impressum</a>
+                    <span class="mx-1">·</span>
+                    <a href="datenschutz.html" class="hover:text-emerald-700 underline">Datenschutz</a>
+                </div>
             </div>
         </div>
     `;
@@ -134,3 +140,5 @@ app.logic.requestMailPin = function()
             }
         });
 };
+
+

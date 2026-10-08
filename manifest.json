@@ -1,25 +1,9 @@
 {
   "name": "LIE Scorecard",
-  "short_name": "LIE Score",
-  "description": "Golf-Scoring & Clubhaus App der LIE Gruppe",
-  "start_url": "./index.html",
+  "short_name": "LIE Scorecard",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#064e3b",
-  "orientation": "portrait",
-  "scope": "./",
-  "icons": [
-    {
-      "src": "img/LIE_Logo II.jpeg",
-      "sizes": "192x192",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "img/LIE_Logo II.jpeg",
-      "sizes": "512x512",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
-    }
-  ]
+  "lang": "de"
 }

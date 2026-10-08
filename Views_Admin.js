@@ -182,7 +182,10 @@ app.logic.adminDeleteSpieler = function()
         {
             try
             {
-                await app.db.collection('spieler').doc(spielerId).update({ istGeloescht: true });
+                const batch = app.db.batch();
+                batch.update(app.db.collection('spieler').doc(spielerId), { istGeloescht: true });
+                batch.delete(app.db.collection('spieler_public').doc(spielerId));
+                await batch.commit();
                 
                 if (app.state.spieler)
                 {
@@ -207,5 +210,8 @@ app.logic.adminDeleteSpieler = function()
         }
     );
 };
+
+
+
 
 
