@@ -54,12 +54,7 @@ app.core = (function()
             firebase.initializeApp(config);
             
             const dbInstance = firebase.firestore();
-            
-            // Verhindert CORS- / WebChannel-Sperren bei lokaler Entwicklung (127.0.0.1 / localhost)
-            dbInstance.settings({
-                experimentalAutoDetectLongPolling: true
-            });
-            
+
             app.db = dbInstance;
             console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
         }
