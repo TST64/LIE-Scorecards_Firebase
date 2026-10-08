@@ -46,6 +46,11 @@ app.logic.submitPin = async function(event)
                     throw new Error('Anmeldetoken fehlt.');
                 }
 
+                // Die Firebase-Anmeldung soll Browser-Neustarts und Seiten-Reloads überleben.
+                await firebase.auth().setPersistence(
+                    firebase.auth.Auth.Persistence.LOCAL
+                );
+
                 await firebase.auth().signInWithCustomToken(response.customToken);
                 await app.logic.apiRequest('getInitialAppData');
 
