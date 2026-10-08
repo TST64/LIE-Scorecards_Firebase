@@ -275,9 +275,13 @@ exports.updatePlayerPin = onCall(async (request) =>
 
     await ref.set(
     {
-        pinHash: hashPin(newPin),
+        pinHash: hashPin(tempPin),
         pin: FieldValue.delete(),
-        mustChangePin: false,
+        mustChangePin: true,
+        tempPinSentAt: admin.firestore.FieldValue.serverTimestamp(),
+    
+        // Ein neu angeforderter Einmal-Code startet einen frischen
+        // Anmeldeversuch. Vorherige PIN-Fehlversuche und Sperren werden gelöscht.
         failedPinAttempts: 0,
         pinLockUntil: FieldValue.delete()
     },
