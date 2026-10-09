@@ -534,14 +534,18 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
         zuWertendeBahnen.forEach(function(bahn)
         {
             const hNr = parseInt(bahn.nr);
-            const liveKey = `${spieltagId}_${spielerId}_${hNr}`;
-            let strokes = app.state.liveScores[liveKey];
 
-            if (strokes === undefined)
+            // Beim offiziellen Rundenabschluss sind die zuvor frisch aus
+            // Firestore geladenen Scorecards die maßgebliche Datenquelle.
+            const dbMatch = dbScores.find(function(sc)
             {
-                const dbMatch = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
-                if (dbMatch) strokes = parseInt(dbMatch.strokes);
-            }
+                return sc.hole !== undefined &&
+                    parseInt(sc.hole) === hNr;
+            });
+
+            let strokes = dbMatch
+                ? parseInt(dbMatch.strokes)
+                : undefined;
 
             if (strokes !== undefined && strokes > 0)
             {
@@ -661,25 +665,108 @@ app.logic.softDeleteSpieltag = function(spieltagId)
 };
 
 // Ermittelt die aktuellen Sieger und startet den Beenden-Dialog
-app.logic.finishRoundWithWinners = function(spieltagId)
+app.logic.finishRoundWithWinners = async function(spieltagId)
 {
-    const st = app.state.spieltage.find(function(s) { return String(s.id).trim() === String(spieltagId).trim(); });
+    const st = app.state.spieltage.find(function(s)
+    {
+        return String(s.id).trim() === String(spieltagId).trim();
+    });
+
     if (!st) return;
 
-    const is9Loch = (st.bahnAnzahl === 9 || String(st.rundenTyp || '').startsWith('9'));
-    const teilnehmerIds = (st.teilnehmerCsv || "").split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
-    let kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); });
+    try
+    {
+        // Scorecards unmittelbar vor dem Rundenabschluss frisch aus
+        // Firestore laden. Dadurch hängen Sieger- und HCP-Berechnung
+        // nicht von einem möglicherweise veralteten Browserzustand ab.
+        const snapshot = await app.db.collection('scorecards')
+            .where('spieltagId', '==', String(spieltagId))
+            .get();
 
-    if (st.rundenTyp === '9-Front') kursBahnen = kursBahnen.filter(b => parseInt(b.nr) <= 9);
-    else if (st.rundenTyp === '9-Back') kursBahnen = kursBahnen.filter(b => parseInt(b.nr) >= 10);
+        const freshScores = [];
+
+        snapshot.forEach(function(doc)
+        {
+            freshScores.push(Object.assign(
+                { id: doc.id },
+                doc.data()
+            ));
+        });
+
+        // Nur die Scores dieses Spieltags ersetzen.
+        // Scorecards anderer Spieltage im lokalen State bleiben erhalten.
+        const otherRoundScores = (app.state.scoreCards || []).filter(function(sc)
+        {
+            return String(sc.spieltagId).trim() !== String(spieltagId).trim();
+        });
+
+        app.state.scoreCards = otherRoundScores.concat(freshScores);
+
+        console.log(
+            `[Spieltag] ${freshScores.length} Scorecards für ${spieltagId} vor Abschluss frisch geladen.`
+        );
+    }
+    catch (err)
+    {
+        console.error(
+            "[Spieltag] Scorecards konnten vor dem Abschluss nicht geladen werden:",
+            err
+        );
+
+        app.logic.showToast(
+            "Spieltag kann nicht beendet werden: Scores konnten nicht aktuell geladen werden.",
+            "error"
+        );
+
+        return;
+    }
+
+    const is9Loch = (
+        st.bahnAnzahl === 9 ||
+        String(st.rundenTyp || '').startsWith('9')
+    );
+
+    const teilnehmerIds = (st.teilnehmerCsv || "")
+        .split(',')
+        .map(function(id)
+        {
+            return String(id).trim();
+        })
+        .filter(Boolean);
+
+    let kursBahnen = app.state.bahnen.filter(function(b)
+    {
+        return String(b.kursId).trim() === String(st.kursId).trim();
+    });
+
+    if (st.rundenTyp === '9-Front')
+    {
+        kursBahnen = kursBahnen.filter(function(b)
+        {
+            return parseInt(b.nr) <= 9;
+        });
+    }
+    else if (st.rundenTyp === '9-Back')
+    {
+        kursBahnen = kursBahnen.filter(function(b)
+        {
+            return parseInt(b.nr) >= 10;
+        });
+    }
 
     let ergebnisse = teilnehmerIds.map(function(spielerId)
     {
-        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === spielerId; });
+        const spieler = app.state.spieler.find(function(s)
+        {
+            return String(s.id).trim() === spielerId;
+        });
+
         if (!spieler) return null;
 
-        const dbScores = app.state.scoreCards.filter(function(sc) { 
-            return String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === spielerId; 
+        const dbScores = app.state.scoreCards.filter(function(sc)
+        {
+            return String(sc.spieltagId).trim() === String(spieltagId).trim()
+                && String(sc.spielerId).trim() === spielerId;
         });
 
         let totalStrokes = 0;
@@ -689,28 +776,69 @@ app.logic.finishRoundWithWinners = function(spieltagId)
         kursBahnen.forEach(function(bahn)
         {
             const hNr = parseInt(bahn.nr);
-            const match = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
+
+            const match = dbScores.find(function(sc)
+            {
+                return sc.hole !== undefined &&
+                       parseInt(sc.hole) === hNr;
+            });
+
             if (match && parseInt(match.strokes) > 0)
             {
                 const str = parseInt(match.strokes);
+
                 playedHoles++;
                 totalStrokes += str;
-                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, st.kursId, bahn.si, is9Loch);
-                totalNetto += app.logic.calculateNettoStableford(str, bahn.par, holeVorgabe);
+
+                const holeVorgabe = app.logic.calculateHoleVorgabe(
+                    spieler,
+                    st.kursId,
+                    bahn.si,
+                    is9Loch
+                );
+
+                totalNetto += app.logic.calculateNettoStableford(
+                    str,
+                    bahn.par,
+                    holeVorgabe
+                );
             }
         });
 
-        return { name: spieler.nickname || spieler.name, strokes: totalStrokes, netto: totalNetto, holes: playedHoles };
+        return {
+            name: spieler.nickname || spieler.name,
+            strokes: totalStrokes,
+            netto: totalNetto,
+            holes: playedHoles
+        };
     }).filter(Boolean);
 
-    const mitScores = ergebnisse.filter(function(r) { return r.holes > 0; });
-    
-    // Sieger ermitteln
-    const bruttoSieger = mitScores.length > 0 ? [...mitScores].sort((a,b) => a.strokes - b.strokes)[0].name : "Keiner";
-    const nettoSieger = mitScores.length > 0 ? [...mitScores].sort((a,b) => b.netto - a.netto)[0].name : "Keiner";
+    const mitScores = ergebnisse.filter(function(r)
+    {
+        return r.holes > 0;
+    });
 
-    // Bestehende Schließungs-Logik ausführen
-    app.logic.closeActiveSpieltag(spieltagId, bruttoSieger, nettoSieger);
+    // Sieger ermitteln
+    const bruttoSieger = mitScores.length > 0
+        ? [...mitScores].sort(function(a, b)
+          {
+              return a.strokes - b.strokes;
+          })[0].name
+        : "Keiner";
+
+    const nettoSieger = mitScores.length > 0
+        ? [...mitScores].sort(function(a, b)
+          {
+              return b.netto - a.netto;
+          })[0].name
+        : "Keiner";
+
+    // Ab hier verwendet auch die HCP-Berechnung die frisch geladenen Scores.
+    app.logic.closeActiveSpieltag(
+        spieltagId,
+        bruttoSieger,
+        nettoSieger
+    );
 };
 
 

@@ -167,6 +167,11 @@ app.views.liveDashboard = app.views.live_dashboard = function()
             last10Runden.forEach(
                 function(st)
                 {
+                    const is9Loch = (
+                        st.bahnAnzahl === 9 ||
+                        String(st.rundenTyp || '').startsWith('9')
+                    );
+
                     const scs = (app.state.scoreCards || []).filter(
                         function(sc)
                         {
@@ -187,7 +192,12 @@ app.views.liveDashboard = app.views.live_dashboard = function()
                             if (bahn)
                             {
                                 const holeVorgabe = (app.logic && typeof app.logic.calculateHoleVorgabe === 'function') 
-                                    ? app.logic.calculateHoleVorgabe(sp, st.kursId, bahn.si) 
+                                    ? app.logic.calculateHoleVorgabe(
+                                        sp,
+                                        st.kursId,
+                                        bahn.si,
+                                        is9Loch
+                                    ) 
                                     : 1;
 
                                 const netto = (app.logic && typeof app.logic.calculateNettoStableford === 'function') 

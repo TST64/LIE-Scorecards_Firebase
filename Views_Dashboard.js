@@ -52,9 +52,9 @@ app.views.dashboard = function()
         }
 
         activeRoundCardHtml = `
-            <div class="p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-xl shadow-xs space-y-2">
+            <div class="p-3 bg-teal-50/80 border border-teal-200/90 rounded-xl shadow-xs space-y-2">
                 <div class="flex justify-between items-center">
-                    <span class="text-[9px] font-extrabold uppercase bg-emerald-700 text-emerald-50 px-2 py-0.5 rounded-full tracking-wider animate-pulse shadow-xs">
+                    <span class="text-[9px] font-extrabold uppercase bg-teal-700 text-teal-50 px-2 py-0.5 rounded-full tracking-wider animate-pulse shadow-xs">
                         <i class="fas fa-dot-circle mr-1"></i> Live-Turnier
                     </span>
                     <span class="text-xs font-semibold text-zinc-500">${aktiveRunde.date}</span>
@@ -64,10 +64,10 @@ app.views.dashboard = function()
                     <p class="text-[11px] text-zinc-500 font-semibold">${kurs ? kurs.name : ''} &bull; Flight ${flightSeq}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-2 pt-0.5">
-                    <button onclick="app.router.navigate('score_eingabe', { id: '${aktiveRunde.id}', hole: 1, flightSeq: ${flightSeq} })" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 rounded-lg text-xs transition shadow-xs text-center">
+                    <button onclick="app.router.navigate('score_eingabe', { id: '${aktiveRunde.id}', hole: 1, flightSeq: ${flightSeq} })" class="bg-teal-700 hover:bg-teal-800 text-white font-bold py-2 rounded-lg text-xs transition shadow-xs text-center">
                         <i class="fas fa-edit mr-1"></i> Scores tippen
                     </button>
-                    <button onclick="app.router.navigate('leaderboard', { id: '${aktiveRunde.id}', mode: 'netto' })" class="bg-white hover:bg-zinc-50 border border-emerald-200 text-emerald-900 font-bold py-2 rounded-lg text-xs transition text-center shadow-xs">
+                    <button onclick="app.router.navigate('leaderboard', { id: '${aktiveRunde.id}', mode: 'netto' })" class="bg-white hover:bg-zinc-50 border border-teal-200 text-teal-900 font-bold py-2 rounded-lg text-xs transition text-center shadow-xs">
                         <i class="fas fa-list-ol mr-1"></i> Leaderboard
                     </button>
                 </div>
@@ -129,13 +129,13 @@ app.views.dashboard = function()
 
                 return `
                     <div onclick="app.router.navigate('kalender')" 
-                         class="p-2 px-3 bg-white border border-zinc-200 rounded-xl flex items-center justify-between hover:border-emerald-500/60 hover:shadow-xs transition cursor-pointer touch-target group">
+                         class="p-2 px-3 bg-white border border-zinc-200 rounded-xl flex items-center justify-between hover:border-teal-500/60 hover:shadow-xs transition cursor-pointer touch-target group">
                         <div class="flex items-center gap-2.5 min-w-0">
-                            <span class="text-[9px] font-black uppercase text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 shrink-0">
+                            <span class="text-[9px] font-black uppercase text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200/60 shrink-0">
                                 ${dateStr}
                             </span>
                             <div class="truncate">
-                                <h4 class="text-xs font-bold text-zinc-800 group-hover:text-emerald-700 transition truncate">${term.titel}</h4>
+                                <h4 class="text-xs font-bold text-zinc-800 group-hover:text-teal-700 transition truncate">${term.titel}</h4>
                                 <p class="text-[10px] text-zinc-400 font-medium truncate flex items-center gap-1">
                                     <i class="fas fa-map-marker-alt text-red-500 text-[9px]"></i> ${term.ort || 'Golfplatz'} • ${term.uhrzeit || '09:00'} Uhr
                                 </p>
@@ -144,10 +144,10 @@ app.views.dashboard = function()
 
                         <div class="text-right flex items-center gap-2 shrink-0 ml-2">
                             <div class="text-[10px] font-bold flex items-center gap-1.5">
-                                <span class="text-emerald-600"><i class="fas fa-check mr-0.5"></i>${yesCount}</span>
+                                <span class="text-teal-600"><i class="fas fa-check mr-0.5"></i>${yesCount}</span>
                                 <span class="text-red-500"><i class="fas fa-times mr-0.5"></i>${noCount}</span>
                             </div>
-                            <i class="fas fa-chevron-right text-zinc-300 group-hover:text-emerald-600 transition text-[10px]"></i>
+                            <i class="fas fa-chevron-right text-zinc-300 group-hover:text-teal-600 transition text-[10px]"></i>
                         </div>
                     </div>
                 `;
@@ -195,10 +195,34 @@ app.views.dashboard = function()
                     }
                 );
 
-                const kurs = app.state.kurse ? app.state.kurse.find(function(k) { return String(k.id).trim() === String(st.kursId).trim(); }) : null;
-                const maxBahnen = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
-                const kursBahnen = app.state.bahnen ? app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(st.kursId).trim(); }) : [];
+                const is9Loch = (
+                    st.bahnAnzahl === 9 ||
+                    String(st.rundenTyp || '').startsWith('9')
+                );
 
+                const maxBahnen = is9Loch ? 9 : (parseInt(st.bahnAnzahl) || 18);
+
+                let kursBahnen = app.state.bahnen
+                    ? app.state.bahnen.filter(function(b)
+                    {
+                        return String(b.kursId).trim() === String(st.kursId).trim();
+                    })
+                    : [];
+
+                if (st.rundenTyp === '9-Front')
+                {
+                    kursBahnen = kursBahnen.filter(function(b)
+                    {
+                        return parseInt(b.nr) <= 9;
+                    });
+                }
+                else if (st.rundenTyp === '9-Back')
+                {
+                    kursBahnen = kursBahnen.filter(function(b)
+                    {
+                        return parseInt(b.nr) >= 10;
+                    });
+                }
                 let rundenNettoTotal = 0;
                 let rundenSchlaegeTotal = 0;
                 let gespielteBahnenInRunde = 0;
@@ -215,7 +239,12 @@ app.views.dashboard = function()
                             gespielteBahnenInRunde++;
                             rundenSchlaegeTotal += strokes;
 
-                            let holeVorgabe = app.logic.calculateHoleVorgabe(user, st.kursId, bahn.si);
+                            let holeVorgabe = app.logic.calculateHoleVorgabe(
+                                user,
+                                st.kursId,
+                                bahn.si,
+                                is9Loch
+                            );
                             const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
                             rundenNettoTotal += nettoPkt;
                         }
@@ -245,13 +274,13 @@ app.views.dashboard = function()
     return `
         <div class="space-y-4">
             <!-- Header-Banner -->
-            <div class="bg-gradient-to-br from-emerald-900 via-emerald-950 to-zinc-950 text-white p-4 rounded-2xl shadow-md relative overflow-hidden border border-emerald-800/50">
+            <div class="bg-gradient-to-br from-teal-900 via-teal-950 to-zinc-950 text-white p-4 rounded-2xl shadow-md relative overflow-hidden border border-teal-800/50">
                 <div class="absolute right-0 bottom-0 opacity-10 text-8xl translate-x-4 translate-y-4 pointer-events-none">
                     <i class="fas fa-flag"></i>
                 </div>
-                <p class="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">Willkommen im Clubhaus</p>
-                <h2 class="text-xl font-black tracking-wide -mt-0.5 text-emerald-50">${nickname}</h2>
-                <div class="mt-1.5 text-[10px] bg-emerald-800/80 text-emerald-200 inline-block px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider border border-emerald-600/40 shadow-xs">
+                <p class="text-[10px] font-bold text-teal-300 uppercase tracking-widest">Willkommen im Clubhaus</p>
+                <h2 class="text-xl font-black tracking-wide -mt-0.5 text-teal-50">${nickname}</h2>
+                <div class="mt-1.5 text-[10px] bg-teal-800/80 text-teal-200 inline-block px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider border border-teal-600/40 shadow-xs">
                     HCP ${user ? user.hcpLIE : '26.0'}
                 </div>
             </div>
@@ -266,7 +295,7 @@ app.views.dashboard = function()
             <div class="space-y-1.5">
                 <div class="flex justify-between items-center px-1">
                     <h4 class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Anstehende Termine</h4>
-                    <button onclick="app.router.navigate('kalender')" class="text-[10px] font-bold text-emerald-600 hover:text-emerald-700">
+                    <button onclick="app.router.navigate('kalender')" class="text-[10px] font-bold text-teal-600 hover:text-teal-700">
                         Alle anzeigen <i class="fas fa-arrow-right ml-0.5"></i>
                     </button>
                 </div>
@@ -288,7 +317,7 @@ app.views.dashboard = function()
                 </button>
 
                 <button onclick="app.router.navigate('golfplaetze')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
-                    <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm shrink-0 transition">
+                    <div class="w-8 h-8 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center text-sm shrink-0 transition">
                         <i class="fas fa-map-marked-alt"></i>
                     </div>
                     <div class="truncate">

@@ -99,10 +99,32 @@ app.views.help = function()
                 </div>
             </div>
 
+            <!-- Rechtliches -->
+            <div class="text-center space-y-2 pt-2">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                    Rechtliches
+                </p>
+
+                <div class="text-xs">
+                    <a href="impressum.html"
+                       class="text-stone-500 hover:text-teal-700 underline">
+                        Impressum
+                    </a>
+
+                    <span class="mx-2 text-stone-300">•</span>
+
+                    <a href="datenschutz.html"
+                       class="text-stone-500 hover:text-emerald-700 underline">
+                        Datenschutz
+                    </a>
+                </div>
+            </div>
+
             <!-- Footer Note -->
             <p class="text-center text-stone-400 text-[10px] flex items-center justify-center gap-1">
                 BMAssistent v${currentVersion} • Entwickelt für die Golf-Männerrunde • Powered by Firebase Firestore 🔥
             </p>
+
         </div>
     `;
 };

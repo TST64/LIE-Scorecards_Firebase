@@ -45,22 +45,22 @@
     <div class="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-2xl border-x border-zinc-200/60 flex flex-col">
         
         <!-- Header in Clean Tech Emerald -->
-        <header class="bg-emerald-900 text-white px-3 sm:px-4 py-2.5 sm:py-3 sticky top-0 z-40 shadow-md flex justify-between items-center border-b border-emerald-800/80">
+        <header class="bg-teal-900 text-white px-3 sm:px-4 py-2.5 sm:py-3 sticky top-0 z-40 shadow-md flex justify-between items-center border-b border-teal-800/80">
             <div class="flex items-center space-x-1.5 min-w-0">
-                <h1 onclick="app.router.navigate('dashboard')" class="text-base sm:text-lg font-black tracking-wider uppercase text-emerald-50 truncate cursor-pointer hover:text-white transition">LIE Scorecard</h1>
-                <button onclick="app.router.navigate('hilfe')" class="text-emerald-300 hover:text-white p-1 touch-target text-xs sm:text-sm transition focus:outline-none" title="Handbuch & Versions-Info">
+                <h1 onclick="app.router.navigate('dashboard')" class="text-base sm:text-lg font-black tracking-wider uppercase text-teal-50 truncate cursor-pointer hover:text-white transition">LIE Scorecard</h1>
+                <button onclick="app.router.navigate('hilfe')" class="text-teal-300 hover:text-white p-1 touch-target text-xs sm:text-sm transition focus:outline-none" title="Handbuch & Versions-Info">
                     <i class="fas fa-question-circle"></i>
                 </button>
             </div>
 
             <div class="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
-                <button onclick="app.router.navigate('golfplaetze')" class="text-emerald-200 hover:text-white p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Golfplätze anzeigen">
+                <button onclick="app.router.navigate('golfplaetze')" class="text-teal-200 hover:text-white p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Golfplätze anzeigen">
                     <i class="fas fa-map-marked-alt"></i>
                 </button>
                 <button onclick="app.router.navigate('live_dashboard')" class="text-amber-300 hover:text-amber-200 p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Saison Live-Dashboard">
                     <i class="fas fa-chart-line"></i>
                 </button>
-                <button onclick="app.router.navigate('wetter')" class="text-emerald-200 hover:text-white p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Platzwetter anzeigen">
+                <button onclick="app.router.navigate('wetter')" class="text-teal-200 hover:text-white p-1 touch-target text-sm sm:text-base transition focus:outline-none" title="Platzwetter anzeigen">
                     <i class="fas fa-cloud-sun"></i>
                 </button>
                 <button id="global-refresh-btn" onclick="app.logic.refreshGlobalAppData()" class="text-white p-1 touch-target text-sm sm:text-base opacity-80 hover:opacity-100 transition focus:outline-none" title="Daten aktualisieren">
@@ -70,7 +70,7 @@
                 <button id="header-logout-btn" onclick="app.logic.logout()" class="hidden text-white opacity-80 hover:opacity-100 p-1 touch-target text-xs sm:text-sm transition focus:outline-none" title="Abmelden">
                     <i class="fas fa-sign-out-alt"></i>
                 </button>
-                <div id="connection-status" class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-400 shadow-xs"></div>
+                <div id="connection-status" class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-teal-400 shadow-xs"></div>
             </div>
         </header>
 
@@ -82,7 +82,7 @@
                     <img id="splash-logo" src="img/LIE_Logo II.jpeg" alt="LIE Logo" class="w-full h-full object-cover rounded-2xl" />
                 </div>
                 <div class="flex flex-col items-center space-y-2">
-                    <i class="fas fa-circle-notch fa-spin text-2xl text-emerald-600"></i>
+                    <i class="fas fa-circle-notch fa-spin text-2xl text-teal-600"></i>
                     <p class="text-zinc-500 text-xs font-bold uppercase tracking-widest">Lade Clubhaus-Daten...</p>
                 </div>
             </div>
@@ -90,23 +90,23 @@
 
         <!-- Mobile Navigation Footer -->
         <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur-md border-t border-zinc-200/80 py-2 px-3 flex justify-around items-center z-40 shadow-xl">
-            <button id="nav-dash" onclick="app.router.navigate('dashboard')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
+            <button id="nav-dash" onclick="app.router.navigate('dashboard')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-teal-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-home text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Home</span>
             </button>
-            <button id="nav-stats" onclick="app.router.navigate('live_dashboard')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
+            <button id="nav-stats" onclick="app.router.navigate('live_dashboard')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-teal-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-chart-bar text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Stats</span>
             </button>
-            <button id="nav-rounds" onclick="app.router.navigate('spieltage')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
+            <button id="nav-rounds" onclick="app.router.navigate('spieltage')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-teal-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-calendar-alt text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Runden</span>
             </button>
-            <button id="nav-calendar" onclick="app.router.navigate('kalender')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-600 transition px-2 py-1 touch-target">
+            <button id="nav-calendar" onclick="app.router.navigate('kalender')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-teal-600 transition px-2 py-1 touch-target">
                 <i class="fas fa-calendar-days text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Kalender</span>
             </button>
-            <button id="nav-players" onclick="app.router.navigate('spieler')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-emerald-700 transition px-2 py-1 touch-target">
+            <button id="nav-players" onclick="app.router.navigate('spieler')" class="nav-btn flex flex-col items-center text-zinc-400 hover:text-teal-700 transition px-2 py-1 touch-target">
                 <i class="fas fa-users text-base"></i>
                 <span class="text-[10px] font-semibold mt-0.5">Gruppe</span>
             </button>
@@ -125,7 +125,7 @@
     <div id="global-confirm-modal" class="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs hidden flex items-center justify-center p-4">
         <div id="confirm-modal-box" class="bg-white rounded-2xl max-w-xs w-full p-5 space-y-4 shadow-2xl transition-all duration-200 opacity-0 scale-95 border border-stone-100">
             <div class="flex items-start space-x-3">
-                <div id="confirm-modal-icon-container" class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 bg-emerald-100 text-emerald-700">
+                <div id="confirm-modal-icon-container" class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 bg-teal-100 text-teal-700">
                     <i id="confirm-modal-icon" class="fas fa-question-circle text-sm"></i>
                 </div>
                 <div class="space-y-1">
@@ -135,7 +135,7 @@
             </div>
             <div class="grid grid-cols-2 gap-2 pt-2">
                 <button id="confirm-modal-cancel" class="bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold py-2.5 rounded-xl text-xs transition">Abbrechen</button>
-                <button id="confirm-modal-submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-xs">Bestätigen</button>
+                <button id="confirm-modal-submit" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-xs">Bestätigen</button>
             </div>
         </div>
     </div>

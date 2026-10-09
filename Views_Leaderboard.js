@@ -248,8 +248,21 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
                         holesPlayed++;
                         totalStrokes += strokes;
 
-                        let holeVorgabe = app.logic && typeof app.logic.calculateHoleVorgabe === 'function' 
-                            ? app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si)
+                        const is9Loch = (
+                            spieltag &&
+                            (
+                                spieltag.bahnAnzahl === 9 ||
+                                String(spieltag.rundenTyp || '').startsWith('9')
+                            )
+                        );
+
+                        let holeVorgabe = app.logic && typeof app.logic.calculateHoleVorgabe === 'function'
+                            ? app.logic.calculateHoleVorgabe(
+                                spieler,
+                                spieltag ? spieltag.kursId : "",
+                                bahn.si,
+                                is9Loch
+                            )
                             : 1;
 
                         const nettoPkt = app.logic && typeof app.logic.calculateNettoStableford === 'function'
@@ -659,8 +672,10 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
             {
                 stats.played++;
 
-                const vorgabe = app.logic.calculateHoleVorgabe ? app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si) : 0;
-                
+                const vorgabe = app.logic.calculateHoleVorgabe
+                    ? app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si, is9Loch)
+                    : 0;
+
                 if (isStrich) 
                 {
                     stats.striche++;
