@@ -32,11 +32,11 @@ app.logic.updateHeaderRoleIcon = function()
     }
     else if (rolle === "Spielleiter")
     {
-        iconHtml = `<i class="fas fa-clipboard-list text-stone-200 text-sm" title="Rolle: Spielleiter"></i>`;
+        iconHtml = `<i class="fas fa-flag text-amber-400 text-sm" title="Rolle: Spielleiter"></i>`;
     }
     else
     {
-        iconHtml = `<i class="fas fa-golf-ball text-stone-300 text-xs" title="Rolle: Spieler"></i>`;
+        iconHtml = `<i class="fas fa-user text-amber-400 text-sm" title="Rolle: Spieler"></i>`;
     }
 
     badgeContainer.innerHTML = iconHtml;
