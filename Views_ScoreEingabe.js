@@ -175,7 +175,11 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
             return "";
         }
 
-        let spielvorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : null, bahnDaten.si, is9Loch);
+        let spielvorgabe = app.logic.calculateHoleVorgabe(
+            spieler,
+            spieltag,
+            currentHoleNr
+        );
         const maxErlaubteSchlaege = parseInt(bahnDaten.par) + parseInt(spielvorgabe) + 2;
         
         const currentScoreKey = `${spieltagId}_${spielerId}_${currentHoleNr}`;

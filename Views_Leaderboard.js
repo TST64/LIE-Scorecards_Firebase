@@ -259,9 +259,8 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
                         let holeVorgabe = app.logic && typeof app.logic.calculateHoleVorgabe === 'function'
                             ? app.logic.calculateHoleVorgabe(
                                 spieler,
-                                spieltag ? spieltag.kursId : "",
-                                bahn.si,
-                                is9Loch
+                                spieltag,
+                                hNr
                             )
                             : 1;
 
@@ -673,7 +672,7 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
                 stats.played++;
 
                 const vorgabe = app.logic.calculateHoleVorgabe
-                    ? app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si, is9Loch)
+                    ? app.logic.calculateHoleVorgabe(spieler, spieltag, hNr)
                     : 0;
 
                 if (isStrich) 

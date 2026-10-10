@@ -550,7 +550,11 @@ app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
             if (strokes !== undefined && strokes > 0)
             {
                 playedHoles++;
-                let holeVorgabe = app.logic.calculateHoleVorgabe(spieler, spieltag.kursId, bahn.si, is9Loch);
+                let holeVorgabe = app.logic.calculateHoleVorgabe(
+                    spieler,
+                    spieltag,
+                    hNr
+                );
                 const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
                 totalNettoStableford += nettoPkt;
             }
@@ -792,9 +796,8 @@ app.logic.finishRoundWithWinners = async function(spieltagId)
 
                 const holeVorgabe = app.logic.calculateHoleVorgabe(
                     spieler,
-                    st.kursId,
-                    bahn.si,
-                    is9Loch
+                    st,
+                    hNr
                 );
 
                 totalNetto += app.logic.calculateNettoStableford(

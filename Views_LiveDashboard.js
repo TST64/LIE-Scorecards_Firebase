@@ -191,13 +191,12 @@ app.views.liveDashboard = app.views.live_dashboard = function()
 
                             if (bahn)
                             {
-                                const holeVorgabe = (app.logic && typeof app.logic.calculateHoleVorgabe === 'function') 
+                                const holeVorgabe = (app.logic && typeof app.logic.calculateHoleVorgabe === 'function')
                                     ? app.logic.calculateHoleVorgabe(
                                         sp,
-                                        st.kursId,
-                                        bahn.si,
-                                        is9Loch
-                                    ) 
+                                        st,
+                                        holeNr
+                                    )
                                     : 1;
 
                                 const netto = (app.logic && typeof app.logic.calculateNettoStableford === 'function') 

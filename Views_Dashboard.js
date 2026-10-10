@@ -241,9 +241,8 @@ app.views.dashboard = function()
 
                             let holeVorgabe = app.logic.calculateHoleVorgabe(
                                 user,
-                                st.kursId,
-                                bahn.si,
-                                is9Loch
+                                st,
+                                hNr
                             );
                             const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
                             rundenNettoTotal += nettoPkt;

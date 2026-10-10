@@ -7,28 +7,106 @@
 var app = app || {};
 app.logic = app.logic || {};
 
-app.logic.calculateHoleVorgabe = function(spieler, kursId, holeSi, is9LochRound)
+app.logic.calculateHoleVorgabe = function(spieler, spieltag, holeNr)
 {
-    const hcp = parseFloat(spieler ? spieler.hcpLIE : 54.0) || 54.0;
-    const hcpsForKurs = (app.state.handicaps || []).filter(function(h) { return String(h.kursId).trim() === String(kursId).trim(); });
-    
-    let vorgabeMatch = hcpsForKurs.find(function(h) { return parseFloat(h.vorgabe) === hcp; });
-    let spielvorgabeTotal = vorgabeMatch ? parseInt(vorgabeMatch.spielvorgabe) : Math.round(hcp);
+    if (!spieler || !spieltag)
+    {
+        return 0;
+    }
 
-    // Bei einer 9-Loch-Runde halbiert sich die Spielvorgabe gerundet
-    if (is9LochRound)
+    const kursId = spieltag.kursId;
+    const hcp = parseFloat(spieler.hcpLIE);
+
+    if (isNaN(hcp))
+    {
+        return 0;
+    }
+
+    // Spielvorgabe für den Kurs ermitteln
+    const hcpsForKurs = (app.state.handicaps || []).filter(function(h)
+    {
+        return String(h.kursId).trim() === String(kursId).trim();
+    });
+
+    const vorgabeMatch = hcpsForKurs.find(function(h)
+    {
+        return parseFloat(h.vorgabe) === hcp;
+    });
+
+    let spielvorgabeTotal = vorgabeMatch
+        ? parseInt(vorgabeMatch.spielvorgabe)
+        : Math.round(hcp);
+
+    // Alle Bahnen des ausgewählten Kurses
+    let gespielteBahnen = (app.state.bahnen || []).filter(function(b)
+    {
+        return String(b.kursId).trim() === String(kursId).trim();
+    });
+
+    const is9Loch = (
+        spieltag.bahnAnzahl === 9 ||
+        String(spieltag.rundenTyp || '').startsWith('9')
+    );
+
+    // Bei Front-/Back-Nine nur die tatsächlich gespielten Bahnen verwenden
+    if (spieltag.rundenTyp === '9-Front')
+    {
+        gespielteBahnen = gespielteBahnen.filter(function(b)
+        {
+            return parseInt(b.nr) <= 9;
+        });
+    }
+    else if (spieltag.rundenTyp === '9-Back')
+    {
+        gespielteBahnen = gespielteBahnen.filter(function(b)
+        {
+            return parseInt(b.nr) >= 10;
+        });
+    }
+
+    // Bei einer 9-Loch-Runde wird die Spielvorgabe halbiert
+    if (is9Loch)
     {
         spielvorgabeTotal = Math.round(spielvorgabeTotal / 2);
     }
 
-    let basisSchlaege = Math.floor(spielvorgabeTotal / 18);
-    let restSchlaege = spielvorgabeTotal % 18;
-    
+    if (gespielteBahnen.length === 0)
+    {
+        return 0;
+    }
+
+    // Die tatsächlich gespielten Bahnen nach SI sortieren.
+    // Damit entsteht für eine 9-Loch-Runde automatisch die Rangfolge 1..9.
+    gespielteBahnen.sort(function(a, b)
+    {
+        return parseInt(a.si) - parseInt(b.si);
+    });
+
+    const bahnIndex = gespielteBahnen.findIndex(function(b)
+    {
+        return parseInt(b.nr) === parseInt(holeNr);
+    });
+
+    if (bahnIndex < 0)
+    {
+        return 0;
+    }
+
+    const anzahlBahnen = gespielteBahnen.length;
+
+    const basisSchlaege = Math.floor(spielvorgabeTotal / anzahlBahnen);
+    const restSchlaege = spielvorgabeTotal % anzahlBahnen;
+
     let holeVorgabe = basisSchlaege;
-    if (parseInt(holeSi) <= restSchlaege)
+
+    // Die schwierigsten Bahnen erhalten die verbleibenden Schläge.
+    // Durch die SI-Sortierung entsprechen die ersten Einträge
+    // den niedrigsten Stroke-Index-Werten.
+    if (bahnIndex < restSchlaege)
     {
         holeVorgabe += 1;
     }
+
     return holeVorgabe;
 };
 
@@ -254,11 +332,8 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
 
         const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
         const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-        const is9Loch = (spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9')));
-        const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId) === String(spieltag ? spieltag.kursId : ""); });
-        const bahn = kursBahnen.find(function(b) { return parseInt(b.nr) === holeNr; }) || { si: 10 };
 
-        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag ? spieltag.kursId : "", bahn.si, is9Loch);
+        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag, holeNr);
 
         scoresPayload.push({
             id: `SC-${spieltagId}-${spielerId}-${holeNr}`,
