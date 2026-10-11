@@ -58,15 +58,18 @@ app.logic.renderAdminRoundCorrection = function()
     const ids = app.logic.getRoundParticipantIds(st);
     const holes = app.logic.getRoundHoles(st);
     const overrideMap = st.hcpStartOverrides || {};
-    const snapshotMap = st.hcpStart || {};
 
     let playersHtml = '';
     ids.forEach(function(playerId)
     {
         const sp = (app.state.spieler || []).find(function(x) { return String(x.id) === String(playerId); });
         const name = sp ? (sp.nickname || sp.name) : playerId;
-        const startHcp = Number.isFinite(parseFloat(overrideMap[playerId])) ? overrideMap[playerId]
-            : (Number.isFinite(parseFloat(snapshotMap[playerId])) ? snapshotMap[playerId] : 26);
+
+        // Nur ein bewusst gespeicherter Override wird angezeigt.
+        // Leer bedeutet: Start-HCP automatisch aus der chronologischen HCP-Kette übernehmen.
+        const startHcp = Number.isFinite(parseFloat(overrideMap[playerId]))
+            ? overrideMap[playerId]
+            : '';
 
         let scoreInputs = '';
         holes.forEach(function(hole)
@@ -87,7 +90,7 @@ app.logic.renderAdminRoundCorrection = function()
         });
 
         playersHtml += `<div class="border border-zinc-200 rounded-xl p-3 space-y-2">
-            <div class="flex items-center justify-between gap-3"><span class="text-xs font-black text-zinc-800">${name}</span><label class="text-[10px] text-zinc-500">Start-HCP <input type="number" min="0" max="54" step="1" data-hcp-player="${playerId}" value="${startHcp}" class="ml-1 w-16 border border-zinc-200 rounded-lg p-1.5 text-center text-xs font-bold"></label></div>
+            <div class="flex items-center justify-between gap-3"><span class="text-xs font-black text-zinc-800">${name}</span><label class="text-[10px] text-zinc-500">Start-HCP <input type="number" min="0" max="54" step="1" data-hcp-player="${playerId}" value="${startHcp}" placeholder="Auto" title="Leer = automatisch aus der vorherigen gültigen Runde" class="ml-1 w-16 border border-zinc-200 rounded-lg p-1.5 text-center text-xs font-bold"> <span class="text-[9px] text-zinc-400">leer = automatisch</span></label></div>
             <div class="grid grid-cols-9 gap-1">${scoreInputs}</div>
         </div>`;
     });
@@ -161,8 +164,19 @@ app.logic.saveAdminRoundCorrection = async function(recalculate, confirmed)
 
     document.querySelectorAll('#admin-correction-body [data-hcp-player]').forEach(function(input)
     {
-        const val = parseInt(input.value);
-        if (Number.isFinite(val)) overrides[String(input.dataset.hcpPlayer)] = Math.max(0, Math.min(54, val));
+        const playerId = String(input.dataset.hcpPlayer);
+        const raw = String(input.value || '').trim();
+        const val = parseInt(raw);
+
+        if (raw !== '' && Number.isFinite(val))
+        {
+            overrides[playerId] = Math.max(0, Math.min(54, val));
+        }
+        else
+        {
+            // Leeres Feld entfernt einen eventuell vorhandenen Override.
+            delete overrides[playerId];
+        }
     });
 
     try
@@ -229,8 +243,19 @@ app.logic.getAdminCorrectionDraft = function()
     round.bahnAnzahl = String(round.rundenTyp).startsWith('9') ? 9 : 18;
     round.hcpStartOverrides = Object.assign({}, original.hcpStartOverrides || {});
     document.querySelectorAll('#admin-correction-body [data-hcp-player]').forEach(input => {
-        const v = parseInt(input.value);
-        if (Number.isFinite(v)) round.hcpStartOverrides[String(input.dataset.hcpPlayer)] = Math.max(0, Math.min(54, v));
+        const playerId = String(input.dataset.hcpPlayer);
+        const raw = String(input.value || '').trim();
+        const v = parseInt(raw);
+
+        if (raw !== '' && Number.isFinite(v))
+        {
+            round.hcpStartOverrides[playerId] = Math.max(0, Math.min(54, v));
+        }
+        else
+        {
+            // Vorschau: leer bedeutet ebenfalls automatische HCP-Fortschreibung.
+            delete round.hcpStartOverrides[playerId];
+        }
     });
 
     const scorecards = (app.state.scoreCards || []).map(sc => Object.assign({}, sc));
