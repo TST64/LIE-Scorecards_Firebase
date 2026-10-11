@@ -3,7 +3,7 @@
 // sw.js
 // BSD (Allman) Style
 // =========================================================================
-// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 importScripts('config.js');
 
@@ -24,12 +24,15 @@ var ASSETS_TO_CACHE = [
     './App_Logic_Bridge.js',
     './App_Logic_Scores.js',
     './App_Logic_Spieltage.js',
+    './App_Logic_History.js',
+    './App_Logic_Performance.js',
     './App_Logic_Spieler.js',
     './App_Logic_UI.js',
     './App_View_Help.js',
     './Views_Login.js',
     './Views_Dashboard.js',
     './Views_LiveDashboard.js',
+    './Views_Performance.js',
     './Views_Spieltage.js',
     './Views_SpieltagNeu.js',
     './Views_ScoreEingabe.js',

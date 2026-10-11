@@ -279,6 +279,20 @@ app.views.liveDashboard = app.views.live_dashboard = function()
                 ` : ''}
             </div>
 
+            <!-- Persönliche Performance -->
+            <button onclick="app.router.navigate('performance')" class="w-full bg-gradient-to-r from-emerald-800 to-teal-700 hover:from-emerald-900 hover:to-teal-800 text-white rounded-2xl p-3.5 shadow-sm flex items-center justify-between gap-3 transition touch-target">
+                <div class="flex items-center gap-3 text-left">
+                    <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-lg shrink-0">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div>
+                        <div class="font-black text-sm">Meine Performance</div>
+                        <div class="text-[10px] text-emerald-100 font-medium">Deine Saison · dein Spiel · deine Entwicklung</div>
+                    </div>
+                </div>
+                <i class="fas fa-chevron-right text-emerald-100"></i>
+            </button>
+
             <!-- QUICK-JUMP ICON LEISTE -->
             <div class="flex items-center justify-between gap-1 overflow-x-auto pb-2 scrollbar-none px-1">
                 <button onclick="app.logic.scrollToKpiCard(0)" class="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-[10px] font-bold shrink-0 flex items-center gap-1 shadow-2xs">

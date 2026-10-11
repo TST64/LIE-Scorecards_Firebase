@@ -316,6 +316,16 @@ app.views.dashboard = function()
                     </div>
                 </button>
 
+                <button onclick="app.router.navigate('performance')" class="p-2.5 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl text-left hover:border-emerald-300 transition shadow-xs group flex items-center gap-2.5 touch-target">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm shrink-0 transition">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="truncate">
+                        <span class="block font-bold text-emerald-950 text-xs truncate">Meine Performance</span>
+                        <span class="block text-[9px] text-emerald-700/80 font-medium truncate">Persönliche Saison</span>
+                    </div>
+                </button>
+
                 <button onclick="app.router.navigate('golfplaetze')" class="p-2.5 bg-white border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 transition shadow-xs group flex items-center gap-2.5 touch-target">
                     <div class="w-8 h-8 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center text-sm shrink-0 transition">
                         <i class="fas fa-map-marked-alt"></i>

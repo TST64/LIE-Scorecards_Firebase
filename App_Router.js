@@ -125,6 +125,12 @@ app.router.navigate = function(viewName, params)
                 : "";
             break;
 
+        case 'performance':
+            html = app.views.performance
+                ? app.views.performance()
+                : "";
+            break;
+
         case 'spieltage':
             html = app.views.spieltage
                 ? app.views.spieltage(params)
@@ -399,7 +405,7 @@ app.router.updateNavigationUI = function(viewName)
     {
         activeTabId = 'nav-dash';
     }
-    else if (viewName === 'live_dashboard')
+    else if (viewName === 'live_dashboard' || viewName === 'performance')
     {
         activeTabId = 'nav-stats';
     }
