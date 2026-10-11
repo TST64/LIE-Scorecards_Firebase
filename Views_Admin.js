@@ -95,6 +95,18 @@ app.views.admin = function()
                 '</button>' +
             '</div>' +
 
+            '<!-- HISTORISCHE RUNDENKORREKTUR -->' +
+            '<div class="bg-white border border-amber-200 rounded-2xl p-4 space-y-3 shadow-xs">' +
+                '<div class="flex items-center gap-2 border-b border-zinc-100 pb-2">' +
+                    '<i class="fas fa-calculator text-amber-600 text-sm"></i>' +
+                    '<h3 class="font-bold text-xs text-zinc-800 uppercase tracking-wider">Spieltag korrigieren & neu berechnen</h3>' +
+                '</div>' +
+                '<p class="text-xs text-zinc-500">Historischen Kurs, Start-HCPs und Scores korrigieren. Anschließend können alle beendeten Runden der Saison chronologisch neu berechnet werden.</p>' +
+                '<button onclick="app.logic.openAdminRoundCorrection()" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 touch-target">' +
+                    '<i class="fas fa-pen-ruler"></i><span>Historische Runde korrigieren</span>' +
+                '</button>' +
+            '</div>' +
+
             '<!-- SPIELER-LÖSCHEN SONDERFUNKTION -->' +
             '<div class="bg-white border border-zinc-200 rounded-2xl p-4 space-y-3 shadow-xs">' +
                 '<div class="flex items-center gap-2 border-b border-zinc-100 pb-2">' +

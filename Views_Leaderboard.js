@@ -226,10 +226,11 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
                     const hNr = parseInt(bahn.nr);
                     const liveKey = `${spieltag ? spieltag.id : ''}_${spielerId}_${hNr}`;
                     let strokes = (app.state.liveScores || {})[liveKey];
+                    let dbMatch = null;
 
                     if (strokes === undefined)
                     {
-                        const dbMatch = dbScores.find(
+                        dbMatch = dbScores.find(
                             function(sc) 
                             { 
                                 if (sc.hole === undefined || sc.hole === null) return false;
@@ -256,13 +257,12 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
                             )
                         );
 
-                        let holeVorgabe = app.logic && typeof app.logic.calculateHoleVorgabe === 'function'
-                            ? app.logic.calculateHoleVorgabe(
-                                spieler,
-                                spieltag,
-                                hNr
-                            )
-                            : 1;
+                        const historicalHcp = app.logic.getHistoricalHcp
+                            ? app.logic.getHistoricalHcp(spieler, spieltag, dbMatch)
+                            : spieler.hcpLIE;
+                        let holeVorgabe = app.logic.calculateHoleVorgabeForHcp
+                            ? app.logic.calculateHoleVorgabeForHcp(historicalHcp, spieltag, hNr)
+                            : app.logic.calculateHoleVorgabe(spieler, spieltag, hNr);
 
                         const nettoPkt = app.logic && typeof app.logic.calculateNettoStableford === 'function'
                             ? app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe)
@@ -671,9 +671,12 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
             {
                 stats.played++;
 
-                const vorgabe = app.logic.calculateHoleVorgabe
-                    ? app.logic.calculateHoleVorgabe(spieler, spieltag, hNr)
-                    : 0;
+                const historicalHcp = app.logic.getHistoricalHcp
+                    ? app.logic.getHistoricalHcp(spieler, spieltag, match)
+                    : spieler.hcpLIE;
+                const vorgabe = app.logic.calculateHoleVorgabeForHcp
+                    ? app.logic.calculateHoleVorgabeForHcp(historicalHcp, spieltag, hNr)
+                    : app.logic.calculateHoleVorgabe(spieler, spieltag, hNr);
 
                 if (isStrich) 
                 {

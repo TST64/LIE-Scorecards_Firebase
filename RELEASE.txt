@@ -1,4 +1,5 @@
-LIE Scorecard 5.2.0-custom-auth
-Build: 2026-10-08
+LIE Scorecard 5.2.9-hcp-confirm-modal-layer
+Build: 2026-10-11
+Release: Historical HCP recalculation and admin round corrections
 Login: Name auswählen → PIN eingeben → Firebase Custom Token
 Anonymous Authentication: nicht erforderlich

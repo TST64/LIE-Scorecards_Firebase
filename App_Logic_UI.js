@@ -94,8 +94,9 @@ app.logic.showToast = function(text, type)
     }, 3200);
 };
 
-app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel)
+app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel, options)
 {
+    options = options || {};
     const modal = document.getElementById('global-confirm-modal');
     const box = document.getElementById('confirm-modal-box');
     const titleEl = document.getElementById('confirm-modal-title');
@@ -109,12 +110,20 @@ app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel)
 
     titleEl.innerText = title;
     msgEl.innerText = message;
+    btnCancel.innerText = options.cancelText || 'Abbrechen';
+    btnSubmit.innerText = options.confirmText || 'Bestätigen';
 
     if (mode === 'danger')
     {
         iconContainer.className = "w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 bg-red-100 text-red-600";
         iconEl.className = "fas fa-radiation text-sm";
         btnSubmit.className = "bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-xs";
+    }
+    else if (mode === 'warning')
+    {
+        iconContainer.className = "w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 bg-amber-100 text-amber-700";
+        iconEl.className = "fas fa-calculator text-sm";
+        btnSubmit.className = "bg-amber-500 hover:bg-amber-600 text-zinc-950 font-black py-2.5 rounded-xl text-xs transition shadow-xs";
     }
     else
     {

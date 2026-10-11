@@ -191,13 +191,12 @@ app.views.liveDashboard = app.views.live_dashboard = function()
 
                             if (bahn)
                             {
-                                const holeVorgabe = (app.logic && typeof app.logic.calculateHoleVorgabe === 'function')
-                                    ? app.logic.calculateHoleVorgabe(
-                                        sp,
-                                        st,
-                                        holeNr
-                                    )
-                                    : 1;
+                                const historicalHcp = app.logic.getHistoricalHcp
+                                    ? app.logic.getHistoricalHcp(sp, st, sc)
+                                    : sp.hcpLIE;
+                                const holeVorgabe = app.logic.calculateHoleVorgabeForHcp
+                                    ? app.logic.calculateHoleVorgabeForHcp(historicalHcp, st, holeNr)
+                                    : app.logic.calculateHoleVorgabe(sp, st, holeNr);
 
                                 const netto = (app.logic && typeof app.logic.calculateNettoStableford === 'function') 
                                     ? app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe) 

@@ -343,6 +343,7 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
             hole: holeNr,
             strokes: parseInt(strokes),
             strokesGiven: strokesGiven,
+            hcpStart: parseInt(spieler.hcpLIE),
             lady: !!app.state.liveScores[ladyKey],
             puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
             maxscore: !!app.state.liveScores[maxScoreKey]

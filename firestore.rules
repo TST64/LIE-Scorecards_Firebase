@@ -86,16 +86,41 @@ service cloud.firestore
       allow write: if isSpielleiter();
     }
 
-    // Scores dürfen angemeldete Mitglieder erfassen.
+    // Scores dürfen angemeldete Mitglieder während einer laufenden Runde erfassen.
+    // Historische/beendete Runden dürfen nur Administratoren korrigieren.
     match /scorecards/{docId}
     {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && (
+          isAdmin()
+          || get(/databases/$(database)/documents/spieltage/$(request.resource.data.spieltagId)).data.status != 'Beendet'
+        );
+
+      allow update, delete: if signedIn()
+        && (
+          isAdmin()
+          || get(/databases/$(database)/documents/spieltage/$(resource.data.spieltagId)).data.status != 'Beendet'
+        );
     }
 
-    // Legacy/zusätzliche Score-Daten.
+    // Legacy/zusätzliche Score-Daten: gleiche Schutzlogik wie scorecards.
     match /scores/{docId}
     {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && (
+          isAdmin()
+          || get(/databases/$(database)/documents/spieltage/$(request.resource.data.spieltagId)).data.status != 'Beendet'
+        );
+
+      allow update, delete: if signedIn()
+        && (
+          isAdmin()
+          || get(/databases/$(database)/documents/spieltage/$(resource.data.spieltagId)).data.status != 'Beendet'
+        );
     }
 
     // Flight-Einteilung ist Aufgabe der Spielleitung.

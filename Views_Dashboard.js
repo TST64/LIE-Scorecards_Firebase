@@ -239,11 +239,12 @@ app.views.dashboard = function()
                             gespielteBahnenInRunde++;
                             rundenSchlaegeTotal += strokes;
 
-                            let holeVorgabe = app.logic.calculateHoleVorgabe(
-                                user,
-                                st,
-                                hNr
-                            );
+                            const historicalHcp = app.logic.getHistoricalHcp
+                                ? app.logic.getHistoricalHcp(user, st, scoreMatch)
+                                : user.hcpLIE;
+                            let holeVorgabe = app.logic.calculateHoleVorgabeForHcp
+                                ? app.logic.calculateHoleVorgabeForHcp(historicalHcp, st, hNr)
+                                : app.logic.calculateHoleVorgabe(user, st, hNr);
                             const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
                             rundenNettoTotal += nettoPkt;
                         }
