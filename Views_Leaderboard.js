@@ -493,6 +493,99 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
         }
     }
 
+    // Flight-Ansicht: vorhandene Flight-Zuordnung des Spieltags sichtbar machen.
+    const tagesFlightsFuerAnzeige = (app.state.flights || []).filter(
+        function(f)
+        {
+            return String(f.spieltagId || "").trim() === String(spieltag ? spieltag.id : spieltagId).trim();
+        }
+    ).sort(
+        function(a, b)
+        {
+            const aParts = String(a.id || "").split('-');
+            const bParts = String(b.id || "").split('-');
+            const aSeq = parseInt(aParts[aParts.length - 1]) || 0;
+            const bSeq = parseInt(bParts[bParts.length - 1]) || 0;
+            return aSeq - bSeq;
+        }
+    );
+
+    let flightsHtml = '';
+
+    if (tagesFlightsFuerAnzeige.length === 0)
+    {
+        flightsHtml = `
+            <div class="bg-white border border-zinc-200 rounded-2xl p-6 text-center">
+                <div class="w-11 h-11 mx-auto rounded-full bg-zinc-100 text-zinc-400 flex items-center justify-center mb-3">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="font-bold text-zinc-700 text-sm">Keine Flights hinterlegt</div>
+                <div class="text-xs text-zinc-400 mt-1">Für diesen Spieltag wurde keine Flight-Aufteilung gefunden.</div>
+            </div>
+        `;
+    }
+    else
+    {
+        flightsHtml = tagesFlightsFuerAnzeige.map(
+            function(flight, index)
+            {
+                const idParts = String(flight.id || "").split('-');
+                const flightSeq = parseInt(idParts[idParts.length - 1]) || (index + 1);
+                const spielerIds = String(flight.spielerIdsCsv || "").split(',').map(
+                    function(id)
+                    {
+                        return String(id).trim();
+                    }
+                ).filter(Boolean);
+
+                const spielerHtml = spielerIds.map(
+                    function(spielerId)
+                    {
+                        const spieler = (app.state.spieler || []).find(
+                            function(s)
+                            {
+                                return String(s.id || "").trim() === String(spielerId).trim();
+                            }
+                        );
+                        const name = spieler ? (spieler.nickname || spieler.name || `Spieler ${spielerId}`) : `Spieler ${spielerId}`;
+                        const isCurrentUser = app.state.currentUser && String(app.state.currentUser.id || "").trim() === String(spielerId).trim();
+
+                        return `
+                            <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl ${isCurrentUser ? 'bg-emerald-50 border border-emerald-200' : 'bg-zinc-50 border border-zinc-100'}">
+                                <div class="w-8 h-8 rounded-full ${isCurrentUser ? 'bg-emerald-700 text-white' : 'bg-white text-zinc-500 border border-zinc-200'} flex items-center justify-center text-xs shrink-0">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="font-bold text-sm ${isCurrentUser ? 'text-emerald-900' : 'text-zinc-800'} truncate">${name}</div>
+                                    ${isCurrentUser ? '<div class="text-[10px] text-emerald-700 font-bold">Du</div>' : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                ).join('');
+
+                return `
+                    <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-xs">
+                        <div class="px-4 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center text-xs">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div>
+                                    <div class="font-black text-emerald-950 text-sm">Flight ${flightSeq}</div>
+                                    <div class="text-[10px] text-emerald-700 font-medium">${spielerIds.length} Spieler</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            ${spielerHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        ).join('');
+    }
+
     return `
         <div class="space-y-4">
             <div class="flex items-center justify-between">
@@ -511,22 +604,32 @@ app.views.leaderboard = function(spieltagIdParam, activeTabParam)
                     <button onclick="app.state.leaderboardViewMode='list'; app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'list' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}">
                         <i class="fas fa-list"></i>
                     </button>
+                    <button onclick="app.state.leaderboardViewMode='flights'; app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: '${mode}' })" class="px-2 py-1 text-xs rounded-md transition ${app.state.leaderboardViewMode === 'flights' ? 'bg-white text-emerald-800 font-bold shadow-xs' : 'text-zinc-400'}" title="Flights">
+                        <i class="fas fa-users"></i>
+                    </button>
                 </div>
             </div>
 
             ${closeRoundBannerHtml}
 
-            <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200">
-                <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
-                    <i class="fas fa-star mr-1"></i> Netto (Stableford)
-                </button>
-                <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: 'brutto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'brutto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
-                    <i class="fas fa-trophy mr-1"></i> Brutto (Zählspiel)
-                </button>
-            </div>
+            ${app.state.leaderboardViewMode !== 'flights' ? `
+                <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-xl border border-zinc-200">
+                    <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: 'netto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'netto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
+                        <i class="fas fa-star mr-1"></i> Netto (Stableford)
+                    </button>
+                    <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: 'brutto' })" class="py-2 text-xs font-bold rounded-lg transition-all ${mode === 'brutto' ? 'bg-white text-emerald-800 shadow-xs' : 'text-zinc-500'}">
+                        <i class="fas fa-trophy mr-1"></i> Brutto (Zählspiel)
+                    </button>
+                </div>
+            ` : `
+                <div class="px-1">
+                    <div class="text-xs font-black text-zinc-800">Flight-Aufteilung</div>
+                    <div class="text-[10px] text-zinc-400">So seid ihr heute unterwegs.</div>
+                </div>
+            `}
 
             <div class="space-y-2">
-                ${app.state.leaderboardViewMode === 'matrix' ? matrixHtml : rowsListHtml}
+                ${app.state.leaderboardViewMode === 'matrix' ? matrixHtml : (app.state.leaderboardViewMode === 'flights' ? flightsHtml : rowsListHtml)}
             </div>
 
             <button onclick="app.router.navigate('leaderboard', { id: '${spieltag ? spieltag.id : spieltagId}', mode: '${mode}' })" class="w-full bg-zinc-100 border border-zinc-200 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-xs transition">
