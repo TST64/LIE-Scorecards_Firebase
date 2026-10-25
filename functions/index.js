@@ -16,6 +16,24 @@ setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
+// Isolated v2 endpoint. No client or v1 saveLiveScores call site uses it yet.
+const { createScoreOperationsV2 } = require("./score-operations-v2");
+const saveScoreOperationsV2 = createScoreOperationsV2(db, FieldValue);
+
+exports.saveScoreOperationsV2 = onCall(async function(request)
+{
+    requireAuth(request);
+    try
+    {
+        return await saveScoreOperationsV2(request.auth, request.data);
+    }
+    catch (error)
+    {
+        console.error("[saveScoreOperationsV2]", error);
+        throw new HttpsError("internal", "Score-Request konnte nicht verarbeitet werden.");
+    }
+});
+
 // Das bestehende Google-Apps-Script versendet weiterhin die temporären PINs.
 // Die URL stammt aus der bisherigen config.js des Projekts.
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec";

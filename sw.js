@@ -19,6 +19,8 @@ var ASSETS_TO_CACHE = [
     './config.js',
     './manifest.json',
     './App_Core.js',
+    './App_Storage_ScoreSync.js',
+    './App_Logic_ScoreSyncV2.js',
     './App_Start.js',
     './App_Router.js',
     './App_Logic_Bridge.js',
