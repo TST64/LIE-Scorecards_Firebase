@@ -1,328 +1,272 @@
-// =========================================================================
-// BMAssistent / LIE Scorecard - Score Eingabe (mit 9/18 Loch Filter)
-// Views_ScoreEingabe.js
-// BSD (Allman) Style
-// =========================================================================
-
+// LIE 6.0: presentation and deliberate input only. Existing V1 transport is unchanged.
 app.views = app.views || {};
 
-app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, holeNumberParam, targetFlightSeqParam)
+app.logic.scoreScreenEscape = function(value)
 {
-    // Parameter entpacken (falls als Objekt vom Router oder als Einzelparameter übergeben)
-    let spieltagId = spieltagIdParam;
-    let holeNumber = holeNumberParam;
-    let targetFlightSeq = targetFlightSeqParam;
-
-    if (typeof spieltagIdParam === 'object' && spieltagIdParam !== null)
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(character)
     {
-        spieltagId = spieltagIdParam.id || spieltagIdParam.spieltagId;
-        holeNumber = spieltagIdParam.hole || spieltagIdParam.holeNumber;
-        targetFlightSeq = spieltagIdParam.flightSeq || spieltagIdParam.targetFlightSeq;
-    }
-
-    // LiveScores-State absichern
-    app.state.liveScores = app.state.liveScores || {};
-
-    const spieltage = app.state.spieltage || [];
-    const spieltag = spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-    const kurs = (app.state.kurse || []).find(function(k) { return spieltag && String(k.id) === String(spieltag.kursId); });
-    
-    const is9Loch = (spieltag && (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9')));
-    const kursBahnen = (app.state.bahnen || []).filter(function(b) { return spieltag && String(b.kursId).trim() === String(spieltag.kursId).trim(); });
-    kursBahnen.sort(function(a, b) { return parseInt(a.nr) - parseInt(b.nr); });
-
-    // Bahnbereich basierend auf Rundentyp festlegen (1-9, 10-18 oder 1-18)
-    let startHole = 1;
-    let endHole = (kurs && kurs.bahnAnzahl) ? parseInt(kurs.bahnAnzahl) : 18;
-
-    if (spieltag && spieltag.rundenTyp === '9-Front')
-    {
-        startHole = 1;
-        endHole = 9;
-    }
-    else if (spieltag && spieltag.rundenTyp === '9-Back')
-    {
-        startHole = 10;
-        endHole = 18;
-    }
-    else if (is9Loch)
-    {
-        startHole = 1;
-        endHole = 9;
-    }
-
-    const anzuzeigendeBahnen = [];
-    for (let i = startHole; i <= endHole; i++)
-    {
-        const bMatch = kursBahnen.find(b => parseInt(b.nr) === i);
-        if (bMatch) anzuzeigendeBahnen.push(bMatch);
-        else anzuzeigendeBahnen.push({ nr: i, par: 4, si: i, kursId: spieltag ? spieltag.kursId : "" });
-    }
-
-    // Aktuelle Bahn im gewählten Bereich ermitteln
-    let targetHole = parseInt(holeNumber) || startHole;
-    if (targetHole < startHole) targetHole = startHole;
-    if (targetHole > endHole) targetHole = endHole;
-
-    const aktuelleBahnIndex = anzuzeigendeBahnen.findIndex(function(b) { return parseInt(b.nr) === targetHole; });
-    const sichererIndex = aktuelleBahnIndex !== -1 ? aktuelleBahnIndex : 0;
-    const bahnDaten = anzuzeigendeBahnen[sichererIndex];
-    const currentHoleNr = parseInt(bahnDaten.nr);
-
-    // 1. Loch-Navigationsband generieren
-    let holeNavHtml = "";
-    anzuzeigendeBahnen.forEach(function(b)
-    {
-        const bNr = parseInt(b.nr);
-        const isCurrent = bNr === currentHoleNr;
-        const activeClass = isCurrent ? 'bg-emerald-600 text-white font-bold scale-110' : 'bg-stone-100 text-stone-600';
-        const fSeqParam = targetFlightSeq ? `, ${targetFlightSeq}` : '';
-        holeNavHtml += `
-            <button onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${bNr}${fSeqParam ? ', flightSeq: ' + targetFlightSeq : ''} })" class="w-9 h-9 rounded-lg text-xs flex-shrink-0 transition-all ${activeClass}">
-                ${bNr}
-            </button>
-        `;
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character];
     });
+};
 
-    // === FLIGHT-ERMITTLUNG UND RECHTE-WEICHE ===
-    const meinIdString = app.state.currentUser ? String(app.state.currentUser.id).trim() : "";
-    const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
-    
-    const tagesFlights = app.state.flights ? app.state.flights.filter(function(f) { return String(f.spieltagId).trim() === String(spieltagId).trim(); }) : [];
-
-    let gewaehlterFlight = null;
-    let flightSeq = 1;
-
-    if (isLeiter && targetFlightSeq)
+app.logic.scoreScreenContext = function(id, hole)
+{
+    const state = app.state.scoreEntryV2;
+    if (!state || state.status !== 'ready' || state.id !== String(id)
+        || state.owner !== String(app.state.currentUser && app.state.currentUser.id))
     {
-        gewaehlterFlight = tagesFlights.find(function(f) 
-        {
-            const parts = f.id.split('-');
-            return parseInt(parts[parts.length - 1]) === parseInt(targetFlightSeq);
-        });
-        flightSeq = parseInt(targetFlightSeq);
+        return null;
     }
-    
-    if (!gewaehlterFlight)
+    const response = state.response;
+    const holes = response.round.holes;
+    const nr = Math.max(holes[0], Math.min(holes[holes.length - 1], Number(hole) || holes[0]));
+    return { id: String(id), owner: state.owner, round: response.round,
+        course: response.course, flight: { id: response.flightId }, seq: response.flightSeq,
+        leader: ['Admin', 'Spielleiter'].includes(app.state.currentUser.role),
+        flights: [{ id: response.flightId, seq: response.flightSeq }], players: response.members,
+        first: holes[0], last: holes[holes.length - 1], hole: nr,
+        current: response.round.holeData.find(function(item)
+        {
+            return item.nr === nr;
+        }) };
+};
+
+app.logic.scoreScreenEntry = function(context, playerId, hole)
+{
+    const raw = app.state.scoreEntryV2.entries[playerId + '_' + hole];
+    const holeData = app.state.scoreEntryV2.response.round.holeData.find(function(item)
     {
-        gewaehlterFlight = tagesFlights.find(function(f)
-        {
-            const flightSpielerIds = String(f.spielerIdsCsv || "").split(',').map(function(id) { return String(id).trim(); });
-            return flightSpielerIds.includes(meinIdString);
-        });
+        return item.nr === hole;
+    });
+    return app.scoreEntryV2Controller.project(raw, holeData);
+};
 
-        if (gewaehlterFlight)
-        {
-            const idParts = gewaehlterFlight.id.split('-');
-            flightSeq = parseInt(idParts[idParts.length - 1]) || 1;
-        }
-    }
-
-    if (!gewaehlterFlight && tagesFlights.length > 0)
+app.logic.scoreScreenHoleState = function(context, hole)
+{
+    const complete = context.players.length > 0 && context.players.every(function(id)
     {
-        gewaehlterFlight = tagesFlights[0];
-        flightSeq = 1;
-    }
+        return app.logic.scoreScreenEntry(context, id, hole).confirmed;
+    });
+    const scope = JSON.stringify([context.owner, context.id, context.flight.id]);
+    const visited = (app.state.scoreScreenVisits || {})[scope] || {};
+    return complete ? 'complete' : (visited[hole] && hole !== context.hole ? 'incomplete' : 'open');
+};
 
-    let teilnehmerIds = [];
-    if (gewaehlterFlight)
+app.logic.scoreScreenLoadV2 = function(id)
+{
+    const owner = String(app.state.currentUser && app.state.currentUser.id);
+    const state = { id: String(id), owner: owner, status: 'loading' };
+    app.state.scoreEntryV2 = state;
+    app.scoreEntryV2Controller = app.scoreEntryV2Controller || app.createFirebaseScoreEntryV2Controller();
+    app.logic.scoreScreenReady = (async function()
     {
-        teilnehmerIds = String(gewaehlterFlight.spielerIdsCsv || "").split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
-    }
-    else
-    {
-        const csvString = String(spieltag ? spieltag.teilnehmerCsv : "").trim();
-        if (csvString !== "")
+        try
         {
-            teilnehmerIds = csvString.split(',').map(function(id) { return String(id).trim(); }).filter(Boolean);
-        }
-    }
-
-    // Flight Switcher
-    let flightSwitcherHtml = "";
-    if (isLeiter && tagesFlights.length > 1)
-    {
-        let switcherButtons = tagesFlights.map(function(f)
-        {
-            const idParts = f.id.split('-');
-            const fNr = parseInt(idParts[idParts.length - 1]) || 1;
-            const isCurrentFlight = fNr === flightSeq;
-            
-            return `
-                <button onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${currentHoleNr}, flightSeq: ${fNr} })" class="px-3 py-1 text-xs font-bold rounded-lg transition-all ${isCurrentFlight ? 'bg-emerald-700 text-white shadow-3xs' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}">
-                    Flight ${fNr}
-                </button>
-            `;
-        }).join('');
-
-        flightSwitcherHtml = `
-            <div class="flex items-center space-x-2 bg-stone-100 p-1.5 rounded-xl border border-stone-200 mt-1">
-                <span class="text-[10px] uppercase font-bold text-stone-500 pl-1"><i class="fas fa-exchange-alt"></i> Flight:</span>
-                <div class="flex space-x-1">${switcherButtons}</div>
-            </div>
-        `;
-    }
-
-    // Spieler-Karten generieren
-    let spielerKartenHtml = teilnehmerIds.map(function(spielerId, index)
-    {
-        const isFirst = index === 0;
-        const isLast = index === teilnehmerIds.length - 1;
-        
-        const spieler = (app.state.spieler || []).find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
-        if (!spieler) 
-        {
-            return "";
-        }
-
-        let spielvorgabe = app.logic.calculateHoleVorgabe(
-            spieler,
-            spieltag,
-            currentHoleNr
-        );
-        const maxErlaubteSchlaege = parseInt(bahnDaten.par) + parseInt(spielvorgabe) + 2;
-        
-        const currentScoreKey = `${spieltagId}_${spielerId}_${currentHoleNr}`;
-        const currentLadyKey = `${spieltagId}_${spielerId}_${currentHoleNr}_lady`;
-        const currentPutsKey = `${spieltagId}_${spielerId}_${currentHoleNr}_puts`;
-        const currentMaxScoreKey = `${spieltagId}_${spielerId}_${currentHoleNr}_maxscore`;
-
-        const dbScores = (app.state.scoreCards || []).filter(function(sc) { return String(sc.spieltagId) === String(spieltagId) && String(sc.spielerId) === String(spielerId); });
-        const dbMatch = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === currentHoleNr; });
-        
-        const hatDbScore = dbMatch ? parseInt(dbMatch.strokes) : undefined;
-        const hatDbLady = dbMatch ? (dbMatch.lady === true || String(dbMatch.lady).toUpperCase() === "TRUE") : false;
-        const hatDbPuts = dbMatch ? parseInt(dbMatch.puts) : undefined;
-        const hatDbMaxScore = dbMatch ? (dbMatch.maxscore === true || String(dbMatch.maxscore).toUpperCase() === "TRUE") : false;
-        
-        let aktuelleLady = app.state.liveScores[currentLadyKey];
-        if (aktuelleLady === undefined)
-        {
-            aktuelleLady = hatDbLady;
-            app.state.liveScores[currentLadyKey] = aktuelleLady;
-        }
-
-        let aktuellePuts = app.state.liveScores[currentPutsKey];
-        if (aktuellePuts === undefined)
-        {
-            aktuellePuts = hatDbPuts !== undefined ? hatDbPuts : 2;
-            app.state.liveScores[currentPutsKey] = aktuellePuts;
-        }
-
-        let aktuellerMaxScore = app.state.liveScores[currentMaxScoreKey];
-        if (aktuellerMaxScore === undefined)
-        {
-            aktuellerMaxScore = hatDbMaxScore;
-            app.state.liveScores[currentMaxScoreKey] = aktuellerMaxScore;
-        }
-
-        let aktuellerScore = app.state.liveScores[currentScoreKey];
-        if (aktuellerScore === undefined)
-        {
-            if (aktuellerMaxScore)
+            try
             {
-                aktuellerScore = maxErlaubteSchlaege;
+                state.response = await app.scoreEntryV2Controller.open(
+                {
+                    spieltagId: String(id), offline: typeof navigator !== 'undefined' && navigator.onLine === false
+                });
             }
-            else
+            catch (error)
             {
-                aktuellerScore = hatDbScore !== undefined ? hatDbScore : parseInt(bahnDaten.par);
+                if (error.code !== 'functions/unavailable' && error.code !== 'unavailable')
+                {
+                    throw error;
+                }
+                // Connectivity failure only: never bypass identity/authorization/read validation errors.
+                state.response = await app.scoreEntryV2Controller.open({ spieltagId: String(id), offline: true });
             }
-            app.state.liveScores[currentScoreKey] = aktuellerScore;
+            state.entries = await app.scoreEntryV2Controller.readAll();
+            state.status = 'ready';
         }
-        
-        const nettoPunkte = app.logic.calculateNettoStableford(aktuellerScore, bahnDaten.par, spielvorgabe);
+        catch (error)
+        {
+            state.status = 'error';
+            state.error = error;
+            if (app.logic.showToast)
+            {
+                app.logic.showToast('Score-Eingabe nicht verfügbar: ' + error.message, 'error');
+            }
+        }
+        const selection = app.state.scoreScreenSelection;
+        if (app.state.scoreEntryV2 === state && selection && selection.id === String(id)
+            && selection.owner === owner && app.state.currentView === 'score_eingabe')
+        {
+            const container = document.getElementById('app-container');
+            if (container)
+            {
+                container.innerHTML = app.views.score_eingabe(id, selection.hole);
+            }
+        }
+    })();
+};
 
-        const ladyBtnStyle = aktuelleLady 
-            ? 'bg-red-500 border-red-600 text-white font-black shadow-xs' 
-            : 'bg-white border-stone-300 text-stone-500 hover:bg-stone-50';
+app.logic.scoreScreenInput = function(playerId, action, delta)
+{
+    const c = app.state.scoreScreenContext;
+    const selection = app.state.scoreScreenSelection;
+    if (!c || !selection || c.owner !== String(app.state.currentUser && app.state.currentUser.id)
+        || !c.players.includes(String(playerId)) || app.state.currentView !== 'score_eingabe')
+    {
+        return Promise.resolve();
+    }
+    const state = app.state.scoreEntryV2;
+    state.actionVersion = (state.actionVersion || 0) + 1;
+    const version = state.actionVersion;
+    const focus = document.activeElement && document.activeElement.id;
+    return (async function()
+    {
+        let raw;
+        try
+        {
+            raw = await app.scoreEntryV2Controller.action(String(playerId), c.hole, action, delta);
+        }
+        catch (error)
+        {
+            if (app.logic.showToast && state.owner === String(app.state.currentUser && app.state.currentUser.id))
+            {
+                app.logic.showToast(error.localCommit
+                    ? 'Eingabe lokal gespeichert; Ansicht bitte erneut öffnen.'
+                    : 'Eingabe nicht gespeichert: ' + error.message, 'error');
+            }
+        }
+        try
+        {
+            raw = raw || await app.scoreEntryV2Controller.readEntry(String(playerId), c.hole);
+            if (state !== app.state.scoreEntryV2
+                || state.owner !== String(app.state.currentUser && app.state.currentUser.id))
+            {
+                return;
+            }
+            state.entries[playerId + '_' + c.hole] = raw;
+            if (version !== state.actionVersion || app.state.currentView !== 'score_eingabe' || app.state.scoreScreenSelection !== selection)
+            {
+                return;
+            }
+            const container = document.getElementById('app-container');
+            if (container)
+            {
+                container.innerHTML = app.views.score_eingabe(c.id, c.hole);
+                const target = focus && document.getElementById(focus);
+                if (target)
+                {
+                    target.focus({ preventScroll: true });
+                }
+            }
+        }
+        catch (error)
+        {
+            // Never project an obsolete context over a newly selected round/user.
+        }
+    })();
+};
 
-        const maxScoreBtnStyle = aktuellerMaxScore 
-            ? 'bg-amber-500 border-amber-600 text-white font-black animate-pulse shadow-xs' 
-            : 'bg-white border-stone-300 text-stone-600 hover:bg-stone-50';
-
-        return `
-            <div class="p-3 bg-stone-50 border border-stone-200 rounded-2xl flex flex-col space-y-2 shadow-2xs">
-                <!-- Header: Spieler-Info -->
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h4 class="font-bold text-stone-800 text-sm">${spieler.nickname}</h4>
-                        <p class="text-[10px] text-stone-400 uppercase tracking-wider">HCP: ${spieler.hcpLIE} | Vorgabe: +${spielvorgabe}</p>
-                    </div>
-                    <div class="flex items-center space-x-2 text-right">
-                        <div class="flex space-x-1">
-                            <button onclick="app.logic.movePlayerInFlight('${spieltagId}', ${flightSeq}, '${spielerId}', -1, ${currentHoleNr})" class="w-7 h-7 bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-700 rounded-lg flex items-center justify-center transition disabled:opacity-30 touch-target" ${isFirst ? 'disabled' : ''}><i class="fas fa-arrow-up text-[10px]"></i></button>
-                            <button onclick="app.logic.movePlayerInFlight('${spieltagId}', ${flightSeq}, '${spielerId}', 1, ${currentHoleNr})" class="w-7 h-7 bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-700 rounded-lg flex items-center justify-center transition disabled:opacity-30 touch-target" ${isLast ? 'disabled' : ''}><i class="fas fa-arrow-down text-[10px]"></i></button>
-                        </div>
-                        <span id="netto-badge-${spielerId}" class="text-[11px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-lg whitespace-nowrap">
-                            ${nettoPunkte} Netto-Pkt
-                        </span>
-                    </div>
-                </div>
-
-                <!-- BEREICH 1: Gesamtschläge -->
-                <div class="flex items-center justify-between bg-white border border-stone-200 rounded-xl p-0.5">
-                    <button onclick="app.logic.adjustScore('${spieltagId}', '${spielerId}', ${currentHoleNr}, -1, ${bahnDaten.par}, ${spielvorgabe})" class="w-10 h-10 bg-stone-100 active:bg-stone-200 text-stone-700 rounded-lg flex items-center justify-center text-lg font-bold touch-target select-none">
-                        <i class="fas fa-minus"></i>
-                    </button>
-                    
-                    <div class="text-center flex flex-col">
-                        <span id="score-val-${spielerId}" class="text-xl font-black text-stone-900 leading-none">${aktuellerScore}</span>
-                        <span class="text-[9px] text-stone-400 uppercase font-bold mt-0.5">Schläge</span>
-                    </div>
-
-                    <button onclick="app.logic.adjustScore('${spieltagId}', '${spielerId}', ${currentHoleNr}, 1, ${bahnDaten.par}, ${spielvorgabe})" class="w-10 h-10 bg-emerald-50 active:bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center text-lg font-bold touch-target select-none">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                </div>
-
-                <!-- BEREICH 2: Spezial-Eingaben -->
-                <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; background-color: #e4e4e7; border: 1px solid #d4d4d8; padding: 4px; border-radius: 12px;">
-                    
-                    <!-- Lady -->
-                    <button id="lady-btn-${spielerId}" onclick="app.logic.toggleLiveBoolean('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'lady')" class="${ladyBtnStyle} select-none" style="grid-column: span 1 / span 1; display: flex; align-items: center; justify-content: center; height: 32px !important; min-height: 32px !important; border-radius: 8px; border: 1px solid #d4d4d8; padding: 0; margin: 0;">
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
-                            <i class="fas ${aktuelleLady ? 'fa-beer-mug-empty' : 'fa-wine-glass-empty'}" style="font-size: 11px;"></i>
-                            <span style="font-size: 9px; text-transform: uppercase; font-weight: 900; letter-spacing: -0.05em;">${aktuelleLady ? '🍻' : 'Lady'}</span>
-                        </div>
-                    </button>
-
-                    <!-- Putts -->
-                    <div style="grid-column: span 2 / span 2; display: flex; align-items: center; background-color: #ffffff; border: 1px solid #d4d4d8; border-radius: 8px; padding: 2px; height: 32px !important; min-height: 32px !important;">
-                        <button onclick="app.logic.adjustLiveValue('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'puts', -1)" style="width: 28px !important; height: 26px !important; background-color: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
-                            <i class="fas fa-minus" style="font-size: 8px; color: #57534e;"></i>
-                        </button>
-                        
-                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                            <span id="puts-val-${spielerId}" style="font-size: 13px; font-weight: 900; color: #1c1917; line-height: 1;">${aktuellePuts}</span>
-                            <span style="font-size: 7px; color: #a8a29e; text-transform: uppercase; font-weight: 900; margin-top: 2px;">Putts</span>
-                        </div>
-                        
-                        <button onclick="app.logic.adjustLiveValue('${spieltagId}', '${spielerId}', ${currentHoleNr}, 'puts', 1)" style="width: 28px !important; height: 26px !important; background-color: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
-                            <i class="fas fa-plus" style="font-size: 8px; color: #57534e;"></i>
-                        </button>
-                    </div>
-
-                    <!-- MaxScore -->
-                    <button id="maxscore-btn-${spielerId}" onclick="app.logic.toggleMaxScore('${spieltagId}', '${spielerId}', ${currentHoleNr}, ${maxErlaubteSchlaege}, ${bahnDaten.par}, ${spielvorgabe})" class="${maxScoreBtnStyle} select-none" style="grid-column: span 1 / span 1; display: flex; align-items: center; justify-content: center; height: 32px !important; min-height: 32px !important; border-radius: 8px; border: 1px solid #d4d4d8; padding: 0; margin: 0;">
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
-                            <i class="fas ${aktuellerMaxScore ? 'fa-stroke' : 'fa-ban'}" style="font-size: 11px;"></i>
-                            <span style="font-size: 9px; text-transform: uppercase; font-weight: 900; letter-spacing: -0.05em;">${aktuellerMaxScore ? 'Strich' : 'Max Ø'}</span>
-                        </div>
-                    </button>
-
-                </div>
-            </div>
-        `;
+app.views.scoreEingabe = app.views.score_eingabe = function(id, hole, seq)
+{
+    if (id && typeof id === 'object')
+    {
+        seq = id.flightSeq || id.targetFlightSeq;
+        hole = id.hole || id.holeNumber;
+        id = id.id || id.spieltagId;
+    }
+    const owner = String(app.state.currentUser && app.state.currentUser.id);
+    app.state.scoreScreenSelection = { id: String(id), hole: hole, owner: owner };
+    const local = app.state.scoreEntryV2;
+    if (!local || local.id !== String(id) || local.owner !== owner || local.needsReload)
+    {
+        app.logic.scoreScreenLoadV2(id);
+    }
+    if (app.state.scoreEntryV2.status === 'loading')
+    {
+        return '<div class="lie-score-screen" aria-busy="true"><p>Scorekarte wird geladen …</p></div>';
+    }
+    const c = app.logic.scoreScreenContext(id, hole, seq);
+    if (!c)
+    {
+        return '<div class="lie-score-screen"><h2>Score-Eingabe nicht verfügbar</h2><p>Flight oder echte Bahndaten fehlen. Bitte die Spielleitung fragen.</p><button class="lie-button" onclick="app.router.navigate(\'dashboard\')">Zur Startseite</button></div>';
+    }
+    c.owner = String(app.state.currentUser.id);
+    app.state.scoreScreenContext = c;
+    const scope = JSON.stringify([c.owner, c.id, c.flight.id]);
+    app.state.scoreScreenVisits = app.state.scoreScreenVisits || {};
+    app.state.scoreScreenVisits[scope] = app.state.scoreScreenVisits[scope] || {};
+    app.state.scoreScreenVisits[scope][c.hole] = true;
+    const esc = app.logic.scoreScreenEscape;
+    const arg = function(value)
+    {
+        return esc(JSON.stringify(value));
+    };
+    const navigate = function(nr, flight)
+    {
+        return 'app.router.navigate(\'score_eingabe\', {id:' + arg(c.id) + ',hole:' + nr + ',flightSeq:' + (flight || c.seq) + '})';
+    };
+    let progress = '';
+    const labels = { complete: 'vollständig', incomplete: 'verlassen, unvollständig', open: 'offen' };
+    for (let nr = 1; nr <= 18; nr++)
+    {
+        const outside = nr < c.first || nr > c.last;
+        const state = outside ? 'outside' : app.logic.scoreScreenHoleState(c, nr);
+        progress += '<button class="lie-hole lie-hole--' + state + (nr === c.hole ? ' lie-hole--current' : '')
+            + '" ' + (outside ? 'disabled' : 'onclick="' + navigate(nr) + '"')
+            + (nr === c.hole ? ' aria-current="step"' : '') + ' aria-label="Loch ' + nr + ', '
+            + (outside ? 'nicht Teil dieser Runde' : labels[state]) + (nr === c.hole ? ', aktuell' : '')
+            + '"><span class="lie-hole-number">' + nr + '</span><span class="lie-hole-marker" aria-hidden="true">'
+            + (state === 'complete' ? '✓' : (state === 'incomplete' ? '!' : '·')) + '</span></button>';
+    }
+    // Presentation only: follow the actual app header, including responsive height changes.
+    const header = typeof document.querySelector === 'function' ? document.querySelector('body > header') : null;
+    const container = document.getElementById('app-container');
+    if (header && container)
+    {
+        const updateHeaderHeight = function()
+        {
+            container.style.setProperty('--lie-header-height', header.getBoundingClientRect().height + 'px');
+        };
+        updateHeaderHeight();
+        if (typeof ResizeObserver !== 'undefined' && !app.views.scoreScreenHeaderObserver)
+        {
+            app.views.scoreScreenHeaderObserver = new ResizeObserver(updateHeaderHeight);
+            app.views.scoreScreenHeaderObserver.observe(header);
+        }
+    }
+    const cards = c.players.map(function(playerId, playerIndex)
+    {
+        const player = app.state.scoreEntryV2.response.players.find(function(item)
+        {
+            return String(item.id) === playerId;
+        });
+        if (!player)
+        {
+            return '';
+        }
+        const entry = app.logic.scoreScreenEntry(c, playerId, c.hole);
+        const name = player.nickname || player.name || playerId;
+        const initials = String(name).trim().slice(0, 2).toUpperCase();
+        const avatarUrl = player.avatarUrl || player.photoURL || '';
+        const avatar = /^https?:\/\//i.test(avatarUrl)
+            ? '<img src="' + esc(avatarUrl) + '" alt="" onerror="this.hidden=true" loading="lazy">' : '';
+        const input = function(action, delta)
+        {
+            return 'app.logic.scoreScreenInput(' + arg(playerId) + ',' + arg(action) + ',' + (delta || 0) + ')';
+        };
+        const control = function(field, label, value)
+        {
+            return '<div class="lie-score-field"><div class="lie-stepper"><button id="lie-' + field + '-minus-' + esc(playerId) + '" aria-label="' + label + ' verringern für ' + esc(name)
+                + '" onclick="' + input(field, -1) + '">−</button><div class="lie-score-value"><span class="lie-field-label">' + label + '</span><strong>' + value
+                + '</strong></div><button id="lie-' + field + '-plus-' + esc(playerId) + '" aria-label="' + label + ' erhöhen für ' + esc(name)
+                + '" onclick="' + input(field, 1) + '">+</button></div></div>';
+        };
+        return '<section class="lie-player' + (!entry.confirmed ? ' lie-player--open' : '') + '" aria-label="Spielerposition ' + (playerIndex + 1) + ': ' + esc(name) + '"><div class="lie-player-heading">'
+            + '<span class="lie-player-position" aria-hidden="true">' + (playerIndex + 1) + '</span>'
+            + '<button id="lie-avatar-' + esc(playerId) + '" class="lie-avatar" onclick="' + input('confirm') + '" '
+            + (entry.confirmed ? 'disabled ' : '') + 'aria-label="Vorgabe Par und 2 Putts für ' + esc(name) + ' übernehmen"><span>' + esc(initials) + '</span>' + avatar + '</button>'
+            + '<div class="lie-player-identity"><h3>' + esc(name) + '</h3><span class="lie-player-status"><span class="lie-status-icon" aria-hidden="true">' + (entry.confirmed ? '✓' : '●') + '</span>' + (entry.confirmed ? 'Eingegeben' : 'Noch offen') + '</span></div></div>'
+            + '<div class="lie-score-controls">' + control('strokes', 'Schläge', entry.strokes) + control('puts', 'Putts', entry.puts) + '</div>'
+            + '<div class="lie-checkboxes"><label><input id="lie-lady-' + esc(playerId) + '" type="checkbox" ' + (entry.lady ? 'checked ' : '') + 'onchange="' + input('lady') + '"> Lady</label>'
+            + '<label><input id="lie-strich-' + esc(playerId) + '" type="checkbox" ' + (entry.maxscore ? 'checked ' : '') + 'onchange="' + input('strich') + '"> Strich</label></div></section>';
     }).join('');
-
-    const hatVorherigesLoch = sichererIndex > 0;
-    const hatNaechstesLoch = sichererIndex < anzuzeigendeBahnen.length - 1;
-    
-    const vorherigeLochNr = hatVorherigesLoch ? anzuzeigendeBahnen[sichererIndex - 1].nr : null;
-    const naechsteLochNr = hatNaechstesLoch ? anzuzeigendeBahnen[sichererIndex + 1].nr : null;
-
-    const fSeqParamStr = targetFlightSeq ? `, flightSeq: ${targetFlightSeq}` : '';
-
     app.logic.openLeaderboardOverlay = function(stId) 
     {
         const mode = app.state.lastLeaderboardMode || 'netto';
@@ -341,70 +285,20 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         document.getElementById('score-leaderboard-overlay').classList.remove('hidden');
     };
 
-    return `
-        <div class="space-y-4 pb-28">
-            <div class="space-y-1">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                        <button onclick="app.router.navigate('dashboard')" class="text-stone-500 touch-target"><i class="fas fa-arrow-left"></i></button>
-                        <div>
-                            <h2 class="text-base font-bold text-stone-800 flex items-center">
-                                ${kurs ? kurs.name : 'Scorekarte'}
-                                ${isLeiter ? `
-                                    <button onclick="app.router.navigate('score_schnellerfassung', { id: '${spieltagId}', flightSeq: ${flightSeq} })" class="ml-3 text-stone-400 hover:text-blue-600 transition touch-target flex items-center justify-center" title="Tabellarische Schnelleingabe">
-                                        <i class="fas fa-table text-sm"></i>
-                                    </button>
-                                    <button onclick="app.logic.openEditSpieltagModal('${spieltagId}', ${currentHoleNr}, ${flightSeq})" class="ml-2 text-stone-400 hover:text-emerald-600 transition touch-target flex items-center justify-center" title="Spieltag bearbeiten">
-                                        <i class="fas fa-cog text-sm"></i>
-                                    </button>
-                                ` : ''}
-                            </h2>
-                        </div>
-                    <div class="flex items-center space-x-1.5">
-                        <button onclick="app.logic.openLeaderboardOverlay('${spieltagId}')" class="text-xs bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold px-3 py-2 rounded-xl transition shadow-3xs flex items-center">
-                            <i class="fas fa-trophy mr-1 text-amber-900"></i> Spicken
-                        </button>
-                        <button onclick="app.logic.syncScoresWithServer('${spieltagId}', ${flightSeq})" id="sync-btn" class="text-xs bg-stone-900 hover:bg-stone-800 text-white font-bold px-3 py-2 rounded-xl transition shadow-3xs">
-                            <i class="fas fa-cloud-upload-alt mr-1"></i> Sichern
-                        </button>
-                    </div>
-                </div>
-                
-                ${flightSwitcherHtml}
-            </div>
 
-            <div class="flex space-x-1.5 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none">
-                ${holeNavHtml}
-            </div>
-
-            <div class="space-y-3">
-                ${spielerKartenHtml ? spielerKartenHtml : '<p class="text-stone-400 text-xs italic text-center py-4">Keine Spieler in diesem Flight.</p>'}
-            </div>
-            
-            <div class="grid grid-cols-2 gap-3 pt-2">
-                <button ${hatVorherigesLoch ? `onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${vorherigeLochNr}${fSeqParamStr} })"` : 'disabled'} class="bg-stone-100 text-stone-700 font-bold py-3 rounded-xl text-sm disabled:opacity-40">
-                    <i class="fas fa-chevron-left mr-1"></i> Loch zurück
-                </button>
-                <button ${hatNaechstesLoch ? `onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${naechsteLochNr}${fSeqParamStr} })"` : `onclick="app.router.navigate('dashboard')"`} class="bg-emerald-600 text-white font-bold py-3 rounded-xl text-sm">
-                    ${hatNaechstesLoch ? 'Nächstes Loch <i class="fas fa-chevron-right ml-1"></i>' : 'Runde beenden <i class="fas fa-check ml-1"></i>'}
-                </button>
-            </div>
-        </div>
-
-        <!-- Leaderboard Overlay -->
-        <div id="score-leaderboard-overlay" class="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs hidden flex flex-col p-4">
-            <div class="bg-stone-100 rounded-2xl w-full max-w-md mx-auto my-auto flex flex-col max-h-[85vh] shadow-2xl border border-stone-200 overflow-hidden animate-fade-in">
-                <div class="bg-emerald-700 text-white px-4 py-3 flex justify-between items-center shrink-0">
-                    <h3 class="font-bold text-sm tracking-wide"><i class="fas fa-eye mr-1.5 text-amber-400"></i> Flight-Spion (Live-Stand)</h3>
-                    <button onclick="document.getElementById('score-leaderboard-overlay').classList.add('hidden')" class="text-white opacity-80 hover:opacity-100 touch-target text-lg">
-                        <i class="fas fa-times-circle"></i>
-                    </button>
-                </div>
-                <div id="overlay-leaderboard-content" class="flex-1 overflow-y-auto p-3 space-y-3">
-                </div>
-            </div>
-        </div>
-    `;
+    return '<div class="lie-score-screen"><div class="lie-score-heading"><button class="lie-back" aria-label="Score-Eingabe verlassen" onclick="app.router.navigate(\'dashboard\')"><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button><h1>Mein Flight</h1><span class="lie-course-context">'
+        + esc(c.course ? c.course.name : 'Scorekarte') + ' · Flight ' + c.seq + '</span></div>'
+        + '<div class="lie-hole-sticky"><nav class="lie-progress" aria-label="Lochfortschritt">' + progress + '</nav>'
+        + '<div class="lie-hole-context"><div class="lie-hole-title"><button aria-label="Vorheriges Loch" ' + (c.hole === c.first ? 'disabled' : 'onclick="' + navigate(c.hole - 1) + '"') + '><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button><h2>Loch ' + c.hole + ' von ' + c.last + '</h2><button aria-label="Nächstes Loch" ' + (c.hole === c.last ? 'disabled' : 'onclick="' + navigate(c.hole + 1) + '"') + '><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button></div><p>Par ' + esc(c.current.par) + ' · SI ' + esc(c.current.si) + '</p></div></div>'
+        + '<div class="lie-players">' + cards + '</div>'
+        + (c.leader ? '<details class="lie-management"><summary>Spielleitung</summary>' + c.flights.map(function(flight)
+        {
+            const n = flight.seq;
+            return '<button class="lie-button" onclick="' + navigate(c.hole, n) + '">Flight ' + n + '</button>';
+        }).join('') + '<button class="lie-button" onclick="app.router.navigate(\'score_schnellerfassung\',{id:' + arg(c.id) + ',flightSeq:' + c.seq + '})">Schnellerfassung</button>'
+        + '<button class="lie-button" onclick="app.logic.openEditSpieltagModal(' + arg(c.id) + ',' + c.hole + ',' + c.seq + ')">Spieltag bearbeiten</button></details>' : '')
+        + '<nav class="lie-round-nav" aria-label="Rundennavigation"><button ' + (c.hole === c.first ? 'disabled' : 'onclick="' + navigate(c.hole - 1) + '"') + '><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg><span>Loch ' + (c.hole === c.first ? c.first : c.hole - 1) + '</span></button>'
+        + '<button onclick="app.logic.openLeaderboardOverlay(' + arg(c.id) + ')"><svg class="lie-flight-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3"/><circle cx="4" cy="8" r="2"/><circle cx="20" cy="8" r="2"/><path d="M7 21v-5a5 5 0 0 1 10 0v5ZM1 20v-5a3 3 0 0 1 4-3v8ZM19 20v-8a3 3 0 0 1 4 3v5Z"/></svg><span>Flight / Live</span></button><button class="lie-next" '
+        + (c.hole === c.last ? 'onclick="app.router.navigate(\'dashboard\')">Eingabe verlassen' : 'onclick="' + navigate(c.hole + 1) + '"><span>Loch ' + (c.hole + 1) + '</span><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>') + '</button></nav></div>'
+        + '<div id="score-leaderboard-overlay" class="lie-overlay hidden" role="dialog" aria-modal="true" aria-label="Flight und Live-Stand"><div class="lie-overlay-panel"><button class="lie-button" onclick="document.getElementById(\'score-leaderboard-overlay\').classList.add(\'hidden\')">Schließen</button><div id="overlay-leaderboard-content"></div></div></div>';
 };
-
-

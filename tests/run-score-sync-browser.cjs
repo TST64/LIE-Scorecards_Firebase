@@ -39,7 +39,8 @@ async function main()
     const testDb = memoryDatabase();
     const writeV2 = createScoreOperationsV2(testDb, fieldValue);
     const testAuth = { uid: 'A', token: { playerId: 'A', role: 'Spieler' } };
-    const allowed = new Set(['/App_Storage_ScoreSync.js', '/App_Logic_ScoreSyncV2.js',
+    const allowed = new Set(['/App_Storage_ScoreSync.js', '/App_Logic_ScoreSyncV2.js', '/App_Logic_ScoreEntryV2.js',
+        '/tests/score-entry-v2.html', '/tests/score-entry-v2.test.js',
         '/tests/score-sync-v2.html', '/tests/score-sync-v2.test.js', '/tests/score-sync-storage.html']);
     const server = http.createServer(async function(request, response)
     {
@@ -250,6 +251,14 @@ async function main()
         if (summary.failed)
         {
             process.exitCode = 1;
+        }
+        await navigate(base + '/tests/score-entry-v2.html');
+        const phaseB = await command('Runtime.evaluate',
+            { expression: 'window.scoreEntryV2Tests', awaitPromise: true, returnByValue: true }, session);
+        console.log('Phase B: ' + JSON.stringify(phaseB));
+        if (phaseB.exceptionDetails || !phaseB.result.value || phaseB.result.value.failed !== 0)
+        {
+            throw new Error('Phase B browser tests failed.');
         }
         await navigate(base + '/tests/score-sync-storage.html');
         const regression = await command('Runtime.evaluate',

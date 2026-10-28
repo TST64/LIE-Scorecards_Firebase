@@ -47,7 +47,11 @@ function memoryDatabase()
     return {
         collection: function(collection)
         {
-            return { doc: function(id)
+            return { where: function(field, operator, value)
+            {
+                assert.equal(operator, "==");
+                return { query: { collection: collection, field: field, value: value } };
+            }, doc: function(id)
             {
                 const path = collection + "/" + id;
                 return { path: path, get: async function() { return snapshot(path); },
@@ -63,6 +67,18 @@ function memoryDatabase()
                 const result = await work({ get: async function(ref)
                 {
                     assert.equal(writes.length, 0, "all reads must precede writes");
+                    if (ref.query)
+                    {
+                        const query = ref.query;
+                        return { docs: Array.from(records.keys()).filter(function(path)
+                        {
+                            return path.startsWith(query.collection + "/")
+                                && snapshot(path).data()[query.field] === query.value;
+                        }).map(function(path)
+                        {
+                            return Object.assign({ id: path.slice(query.collection.length + 1) }, snapshot(path));
+                        }) };
+                    }
                     return snapshot(ref.path);
                 }, set: function(ref, data, options)
                 {

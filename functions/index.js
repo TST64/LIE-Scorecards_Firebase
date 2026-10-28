@@ -34,6 +34,23 @@ exports.saveScoreOperationsV2 = onCall(async function(request)
     }
 });
 
+// Separate own-flight read. Loading/exporting does not execute a read.
+const { createScoreReadV2 } = require("./score-read-v2");
+const readOwnFlightScoresV2 = createScoreReadV2(db);
+exports.readOwnFlightScoresV2 = onCall(async function(request)
+{
+    requireAuth(request);
+    try
+    {
+        return await readOwnFlightScoresV2(request.auth, request.data);
+    }
+    catch (error)
+    {
+        console.error("[readOwnFlightScoresV2]", error);
+        throw new HttpsError("failed-precondition", "Eigener Flight konnte nicht sicher gelesen werden.");
+    }
+});
+
 // Das bestehende Google-Apps-Script versendet weiterhin die temporären PINs.
 // Die URL stammt aus der bisherigen config.js des Projekts.
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec";

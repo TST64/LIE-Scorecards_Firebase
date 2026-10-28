@@ -729,7 +729,7 @@ app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
                             const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
                             container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
                         }
-                        else if (app.state.currentView === 'score_eingabe' && holeNr)
+                        else if (app.state.currentView === 'score_eingabe' && holeNr && !app.state.scoreEntryV2)
                         {
                             const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(
                                 function(k)

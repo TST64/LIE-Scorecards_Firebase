@@ -174,3 +174,23 @@ app.createFirebaseScoreSyncV2Adapter = function()
         }
     });
 };
+
+
+// Read-only transport; never creates a score operation or sends a write request.
+app.scoreSyncV2ReadCallableTransport = async function(request)
+{
+    const user = firebase.auth().currentUser;
+    if (!user || user.uid !== request.ownerUid)
+    {
+        throw new Error('No matching Firebase session for V2 read.');
+    }
+    const token = await user.getIdTokenResult();
+    if (firebase.auth().currentUser !== user || token.claims.playerId !== request.playerId
+        || user.uid !== token.claims.playerId || token.claims.mustChangePin === true)
+    {
+        throw new Error('V2 read identity changed or is invalid.');
+    }
+    const callable = firebase.app().functions('europe-west1').httpsCallable('readOwnFlightScoresV2');
+    const response = await callable(request);
+    return response.data;
+};

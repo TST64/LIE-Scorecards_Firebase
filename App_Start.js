@@ -97,6 +97,12 @@ app.initStart = async function()
             );
         });
 
+        if (authUser && navigator.onLine === false && app.openOfflineScoreEntryV2
+            && await app.openOfflineScoreEntryV2(authUser))
+        {
+            return;
+        }
+
         let claims = {};
 
         if (authUser)
