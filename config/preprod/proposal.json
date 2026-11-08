@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "status": "proposal-not-registered-not-approved",
+  "proposedProjectId": "lie-scorecards-preprod",
+  "projectAvailabilityChecked": false,
+  "region": "europe-west1",
+  "proposedOrigin": "https://preprod.lie-scorecards.invalid",
+  "domainAvailabilityChecked": false,
+  "hostingDecision": "pending-separate-firebase-hosting-or-separate-static-host",
+  "mail": { "mode": "disabled", "endpoint": null },
+  "dataPolicy": "synthetic-only-no-production-imports",
+  "browserPolicy": "separate-origin-profile-no-buffer-or-worker-migration",
+  "identityPolicy": "dedicated-runtime-and-component-deploy-identities-no-production-access",
+  "banner": "PREPROD — SYNTHETIC TEST DATA",
+  "billingOwner": null,
+  "projectOwner": null,
+  "securityReviewer": null,
+  "releaseApprover": null,
+  "approved": false
+}

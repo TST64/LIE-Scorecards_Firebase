@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "mode": "preprod-review-only",
+  "cloudExecutionEnabled": false,
+  "approvedTargets": [],
+  "forbiddenProjects": ["liescorecard-70c5e"],
+  "components": ["rules", "functions", "frontend", "rollback"]
+}
