@@ -1008,37 +1008,26 @@ app.logic.saveEditSpieltag = async function(spieltagId, currentHoleNr, flightSeq
 // =========================================================================
 // NEU: Logik für die Tabellarische Schnellerfassung
 // =========================================================================
-app.logic.updateRapidScoreState = function(spieltagId, spielerId, holeNr, type, value)
+app.logic.updateRapidScoreState = function(spieltagId, spielerId, holeNr, type, value, input)
 {
-    // Die Live-Score Keys müssen exakt mit denen der Views_ScoreEingabe.js übereinstimmen
-    const key = type === 'strokes' 
-        ? `${spieltagId}_${spielerId}_${holeNr}` 
-        : `${spieltagId}_${spielerId}_${holeNr}_puts`;
-
-    // Wert bereinigen (leere Felder erlauben)
+    const key = type === 'strokes' ? `${spieltagId}_${spielerId}_${holeNr}` : `${spieltagId}_${spielerId}_${holeNr}_puts`;
     const strVal = String(value).trim();
-    
-    if (strVal === "")
+    let accepted = false;
+    if ((type === 'strokes' || type === 'putts') && (strVal === '' || /^\d+$/.test(strVal)))
     {
-        // Wenn das Feld geleert wird, löschen wir den Key aus dem State
-        delete app.state.liveScores[key];
+        if (strVal === '') delete app.state.liveScores[key];
+        else app.state.liveScores[key] = Number(strVal);
+        accepted = app.logic.markScorePending(spieltagId, key);
     }
-    else
+    if (!accepted)
     {
-        const intVal = parseInt(strVal);
-        if (!isNaN(intVal))
+        if (input)
         {
-            app.state.liveScores[key] = intVal;
-            if (app.logic.markScorePending)
-            {
-                app.logic.markScorePending(spieltagId, key);
-            }
+            const card = (app.state.scoreCards || []).find(c => String(c.spieltagId) === String(spieltagId) && String(c.spielerId) === String(spielerId) && Number(c.hole) === Number(holeNr));
+            input.value = app.logic.getV1DisplayedValue(key, card && card[type === 'strokes' ? 'strokes' : 'puts']) ?? '';
         }
+        if (app.logic.showToast) app.logic.showToast('Eingabe nicht gespeichert – Wert und lokalen Speicher prüfen.', 'error');
     }
-    
-    // WICHTIG: Wir rufen hier ganz bewusst NICHT den Router oder eine Render-Funktion auf!
-    // Dadurch wird das DOM nicht zerstört, das Input-Feld behält den Fokus und 
-    // das zeilenweise TAB-Springen funktioniert blitzschnell und reibungslos.
+    // No rerender: preserve focus and rapid-entry tab order.
+    return accepted;
 };
-
-

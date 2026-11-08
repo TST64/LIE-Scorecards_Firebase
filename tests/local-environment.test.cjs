@@ -108,8 +108,8 @@ function v1Fixture(saved = {})
 {
     const calls = [], timers = [], listeners = {};
     const storage = new Map(Object.entries(saved));
-    const context = { console, navigator: { onLine: true },
-        localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
+    const context = { console, crypto: require("node:crypto").webcrypto, sessionStorage: { getItem() {}, setItem() {} }, navigator: { onLine: true, locks: { request: async (name, options, callback) => callback({ name }) } },
+        localStorage: { get length() { return storage.size; }, key: i => [...storage.keys()][i], getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
         document: { getElementById: () => null }, window: { addEventListener: (n, f) => { listeners[n] = f; } },
         setTimeout: f => { timers.push(f); return timers.length; }, clearTimeout() {}, setInterval: f => { timers.push(f); },
         app: { environment: { assertReady() {} }, logic: {}, state: { currentUser: { id: 'A' }, liveScores: {}, flights: [
@@ -150,7 +150,7 @@ test('V1 timer sends only owner-bound local changes; reload restores that owner 
     f.context.app.logic.calculateHoleVorgabe = () => 2;
     f.context.app.state.liveScores.ST_A_1 = 5;
     f.context.app.logic.markScorePending('ST', 'ST_A_1');
-    const key = 'lie_score_sync_v1__local:demo-lie-scorecards-local__A';
+    const key = 'lie_score_sync_v1_s01__local:demo-lie-scorecards-local__A';
     assert.equal(JSON.parse(f.storage.get(key)).owner, 'A');
     const reload = v1Fixture(Object.fromEntries(f.storage));
     reload.context.app.logic.restoreLocalScoreBuffer();
@@ -181,7 +181,9 @@ test('late V1 ACK cannot erase or persist another user partition', async () =>
     complete({ success: true });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(f.context.app.state.pendingScoreKeys, pending);
-    assert.equal(f.storage.has('lie_score_sync_v1__local:demo-lie-scorecards-local__B'), false);
+    assert.equal(Object.keys(f.context.app.state.pendingScoreKeys).length, 0);
+    assert.equal(f.storage.has('lie_score_sync_v1_s01__local:demo-lie-scorecards-local__B'), false);
+    assert.equal([...f.storage.keys()].some(key => key.startsWith('lie_score_sync_v1_s01__local:demo-lie-scorecards-local__B__')), false);
 });
 test('local server refuses readiness when emulator is missing and does not serve secrets', async () =>
 {

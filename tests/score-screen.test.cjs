@@ -334,7 +334,7 @@ test('global legacy maxscore handler contract remains untouched', function()
     {
         return null;
     } } });
-    app.logic.markScorePending = function()
+    app.logic.markScoreFieldsPending = function()
     {
     };
     app.state.liveScores.ST_A_1_puts = 1;

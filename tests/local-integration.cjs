@@ -93,6 +93,51 @@ async function run(profile, port)
         assert.equal(await evaluate("app.db.collection('spieler').doc('local-player-b').get().then(()=>false,e=>e.code==='permission-denied')"), true);
         assert.equal(await evaluate("app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true}).then(()=>false,e=>e.code==='permission-denied')"), true);
         assert.equal(await evaluate("app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').set({puts:3},{merge:true}).then(()=>true)"), true);
+        stage = 'S01 real V1 delayed ACK 5/6 and independent server read';
+        assert.equal(await evaluate(`(async()=>{
+            await app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').update({lady:true});
+            await app.logic.refreshGlobalAppData(); app.router.navigate('score_schnellerfassung',{id:'local-round',flightSeq:1}); app.logic.initScoreAutoSync('local-round');
+            window.s01Api=app.logic.apiRequest;
+            app.logic.apiRequest=async(action,payload)=>{const response=await s01Api(action,payload);window.s01Committed=response.success;return new Promise(resolve=>{window.s01Release=()=>resolve(response);});};
+            app.state.liveScores['local-round_local-player-a_1']=5;
+            if(!app.logic.markScorePending('local-round','local-round_local-player-a_1'))return false;
+            window.s01Running=app.logic.syncScoresWithServer('local-round',1,true);return true;
+        })()`), true);
+        await waitFor('Boolean(window.s01Committed && window.s01Release)');
+        assert.equal(await evaluate(`(async()=>{
+            app.state.liveScores['local-round_local-player-a_1']=6;app.logic.markScorePending('local-round','local-round_local-player-a_1');
+            s01Release();await s01Running;
+            const old=(await app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').get({source:'server'})).data();
+            if(old.strokes!==5||!app.state.pendingScoreKeys['local-round_local-player-a_1'])return false;
+            app.logic.apiRequest=s01Api;await app.logic.syncScoresWithServer('local-round',1,true);
+            const saved=(await app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').get({source:'server'})).data();
+            return saved.strokes===6&&saved.puts===3&&saved.lady===true&&!app.state.pendingScoreKeys['local-round_local-player-a_1']&&document.getElementById('score-sync-status').textContent.includes('Serverbestätigt');
+        })()`), true);
+        stage = 'S01 real V1 clear, zero and false';
+        assert.equal(await evaluate(`(async()=>{
+            const key='local-round_local-player-a_1_puts';delete app.state.liveScores[key];app.logic.markScorePending('local-round',key);
+            await app.logic.syncScoresWithServer('local-round',1,true);
+            const ref=app.db.collection('scorecards').doc('SC-local-round-local-player-a-1');
+            if('puts' in (await ref.get({source:'server'})).data())return false;
+            app.state.liveScores[key]=0;app.logic.markScorePending('local-round',key);
+            app.state.liveScores['local-round_local-player-a_1_lady']=false;app.logic.markScorePending('local-round','local-round_local-player-a_1_lady');
+            await app.logic.syncScoresWithServer('local-round',1,true);const saved=(await ref.get({source:'server'})).data();return saved.puts===0&&saved.lady===false;
+        })()`), true);
+        stage = 'S01 real V1 commit then lost ACK blocks replay after real reload';
+        assert.equal(await evaluate(`(async()=>{
+            app.logic.apiRequest=async(a,p)=>{await s01Api(a,p);throw new Error('synthetic ACK lost');};
+            app.state.liveScores['local-round_local-player-a_2']=8;app.logic.markScorePending('local-round','local-round_local-player-a_2');
+            await app.logic.syncScoresWithServer('local-round',1,true);
+            const saved=(await app.db.collection('scorecards').doc('SC-local-round-local-player-a-2').get({source:'server'})).data();
+            return saved.strokes===8&&!!app.state.pendingScoreKeys['local-round_local-player-a_2']&&document.getElementById('score-sync-status').textContent.includes('gesperrt');
+        })()`), true);
+        await command('Page.reload', {}, sessionId);
+        await waitFor("Boolean(window.app && app.state && app.state.currentUser && app.state.currentUser.id==='local-player-a')");
+        assert.equal(await evaluate(`(async()=>{
+            app.logic.initScoreAutoSync('local-round');let calls=0;const original=app.logic.apiRequest;
+            app.logic.apiRequest=async(...args)=>{calls++;return original(...args);};await app.logic.syncScoresWithServer('local-round',1,true);app.logic.apiRequest=original;
+            const key='local-round_local-player-a_2';return calls===0&&app.state.liveScores[key]===8&&!!app.state.pendingScoreKeys[key]&&app.state.v1JournalState.blocked.has(key);
+        })()`), true);
         // Production V2 read/write adapters, real Callable transport, real transactions.
         stage = 'V2 read';
         assert.equal(await evaluate("(async()=>{const r=await app.scoreSyncV2ReadCallableTransport({ownerUid:'local-player-a',playerId:'local-player-a',spieltagId:'local-round'});return r.flightId==='local-flight';})()"), true);
@@ -125,7 +170,7 @@ async function run(profile, port)
             projectId: profile.projectId, normalForbiddenOrigins: 0, allowedPorts: [...allowed],
             observedLocalRequests: requests.filter(r => r.host === '127.0.0.1').length,
             cspNegativeControl: negative, rulesRoles: ['anonymous', 'Spieler', 'Spielleiter', 'Admin'] }, null, 2));
-        console.log('PASS local real-app network/Auth/Functions/Firestore/Rules/V2/mail/reload/logout checks; CSP negative control blocked.');
+        console.log('PASS local real-app S01 V1 5/6, field patches, clear/zero/false, ACK loss/reload/no-replay with independent server reads; network/Auth/Functions/Firestore/Rules/V2/mail/logout; CSP blocked.');
         await command('Browser.close');
     }
     catch (error)
