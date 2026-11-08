@@ -25,7 +25,7 @@ Erstes Reparaturpaket: **V1-ACK-/Pending-Sicherheit samt verlustfreier Feldbehan
 
 Der Stack ist **Auditbasis, kein bereits freigegebener Releasekandidat**. Aktive lokale App/Functions sind bewusst Emulator-only; die geerbten Cloudpläne schalten kein produktionsfähiges Profil frei. Bestehende Worktrees/PRs bleiben unverändert.
 
-Abschlusskontrolle: ursprünglicher binärer Git-Diff und vorherige Liste unversionierter Dateien gegen den zu Beginn im Arbeitsspeicher erfassten Snapshot unverändert (nur erwarteter neuer Worktree-Eintrag separat ausgenommen). Ursprünglicher Branch/HEAD weiterhin `feature/score-autosync`/`cb4661f`; bestehende Phase-2A-/2B-/2C- und Hotfix-Worktrees sauber. Keine Behauptung eines Inhalts-Hashvergleichs sämtlicher unversionierter Dateien.
+Abschlusskontrolle: ursprünglicher binärer Git-Diff und vorherige Liste unversionierter Dateien gegen den zu Beginn im Arbeitsspeicher erfassten Snapshot unverändert (nur erwarteter neuer Worktree-Eintrag separat ausgenommen). Ursprünglicher Branch/HEAD weiterhin `feature/score-autosync`/`cb4661f`; bestehende Phase-2A-/2B-/2C-Worktrees sauber. Der abschließend lesend geprüfte Hotfix-Worktree steht bei `55c0db4` und enthält zusätzlich eine unversionierte `fiveserver.config.js`; sie wurde nicht angefasst. Der erste Statusaufruf dort war in der Sandbox verweigert und wurde danach mit erlaubtem lesendem Git-Aufruf wiederholt. Keine Behauptung eines Inhalts-Hashvergleichs sämtlicher unversionierter Dateien oder eines Vorher-/Nachher-Statusvergleichs des gesamten Hotfix-Worktrees.
 
 ### Hotfix-Integration
 
