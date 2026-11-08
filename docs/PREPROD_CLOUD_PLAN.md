@@ -1,6 +1,8 @@
-# Phase 2B: eigenständiges Firebase-PreProd vorbereiten
+# Phase 2B/2C: eigenständiges Firebase-PreProd vorbereiten
 
 Stand: 08.11.2026, Europe/Berlin. Auftrag: [Issue #6](https://github.com/TST64/LIE-Scorecards_Firebase/issues/6); Abhängigkeiten: Sicherheitsanalyse [PR #3](https://github.com/TST64/LIE-Scorecards_Firebase/pull/3), lokaler Reviewstand [Draft-PR #5](https://github.com/TST64/LIE-Scorecards_Firebase/pull/5). Ausschließlich lokale Vorbereitung. **Keine Projektanlage, Cloud-Bestandsprüfung, IAM-/Billing-/DNS-Änderung, Datenmigration, Deployment oder Merge autorisiert oder ausgeführt.**
+
+Phase-2C-Ergänzung zu [Issue #8](https://github.com/TST64/LIE-Scorecards_Firebase/issues/8): **Firebase Hosting im eigenen künftigen PreProd-Projekt mit Standard-Subdomain ist entschieden.** Kein anderer Host, keine Custom-Domain und keine DNS-Änderung. Die abgeleitete Plan-URL `https://lie-scorecards-preprod.web.app` ist nicht als existent oder aktiv bestätigt. Vollständiger Hosting-Vertrag und spätere Freigaben: [PHASE2C_HOSTING_PLAN.md](PHASE2C_HOSTING_PLAN.md).
 
 ## 1. Bestätigte Basis und Abgrenzung
 
@@ -37,7 +39,8 @@ Lokale Entwicklung (unverändert aus Phase 2A)
     -> Mail deaktiviert, synthetischer Seed, lokale Namespace-Puffer
 
 Cloud-PreProd (erst nach getrennten Entscheidungen)
-  eigener HTTPS-Origin + sichtbares PREPROD-Banner + eigenes Browserprofil
+  eigene Firebase-Hosting-Standard-Subdomain (Plan: <projekt-id>.web.app)
+    + sichtbares PREPROD-Banner + eigenes Browserprofil
     -> eigene Firebase-Web-App / Auth-Konfiguration
     -> eigenes Firebase/GCP-Projekt, eigene Firestore-Datenbank und Rules
     -> eigene Functions in europe-west1 mit eigener Runtime-Identität
@@ -70,8 +73,8 @@ Produktion
 | --- | --- | --- |
 | Projekt-ID | `lie-scorecards-preprod` | **Nur Namensvorschlag; nicht registriert, Verfügbarkeit nicht geprüft** |
 | Region | Functions `europe-west1`; passende EU-Firestore-Standortwahl separat festlegen | Standort ist später bewusst zu bestätigen; keine Ressource erstellt |
-| Domain | Eigener PreProd-Origin; Planplatzhalter `https://preprod.lie-scorecards.invalid` | `.invalid` ist absichtlich kein aufgeschaltetes Ziel; echte Domain/Eigentum/DNS offen |
-| Hosting | Eigene Firebase-Hosting-Site im neuen PreProd-Projekt bevorzugt; alternativ separater statischer Host | Entscheidung offen, keine Änderung an Produktions-CNAME/Pages |
+| Domainstrategie | Ausschließlich Firebase-Standardhosts; Plan `https://lie-scorecards-preprod.web.app`, ggf. weiterer Standardhost `firebaseapp.com` | Entschieden; konkrete Hosts erst nach separat freigegebener Anlage verifizieren; keine Custom-Domain/DNS |
+| Hosting | Firebase Hosting im separaten künftigen PreProd-Projekt | Verbindlich entschieden; weder Hosting aktiviert noch Produktions-CNAME/Pages verändert |
 | Kosten/Billing | Eigene Kostenverantwortung, Budget-/Alarmgrenzen und benötigte Functions-Abrechnung prüfen | Owner/Budget noch nicht benannt; keine Billing-Änderung |
 | Projektverantwortung | Benannter technischer Owner plus Sicherheitsreviewer | Namen fehlen, deshalb keine Ziel-Allowlist-Freigabe |
 | IAM | Getrennte Runtime-, Rules-, Functions-, Frontend- und Rollback-Identitäten | Exakte minimale Rollen/Delegationen nach Ressourcenauswahl prüfen; keine pauschalen Owner/Editor-Rollen |
@@ -136,15 +139,15 @@ Die Phase-2A-Dateien `App_Environment.js`, `config.js`, `.firebaserc`, Functions
 
 Alle Schritte mit Cloudwirkung sind **zukünftige Checkliste**, keine Ausführungsanweisung für diesen Auftrag.
 
-1. **Review:** Issue #6, PR #3 und Draft-PR #5/Phase-2B-Diff prüfen. Breite Feature-Abhängigkeiten nicht blind in `main` übernehmen. Owner, echte Projekt-ID, Region, Domain, Hosting, Budget und Freigabeverfahren entscheiden. Weiterhin keine Cloudzugriffe.
+1. **Review:** Issue #6, PR #3 und Draft-PR #5/Phase-2B-Diff prüfen. Breite Feature-Abhängigkeiten nicht blind in `main` übernehmen. Owner, echte Projekt-ID, Firestore-Standort, Budget und Freigabeverfahren entscheiden. Hostingtyp und Standard-Domainstrategie sind bereits durch Issue #8 festgelegt. Weiterhin keine Cloudzugriffe.
 2. **Gesonderte Freigabe für Bestands-Reads:** Erst falls erforderlich, Art und Umfang der lesenden Cloudprüfung ausdrücklich genehmigen lassen. Gegenwärtiger Bericht enthält keine Firebase-Projekt-Ressourcenreads. Erkenntnisse mit Datum/Identität/Quelle belegen, keine PII in Berichte kopieren.
-3. **Gesonderte Provisionierungsfreigabe:** Exakte neue Projekt-ID und Ressourcenliste freigeben. Danach ausschließlich neues Projekt, eigene Auth/Web-App, Firestore-Standort, benötigte APIs/Functions-/Buildressourcen und ausgewählte Hosting-Site anlegen. Keine Produktionskonfiguration als Default übernehmen. Jede IAM-/Billing-/DNS-Mutation benötigt ihren eigenen autorisierten Umfang.
+3. **Gesonderte Provisionierungsfreigabe:** Exakte neue Projekt-ID und Ressourcenliste freigeben. Danach ausschließlich neues Projekt, eigene Auth/Web-App, Firestore-Standort, benötigte APIs/Functions-/Buildressourcen und die Firebase-Hosting-Site mit Standard-Subdomain anlegen (alles erst nach eigener Freigabe). Keine Produktionskonfiguration als Default übernehmen. Jede IAM-/Billing-/DNS-Mutation benötigt ihren eigenen autorisierten Umfang.
 4. **Identitätsgrenze:** Runtime und komponentenspezifische Deployidentitäten neu einrichten, keine langfristigen Schlüssel exportieren. WIF/OIDC auf Repository, geschützten Branch/Environment und ggf. konkreten Ref binden. Dienstbezogene minimale Rollen, enges `actAs` und keine Produktions-/übergeordneten Rechte nachweisen. [Firebase IAM-Berechtigungen](https://firebase.google.com/docs/projects/iam/permissions) beschreiben besondere Functions-Anforderungen; genaue Rollen erst anhand des gewählten Ressourcenplans festlegen.
 5. **Cloud-Build-/Runtimeprofil in eigenem Implementierungsreview:** Explizite echte Allowlist, Konfigurationsschema, unabhängige PreProd-App-/Serverguards und vollständige Artefaktinventare erstellen. Lokale Guards nicht aufweichen. Backend-Modus darf nie aus einem Benutzerpayload stammen. Banner, Origin, CSP, Namespace, deaktiviertes GAS, Firestore-/Auth-/Callable-Zielgleichheit und Secrets-Verzicht am fertigen Artefakt prüfen. Kein Wechsel per URL-Parameter oder produktivem Fallback.
 6. **Rules-Freigabe separat:** Rules-Clientmatrix lokal grün; bestehende V1/V2-Schreibpolitik bewusst entscheiden. Eigenes Review und projekt-/digestgebundene Freigabe für ausschließlich PreProd-Rules. Ausführung erst nach gesonderter Autorisierung und erneuter Ziel-/Identitäts-/Artefaktprüfung unmittelbar davor. Keine kombinierte Default-Deploymentoperation.
 7. **Functions-Freigabe separat:** Eigene Runtimeidentität, explizites Projekt/Region, Bindung von Auth/Firestore und Mailstub nachweisen; nur synthetische Fixtures. Eigenes Functions-Review, eigener Digest, eigene kurzlebige Freigabe und Preflight vor Ausführung. Admin SDK umgeht Rules, daher serverseitige Prüfungen zwingend.
 8. **Frontend-/Hosting-Freigabe separat:** Erst nach unabhängig geprüfter Backendbereitschaft Artefakt bauen. Vor Veröffentlichung Hosting-Projekt/Site, Firebase-App, Auth-Domain, Browser-Origin und Server-Projekt auf exakte Gleichheit prüfen. Eigenes Hosting-/Frontend-Review, unveränderliches Artefakt und Freigabe. Produktions-`CNAME` nicht kopieren.
-9. **Domain/DNS separat:** Eigene Domainentscheidung/Eigentumsprüfung und gesonderte DNS-Freigabe. Reale Auth-Domains/HTTPS konfigurieren, ohne Produktions-CNAME/Pages umzuschalten. Ein GitHub-Pages-Preview würde sonst möglicherweise dieselbe bestehende Projektkonfiguration benutzen; separate URL allein reicht nicht. Hosting-Preview und Backendprojekt sind getrennt zu kontrollieren. [Hosting-Testworkflow](https://firebase.google.com/docs/hosting/test-preview-deploy).
+9. **Standardhosts verifizieren, kein DNS:** Erst nach gesondert freigegebener Hostinganlage tatsächliche Site-ID und Firebase-Standardhosts nachweisen, anschließend passende Auth authorized domains separat autorisieren. Kein produktiver Origin, keine Custom-Domain, keine Wiederverwendung von GitHub Pages/CNAME und keine DNS-Arbeit. Vorschlags-URLs sind jetzt keine aktiven Ressourcen. Hosting ersetzt nicht die gesonderte Backend-Projektprüfung. [Hosting-Testworkflow](https://firebase.google.com/docs/hosting/test-preview-deploy).
 10. **Spätere Live-PreProd-Tests separat:** Nur nach Erlaubnis synthetische Auth-/Rules-/Callable-/Score-/HCP-/Rollback-Szenarien im neuen Projekt durchführen; Mail weiterhin deaktiviert. Nachweise ohne PII/Token archivieren. Kein Test der Produktion als Negativkontrolle.
 
 Vor **jeder** späteren CLI-/CI-Cloudoperation: explizites exaktes Projekt, Komponente, freigegebener Artefakt-Digest, Frontend-/Server-/Hosting-ID, tatsächliche kurzlebige Identität und aktuelle IAM-Evidenz erneut prüfen. Keine Wiederverwendung eines früheren Checks für geänderte Artefakte oder andere Komponenten. Dieser PR kann manuelle externe Firebase-CLI-Nutzung technisch nicht verbieten; die zukünftige organisatorische/CI-Rechtegrenze ist deshalb Teil der separaten Freigabe. Hier existiert überhaupt kein Cloud-Ausführungspfad.
@@ -164,10 +167,10 @@ Vor **jeder** späteren CLI-/CI-Cloudoperation: explizites exaktes Projekt, Komp
 
 **Lokaler Rollback:** Wrapper nicht starten bzw. stoppen, neuen Reviewbranch stehen lassen; ursprüngliche Worktrees bleiben erhalten. Es gibt keine Cloudressource zurückzunehmen und keinen Grund für einen Reset vorhandener Arbeit.
 
-**Späterer Cloud-Rollback:** Eigene Freigabe für PreProd-Projekt, Rollbackidentität und alten Artefakt-Digest. Rules, Functions und Frontend getrennt zurücknehmen; Schema-/Revision-/Generation-/Auth-Kompatibilität vorab mit synthetischen Daten prüfen. Frontend zunächst auf bekannte kompatible PreProd-Version zurück, keinesfalls auf Produktion umschalten. Funktionen/Rules nicht pauschal lockern; ggf. PreProd-Nutzung stoppen. Keine automatische Datenlöschung oder Produktionsrestore. DNS-Rücknahme separat freigeben. Ein vorheriger Code-Digest stellt veränderte Daten nicht automatisch wieder her.
+**Späterer Cloud-Rollback:** Eigene Freigabe für PreProd-Projekt, Rollbackidentität und alten Artefakt-Digest. Rules, Functions und Frontend getrennt zurücknehmen; Schema-/Revision-/Generation-/Auth-Kompatibilität vorab mit synthetischen Daten prüfen. Frontend zunächst auf bekannte kompatible PreProd-Version zurück, keinesfalls auf Produktion umschalten. Funktionen/Rules nicht pauschal lockern; ggf. PreProd-Nutzung stoppen. Keine automatische Datenlöschung oder Produktionsrestore. In Phase 2C sind keine DNS-Änderungen geplant; eine spätere Änderung der verbindlichen Domainstrategie benötigte einen neuen Auftrag. Ein vorheriger Code-Digest stellt veränderte Daten nicht automatisch wieder her.
 
 ## 8. Offene Grenzen und nächste Entscheidung
 
 Keine reale Projekt-/Domainverfügbarkeit, IAM-Wirksamkeit, Cloud-Buildfähigkeit, deployte Rules/Functions, Kosten oder Zertifikate geprüft. Der Bundledigest ist ein reproduzierbarer Hash öffentlicher Reviewdateien, keine Signatur/Buildprovenienz und kein Scanner sämtlicher ausführbarer Quelltexte. Produktions-/GAS-Stringprüfungen sind zusätzliche Negativgates, keine Absicherung gegen absichtlich verschleierten Code. Aktuelle Apps bleiben lokal-only; ein Cloudstart wird weiterhin abgelehnt.
 
-Nächster zulässiger Schritt: Review dieses Draft-PRs und Entscheidung über Projekt-ID, Domain/Host, Verantwortliche, Budget, IAM-Modell und komponentengetrennten Freigabeprozess. **Erst eine gesonderte ausdrückliche Freigabe erlaubt später definierte Cloud-Reads, Provisionierung oder Deployments.** Der Merge eines Planungs-/Prüf-PRs allein ist keine solche Freigabe.
+Nächster zulässiger Schritt: Review dieses Draft-PRs und Entscheidung über tatsächliche Projekt-ID, Firestore-Standort, Verantwortliche, Budget, IAM-Modell und komponentengetrennten Freigabeprozess. Firebase Hosting und die Standard-Subdomain werden nicht erneut zur Wahl gestellt. **Erst eine gesonderte ausdrückliche Freigabe erlaubt später definierte Cloud-Reads, Provisionierung oder Deployments.** Der Merge eines Planungs-/Prüf-PRs allein ist keine solche Freigabe.

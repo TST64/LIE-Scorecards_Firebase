@@ -1,0 +1,22 @@
+{
+  "hosting": {
+    "site": "lie-scorecards-preprod",
+    "public": "hosting-public",
+    "ignore": ["firebase.proposal.json", "**/.*", "**/node_modules/**", "**/functions/**", "**/tests/**", "**/*.map", "**/CNAME", "**/config.js"],
+    "rewrites": [
+      { "source": "/app", "destination": "/index.html" },
+      { "source": "/app/**", "destination": "/index.html" }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-store" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "no-referrer" },
+          { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://europe-west1-lie-scorecards-preprod.cloudfunctions.net; img-src 'self' data:; font-src 'self'; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" }
+        ]
+      }
+    ]
+  }
+}

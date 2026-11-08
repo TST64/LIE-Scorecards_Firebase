@@ -4,10 +4,13 @@
   "proposedProjectId": "lie-scorecards-preprod",
   "projectAvailabilityChecked": false,
   "region": "europe-west1",
-  "proposedOrigin": "https://preprod.lie-scorecards.invalid",
+  "proposedOrigin": "https://lie-scorecards-preprod.web.app",
   "domainAvailabilityChecked": false,
-  "hostingDecision": "pending-separate-firebase-hosting-or-separate-static-host",
-  "mail": { "mode": "disabled", "endpoint": null },
+  "hostingDecision": "firebase-hosting-in-separate-preprod-project",
+  "mail": {
+    "mode": "disabled",
+    "endpoint": null
+  },
   "dataPolicy": "synthetic-only-no-production-imports",
   "browserPolicy": "separate-origin-profile-no-buffer-or-worker-migration",
   "identityPolicy": "dedicated-runtime-and-component-deploy-identities-no-production-access",
@@ -16,5 +19,12 @@
   "projectOwner": null,
   "securityReviewer": null,
   "releaseApprover": null,
-  "approved": false
+  "approved": false,
+  "domainStrategy": "firebase-standard-subdomains-only",
+  "proposedHostingSiteId": "lie-scorecards-preprod",
+  "hostingActivated": false,
+  "originVerified": false,
+  "customDomainAllowed": false,
+  "dnsChangesAllowed": false,
+  "proposedAlternateOrigin": "https://lie-scorecards-preprod.firebaseapp.com"
 }
