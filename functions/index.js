@@ -5,20 +5,56 @@
  * Der Browser erhält weder PINs noch PIN-Hashes.
  */
 
+const localGuard = require("./local-guard");
+const localOptions = localGuard.validate(process.env);
+require("./network-guard");
 const crypto = require("crypto");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const admin = require("firebase-admin");
 
-admin.initializeApp();
+admin.initializeApp({ ...localOptions, credential: localGuard.credential(admin) });
 setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
 
 const db = admin.firestore();
-const FieldValue = admin.firestore.FieldValue;
+const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 
-// Das bestehende Google-Apps-Script versendet weiterhin die temporären PINs.
-// Die URL stammt aus der bisherigen config.js des Projekts.
-const GAS_URL = "https://script.google.com/macros/s/AKfycbyxrATlHf3bcAD4vHjTKVIdwDXdyUXBtr_2L0asZXDDEyw9wDEfF2HDdouMc2dEiFBEOQ/exec";
+// Isolated v2 endpoint. No client or v1 saveLiveScores call site uses it yet.
+const { createScoreOperationsV2 } = require("./score-operations-v2");
+const saveScoreOperationsV2 = createScoreOperationsV2(db, FieldValue);
+
+exports.saveScoreOperationsV2 = onCall(async function(request)
+{
+    requireAuth(request);
+    try
+    {
+        return await saveScoreOperationsV2(request.auth, request.data);
+    }
+    catch (error)
+    {
+        console.error("[saveScoreOperationsV2]", error);
+        throw new HttpsError("internal", "Score-Request konnte nicht verarbeitet werden.");
+    }
+});
+
+// Separate own-flight read. Loading/exporting does not execute a read.
+const { createScoreReadV2 } = require("./score-read-v2");
+const readOwnFlightScoresV2 = createScoreReadV2(db);
+exports.readOwnFlightScoresV2 = onCall(async function(request)
+{
+    requireAuth(request);
+    try
+    {
+        return await readOwnFlightScoresV2(request.auth, request.data);
+    }
+    catch (error)
+    {
+        console.error("[readOwnFlightScoresV2]", error);
+        throw new HttpsError("failed-precondition", "Eigener Flight konnte nicht sicher gelesen werden.");
+    }
+});
+
+// External delivery is deliberately unavailable in Phase 2A.
 
 function requireAuth(request)
 {
@@ -181,14 +217,6 @@ exports.verifyPlayerPin = onCall(async (request) =>
     const storedHash = data.pinHash || "";
     const storedLegacyPin = data.pin != null ? String(data.pin).trim() : "";
 
-    console.log("[verifyPlayerPin] Diagnose", {
-        playerId: playerId,
-        hasPinHash: !!storedHash,
-        hasLegacyPin: !!storedLegacyPin,
-        mustChangePin: data.mustChangePin === true,
-        hasLockUntil: !!data.pinLockUntil,
-        failedPinAttempts: Number(data.failedPinAttempts || 0)
-    });
 
     let valid = false;
     let migrated = false;
@@ -213,7 +241,7 @@ exports.verifyPlayerPin = onCall(async (request) =>
         if (failed >= 5)
         {
             update.failedPinAttempts = 0;
-            update.pinLockUntil = admin.firestore.Timestamp.fromMillis(now + 15 * 60 * 1000);
+            update.pinLockUntil = Timestamp.fromMillis(now + 15 * 60 * 1000);
         }
 
         await ref.set(update, { merge: true });
@@ -288,7 +316,7 @@ exports.updatePlayerPin = onCall(async (request) =>
         pinHash: hashPin(tempPin),
         pin: FieldValue.delete(),
         mustChangePin: true,
-        tempPinSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        tempPinSentAt: FieldValue.serverTimestamp(),
     
         // Ein neu angeforderter Einmal-Code startet einen frischen
         // Anmeldeversuch. Vorherige PIN-Fehlversuche und Sperren werden gelöscht.
@@ -360,7 +388,7 @@ exports.requestTempPin = onCall(async (request) =>
         pinHash: hashPin(tempPin),
         pin: FieldValue.delete(),
         mustChangePin: true,
-        tempPinSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        tempPinSentAt: FieldValue.serverTimestamp(),
 
         // Ein neuer Einmal-Code startet einen frischen Anmeldeversuch.
         failedPinAttempts: 0,
@@ -368,18 +396,10 @@ exports.requestTempPin = onCall(async (request) =>
     },
     { merge: true });
 
-    const requestBody = JSON.stringify(
-    {
-        action: "sendTempPinEmail",
-        spielerId: playerId,
-        tempPin: tempPin
-    });
 
     try
     {
-        const response = await fetch(
-            `${GAS_URL}?data=${encodeURIComponent(requestBody)}`
-        );
+        const response = await localGuard.disabledMail();
 
         const text = await response.text();
 

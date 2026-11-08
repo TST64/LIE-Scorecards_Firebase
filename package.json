@@ -1,0 +1,18 @@
+{
+  "name": "lie-local-emulator-profile",
+  "private": true,
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "local": "node tools/local/start.cjs",
+    "test:local": "node --test tests/local-environment.test.cjs",
+    "test:integration": "node tools/local/start.cjs --test"
+  },
+  "devDependencies": {
+    "@fortawesome/fontawesome-free": "6.4.0",
+    "@tailwindcss/browser": "4.1.14",
+    "firebase": "10.8.0",
+    "firebase-tools": "15.33.0"
+  }
+}

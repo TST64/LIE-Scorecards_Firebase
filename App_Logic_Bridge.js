@@ -321,8 +321,7 @@ app.logic.callFunction = async function(functionName, payload)
         throw new Error('Firebase Functions SDK wurde nicht geladen.');
     }
 
-    const functions = firebase.app().functions('europe-west1');
-    const callable = functions.httpsCallable(functionName);
+    const callable = app.environment.callable(functionName);
     const result = await callable(payload || {});
     return result && result.data ? result.data : {};
 };
@@ -342,6 +341,7 @@ app.logic.loadLoginPlayers = async function()
 // Abstraction layer for API requests
 app.logic.apiRequest = async function(action, payload = {})
 {
+    await app.environment.checkOnline();
     // Payload absichtlich nicht protokollieren:
     // API-Aufrufe können PINs oder andere sensible Daten enthalten.
     console.log(`[Bridge Firestore Request] Action: ${action}`);
@@ -729,9 +729,9 @@ app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
                             const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
                             container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
                         }
-                        else if (app.state.currentView === 'score_eingabe' && holeNr)
+                        else if (app.state.currentView === 'score_eingabe' && holeNr && !app.state.scoreEntryV2)
                         {
-                            const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(
+                            const ungesicherteAenderungen = Object.keys(app.state.pendingScoreKeys || {}).filter(
                                 function(k)
                                 {
                                     return k.startsWith(spieltagId + "_");

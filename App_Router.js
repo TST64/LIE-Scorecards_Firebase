@@ -74,6 +74,12 @@ app.router.navigate = function(viewName, params)
     }
 
 
+    if (app.router.currentView === 'score_eingabe' && targetView !== 'score_eingabe'
+        && app.state.scoreEntryV2)
+    {
+        app.state.scoreEntryV2.needsReload = true;
+    }
+
     app.router.currentView = targetView;
     app.router.currentParams = params || null;
     app.state.currentView = targetView;
@@ -257,6 +263,7 @@ app.router.navigate = function(viewName, params)
         app.logic.startLivePolling(params.id);
     }
     else if (targetView === 'score_eingabe' &&
+             !app.state.scoreEntryV2 &&
              params &&
              params.id &&
              app.logic &&

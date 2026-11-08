@@ -1,16 +1,15 @@
+node_modules/
 .clasprc.json
 .clasp.json
 .DS_Store
 Code.js
 UnitTests.js
-
-# Firebase Functions
-functions/node_modules/
 functions/.env
 functions/.env.*
-firebase-debug.log
-firebase-debug.*.log
-
-# Lokale Backups
 ARCHIV/
 20260920_1643/
+functions/node_modules/
+.local-runtime/
+.firebase-local.generated.json
+*-debug.log
+*-debug.*.log

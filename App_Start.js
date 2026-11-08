@@ -10,6 +10,7 @@ app.logic = app.logic || {};
 // Registrierung des Service Workers für PWA-Installation und automatische Updates
 app.logic.registerServiceWorker = function()
 {
+    if (app.environment) return; // No SW registration or cache reuse in local mode.
     if ('serviceWorker' in navigator)
     {
         navigator.serviceWorker.register('./sw.js')
@@ -56,14 +57,31 @@ app.initStart = async function()
 {
     console.log("[App] Starting LIE Scorecard initialization...");
 
+    // Contract failures escape before the legacy login-list fallback can run.
+    try
+    {
+        app.environment = LieEnvironment.create(window.LIE_LOCAL_PROFILE, window.firebaseConfig,
+            window.location, firebase, async function(profile)
+            {
+                if (navigator.serviceWorker && navigator.serviceWorker.controller)
+                    throw new Error('Use a fresh local browser profile: active service worker.');
+                const response = await fetch('/__local/ready', {cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(3000)});
+                const actual = await response.json();
+                if (!response.ok || JSON.stringify(actual) !== JSON.stringify(profile))
+                    throw new Error('Local emulator readiness mismatch.');
+            });
+        await app.initCore();
+    }
+    catch (error)
+    {
+        document.getElementById('app-container').textContent = 'Lokaler Start gesperrt: ' + error.message;
+        return;
+    }
     app.logic.registerServiceWorker();
 
     try
     {
-        if (typeof app.initCore === 'function')
-        {
-            await app.initCore();
-        }
+        app.environment.assertReady();
 
 
         // Nach einem Reload muss Firebase Auth zunächst die gespeicherte
@@ -96,6 +114,12 @@ app.initStart = async function()
                 }
             );
         });
+
+        if (authUser && navigator.onLine === false && app.openOfflineScoreEntryV2
+            && await app.openOfflineScoreEntryV2(authUser))
+        {
+            return;
+        }
 
         let claims = {};
 

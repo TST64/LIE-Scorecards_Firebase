@@ -260,6 +260,14 @@ app.logic.logout = function()
         {
             try
             {
+                // Keep durable buffers; stop timers and remove only in-memory ownership.
+                Object.values(app.state.scoreAutoSyncTimers || {}).forEach(clearTimeout);
+                clearInterval(app.state.scorePeriodicSyncId);
+                app.state.scoreSyncListenersReady = false;
+                app.state.scoreBufferOwner = null;
+                app.state.pendingScoreKeys = {};
+                app.state.liveScores = {};
+                app.state.scoreSyncRestored = false;
                 // Firebase-Sitzung vollständig beenden.
                 if (typeof firebase !== 'undefined' && firebase.auth)
                 {

@@ -1029,6 +1029,10 @@ app.logic.updateRapidScoreState = function(spieltagId, spielerId, holeNr, type, 
         if (!isNaN(intVal))
         {
             app.state.liveScores[key] = intVal;
+            if (app.logic.markScorePending)
+            {
+                app.logic.markScorePending(spieltagId, key);
+            }
         }
     }
     
