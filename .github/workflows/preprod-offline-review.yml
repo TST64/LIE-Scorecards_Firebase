@@ -14,6 +14,8 @@ on:
       - 'tools/local/**'
       - 'docs/PREPROD_CLOUD_PLAN.md'
       - 'docs/PHASE2B_GATE_TEST_REPORT.md'
+      - 'docs/PHASE2C_HOSTING_PLAN.md'
+      - 'docs/PHASE2C_HOSTING_TEST_REPORT.md'
       - '.github/workflows/preprod-offline-review.yml'
   workflow_dispatch:
 permissions:
@@ -29,6 +31,6 @@ jobs:
       - name: Node version
         run: node --version
       - name: Offline policy and negative tests (built-ins only)
-        run: node --test tests/preprod-gates.test.cjs tests/local-environment.test.cjs
+        run: node --test tests/preprod-gates.test.cjs tests/preprod-hosting.test.cjs tests/local-environment.test.cjs
       - name: Show locked policy (not a deployment approval)
         run: node tools/preprod/review.cjs inspect
