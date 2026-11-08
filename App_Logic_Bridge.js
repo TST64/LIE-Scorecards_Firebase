@@ -339,8 +339,97 @@ app.logic.loadLoginPlayers = async function()
 };
 
 // Abstraction layer for API requests
+// S01: only this field-operation protocol may write V1 cards. A transaction
+// preserves unrelated server fields and rechecks the captured round/flight.
+// It does NOT introduce cross-writer field revisions (Mission Samstag S03).
+app.logic.saveV1ScoreSnapshot = async function(wire)
+{
+    let transactionStarted = false;
+    let checkingReadiness = true;
+    const fail = message => { throw new Error(message); };
+    const identifier = value => typeof value === 'string' && !!value && !/[/_\s]/.test(value);
+    const uuid = value => typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value);
+    const only = (value, fields) => value && typeof value === 'object' && Object.keys(value).every(key => fields.includes(key));
+    try
+    {
+        await app.environment.checkOnline();
+        checkingReadiness = false;
+        if (!wire || wire.protocol !== 'v1-s01' || wire.environment !== 'local:demo-lie-scorecards-local'
+            || !uuid(wire.requestId) || !identifier(wire.owner) || !identifier(wire.spieltagId) || !identifier(wire.flightId)
+            || !Number.isSafeInteger(wire.flightSeq) || wire.flightSeq < 1
+            || !app.state.currentUser || String(app.state.currentUser.id) !== wire.owner
+            || !Array.isArray(wire.payload) || !wire.payload.length || wire.payload.length > 72) fail('Ungültiger V1-Snapshot.');
+        const ids = new Set(), cards = new Set();
+        for (const card of wire.payload)
+        {
+            if (!only(card, ['id', 'spieltagId', 'spielerId', 'hole', 'flightSeq', 'creation', 'changes'])
+                || card.spieltagId !== wire.spieltagId || !identifier(card.spielerId)
+                || !Number.isSafeInteger(card.hole) || card.hole < 1 || card.hole > 18
+                || card.id !== 'SC-' + wire.spieltagId + '-' + card.spielerId + '-' + card.hole
+                || cards.has(card.id) || card.flightSeq !== wire.flightSeq
+                || !only(card.creation, ['hcpStart', 'strokesGiven'])
+                || !Number.isFinite(card.creation.hcpStart) || card.creation.hcpStart < 0 || card.creation.hcpStart > 54
+                || !Number.isSafeInteger(card.creation.strokesGiven) || card.creation.strokesGiven < 0
+                || !Array.isArray(card.changes) || !card.changes.length || card.changes.length > 4) fail('Ungültige Scoreidentität.');
+            cards.add(card.id);
+            const fields = new Set();
+            for (const op of card.changes)
+            {
+                if (!only(op, ['changeId', 'field', 'operation', 'value']) || !uuid(op.changeId) || ids.has(op.changeId)
+                    || !['strokes', 'puts', 'lady', 'maxscore'].includes(op.field) || fields.has(op.field)
+                    || !['set', 'delete'].includes(op.operation)
+                    || (op.operation === 'delete' ? op.value !== null : ['lady', 'maxscore'].includes(op.field)
+                        ? typeof op.value !== 'boolean' : !Number.isSafeInteger(op.value) || op.value < (op.field === 'strokes' ? 1 : 0))) fail('Ungültige Feldoperation.');
+                ids.add(op.changeId); fields.add(op.field);
+            }
+        }
+        transactionStarted = true;
+        await app.db.runTransaction(async function(tx)
+        {
+            const round = await tx.get(app.db.collection('spieltage').doc(wire.spieltagId));
+            const flight = await tx.get(app.db.collection('flights').doc(wire.flightId));
+            const refs = wire.payload.map(card => app.db.collection('scorecards').doc(card.id));
+            const snapshots = [];
+            for (const ref of refs) snapshots.push(await tx.get(ref));
+            if (!round.exists || round.data().status !== 'Aktiv' || !flight.exists
+                || String(flight.data().spieltagId) !== wire.spieltagId || app.logic.getFlightSeq(flight.data()) !== wire.flightSeq) fail('Runde/Flight nicht mehr aktiv oder eindeutig.');
+            const members = String(flight.data().spielerIdsCsv || '').split(',').map(id => id.trim());
+            if (members.some(id => !identifier(id)) || new Set(members).size !== members.length
+                || String(app.state.currentUser && app.state.currentUser.id) !== wire.owner
+                || (!members.includes(wire.owner) && !['Admin', 'Spielleiter'].includes(app.state.currentUser.role))) fail('Flight/Benutzer geändert.');
+            // Validate every target before queuing any write.
+            wire.payload.forEach((card, i) =>
+            {
+                const old = snapshots[i].exists ? snapshots[i].data() : null;
+                if (!members.includes(card.spielerId) || (old && (old.id !== card.id || String(old.spieltagId) !== card.spieltagId
+                    || String(old.spielerId) !== card.spielerId || old.hole !== card.hole
+                    || (old.flightSeq !== undefined && old.flightSeq !== card.flightSeq)))) fail('Widersprüchliche Serveridentität.');
+                if (!old && !card.changes.every(op => op.operation === 'delete')
+                    && !card.changes.some(op => op.field === 'strokes' && op.operation === 'set')) fail('Neue Karte ohne Schlagbasis.');
+            });
+            wire.payload.forEach((card, i) =>
+            {
+                const patch = {};
+                card.changes.forEach(op => { if (op.operation === 'set') patch[op.field] = op.value;
+                    else if (snapshots[i].exists) patch[op.field] = firebase.firestore.FieldValue.delete(); });
+                if (snapshots[i].exists) tx.update(refs[i], patch);
+                else if (Object.keys(patch).length) tx.set(refs[i], { id: card.id, spieltagId: card.spieltagId, spielerId: card.spielerId,
+                    hole: card.hole, flightSeq: card.flightSeq, ...card.creation, ...patch });
+            });
+        });
+        return { success: true, requestId: wire.requestId, acknowledgedChangeIds: [...ids] };
+    }
+    catch (error)
+    {
+        // Once a transaction was entered, even a rejected promise is conservatively
+        // unknown. No automatic stale retry without a server idempotency receipt.
+        return { success: false, requestId: wire && wire.requestId, error: error.message,
+            ...(!transactionStarted ? { definitelyNotApplied: true, retryable: checkingReadiness } : {}) };
+    }
+};
 app.logic.apiRequest = async function(action, payload = {})
 {
+    if (action === 'saveLiveScores') return app.logic.saveV1ScoreSnapshot(payload);
     await app.environment.checkOnline();
     // Payload absichtlich nicht protokollieren:
     // API-Aufrufe können PINs oder andere sensible Daten enthalten.
@@ -364,23 +453,6 @@ app.logic.apiRequest = async function(action, payload = {})
                 flights: app.state.flights,
                 kalenderTermine: app.state.kalenderTermine
             });
-        }
-        else if (action === 'saveLiveScores')
-        {
-            const scoresArray = payload.payload || payload;
-            if (Array.isArray(scoresArray))
-            {
-                const batch = app.db.batch();
-                scoresArray.forEach(
-                    function(sc)
-                    {
-                        const docRef = app.db.collection('scorecards').doc(String(sc.id));
-                        batch.set(docRef, sc, { merge: true });
-                    }
-                );
-                await batch.commit();
-            }
-            return ({ success: true });
         }
         else if (action === 'createNewSpieltag')
         {

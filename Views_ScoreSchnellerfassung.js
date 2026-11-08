@@ -53,14 +53,12 @@ app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(pa
     const tagesFlights = app.state.flights ? app.state.flights.filter(function(f) { return String(f.spieltagId).trim() === String(spieltagId).trim(); }) : [];
 
     let gewaehlterFlight = tagesFlights.find(function(f) {
-        const parts = f.id.split('-');
-        return parseInt(parts[parts.length - 1]) === targetFlightSeq;
+        return app.logic.getFlightSeq(f) === targetFlightSeq;
     });
 
     if (!gewaehlterFlight && tagesFlights.length > 0) {
         gewaehlterFlight = tagesFlights[0];
-        const idParts = gewaehlterFlight.id.split('-');
-        targetFlightSeq = parseInt(idParts[idParts.length - 1]) || 1;
+        targetFlightSeq = app.logic.getFlightSeq(gewaehlterFlight);
     }
 
     let teilnehmerIds = [];
@@ -89,8 +87,7 @@ app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(pa
     {
         let switcherButtons = tagesFlights.map(function(f)
         {
-            const idParts = f.id.split('-');
-            const fNr = parseInt(idParts[idParts.length - 1]) || 1;
+            const fNr = app.logic.getFlightSeq(f);
             const isCurrentFlight = fNr === targetFlightSeq;
 
             return `
@@ -148,11 +145,9 @@ app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(pa
             const dbScores = (app.state.scoreCards || []).filter(function(sc) { return String(sc.spieltagId) === String(spieltagId) && String(sc.spielerId) === String(sId); });
             const dbMatch = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === hNr; });
 
-            let aktuelleSchlaege = app.state.liveScores[currentScoreKey];
-            if (aktuelleSchlaege === undefined && dbMatch && dbMatch.strokes !== undefined) aktuelleSchlaege = dbMatch.strokes;
+            let aktuelleSchlaege = app.logic.getV1DisplayedValue(currentScoreKey, dbMatch && dbMatch.strokes);
 
-            let aktuellePutts = app.state.liveScores[currentPutsKey];
-            if (aktuellePutts === undefined && dbMatch && dbMatch.puts !== undefined) aktuellePutts = dbMatch.puts;
+            let aktuellePutts = app.logic.getV1DisplayedValue(currentPutsKey, dbMatch && dbMatch.puts);
 
             const valSchlaege = aktuelleSchlaege !== undefined && aktuelleSchlaege !== null ? aktuelleSchlaege : '';
             const valPutts = aktuellePutts !== undefined && aktuellePutts !== null ? aktuellePutts : '';
@@ -168,11 +163,11 @@ app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(pa
                 <td class="px-0 py-0 border-r border-stone-200">
                     <div class="flex h-full min-h-[44px]">
                         <input type="tel" pattern="[0-9]*" tabindex="${tabStrokes}" 
-                               oninput="app.logic.updateRapidScoreState('${spieltagId}', '${sId}', ${hNr}, 'strokes', this.value)" 
+                               oninput="app.logic.updateRapidScoreState('${spieltagId}', '${sId}', ${hNr}, 'strokes', this.value, this)"
                                class="w-1/2 text-center font-black text-base text-stone-900 bg-white outline-none focus:bg-amber-50 focus:ring-inset focus:ring-2 focus:ring-amber-400 transition-colors" 
                                value="${valSchlaege}">
                         <input type="tel" pattern="[0-9]*" tabindex="${tabPutts}" 
-                               oninput="app.logic.updateRapidScoreState('${spieltagId}', '${sId}', ${hNr}, 'putts', this.value)" 
+                               oninput="app.logic.updateRapidScoreState('${spieltagId}', '${sId}', ${hNr}, 'putts', this.value, this)"
                                class="w-1/2 text-center font-bold text-sm text-stone-500 bg-stone-50/50 outline-none border-l border-stone-100 focus:bg-amber-50 focus:ring-inset focus:ring-2 focus:ring-amber-400 transition-colors" 
                                value="${valPutts}">
                     </div>
@@ -183,6 +178,8 @@ app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(pa
         trHtml += `<tr class="border-b border-stone-200 hover:bg-stone-50 transition-colors">${rowHtml}</tr>`;
     });
 
+    // Router mounts the returned HTML after this call; populate the real status then.
+    setTimeout(function() { app.logic.updateScoreSyncStatus(spieltagId); }, 0);
     return `
         <div class="space-y-4 pb-28 animate-fade-in">
             <!-- Header -->
@@ -203,6 +200,7 @@ app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(pa
                     </button>
                 </div>
                 ${flightSwitcherHtml}
+                <div id="score-sync-status" role="status" aria-live="polite" class="text-xs font-bold px-3 py-2 rounded-xl">Status wird geprüft …</div>
             </div>
 
             <!-- Tabelle Container -->

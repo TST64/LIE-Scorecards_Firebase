@@ -12,66 +12,218 @@ app.logic = app.logic || {};
 // Lokaler Score-Puffer & automatischer Flight-Sync
 // =========================================================================
 
-app.logic.scoreSyncStorageKey = 'lie_score_sync_v1__local:demo-lie-scorecards-local';
+// S01 journal: immutable per-change/per-request records. Old bundles are quarantined.
+app.logic.scoreSyncStorageKey = 'lie_score_sync_v1_s01__local:demo-lie-scorecards-local';
+app.logic.v1Environment = 'local:demo-lie-scorecards-local';
+app.logic.v1Fields = ['strokes', 'puts', 'lady', 'maxscore'];
+app.logic.v1Own = function(value, key) { return Object.prototype.hasOwnProperty.call(value, key); };
+app.logic.v1Freeze = function(value)
+{
+    if (value && typeof value === 'object')
+    {
+        Object.values(value).forEach(app.logic.v1Freeze);
+        Object.freeze(value);
+    }
+    return value;
+};
+app.logic.v1Key = function(round, key)
+{
+    if (typeof round !== 'string' || !round || /[/_\s]/.test(round) || !key.startsWith(round + '_')) throw new Error('Ungültiger Spieltag.');
+    const parts = key.slice(round.length + 1).split('_');
+    if (parts.length < 2 || parts.length > 3 || !parts[0] || /[/\s]/.test(parts[0]) || !/^[1-9]\d*$/.test(parts[1])
+        || Number(parts[1]) > 18 || (parts.length === 3 && !['puts', 'lady', 'maxscore'].includes(parts[2]))) throw new Error('Ungültiger Scoreschlüssel.');
+    return { spieltagId: round, spielerId: parts[0], hole: Number(parts[1]), field: parts[2] || 'strokes' };
+};
+app.logic.createV1ScoreJournal = function(owner)
+{
+    const prefix = app.logic.scoreSyncStorageKey + '__' + encodeURIComponent(owner);
+    let sequence = 0;
+    const page = crypto.randomUUID();
+    let writer = page;
+    try
+    {
+        const key = app.logic.scoreSyncStorageKey + '__writer';
+        writer = sessionStorage.getItem(key) || page;
+        sessionStorage.setItem(key, writer);
+    }
+    catch (_) { /* Different page IDs force a conflict rather than unsafe adoption. */ }
+    function write(kind, id, data)
+    {
+        const key = prefix + '__' + kind + '__' + id;
+        const json = JSON.stringify(data), previous = localStorage.getItem(key);
+        if (previous !== null && previous !== undefined && previous !== json) throw new Error('Widersprüchlicher lokaler Beleg.');
+        localStorage.setItem(key, json);
+    }
+    function read()
+    {
+        const ops = [], requests = [], receipts = [];
+        for (let i = 0; i < localStorage.length; i++)
+        {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith(prefix + '__')) continue;
+            const value = JSON.parse(localStorage.getItem(key));
+            if (!value || value.owner !== owner || value.environment !== app.logic.v1Environment || value.schemaVersion !== 1) throw new Error('Lokaler Puffer ist beschädigt.');
+            if (key.startsWith(prefix + '__op__')) ops.push(value);
+            else if (key.startsWith(prefix + '__group__') && Array.isArray(value.operations)) ops.push(...value.operations);
+            else if (key.startsWith(prefix + '__request__')) requests.push(value);
+            else if (key.startsWith(prefix + '__receipt__')) receipts.push(value);
+            else throw new Error('Unbekannter lokaler Beleg.');
+        }
+        const byId = new Map(ops.map(op => [op.changeId, op]));
+        const acked = new Set(), superseded = new Set(), blocked = new Set(), reserved = new Set();
+        for (const op of ops)
+        {
+            if (typeof op.changeId !== 'string' || !op.changeId || !Number.isSafeInteger(op.sequence)
+                || !['set', 'delete'].includes(op.operation) || !Array.isArray(op.supersedes)) throw new Error('Ungültige lokale Änderung.');
+            const context = app.logic.v1Key(op.spieltagId, op.key);
+            if (op.owner !== owner || op.environment !== app.logic.v1Environment || op.schemaVersion !== 1
+                || context.spielerId !== op.spielerId || context.hole !== op.hole || context.field !== op.field
+                || typeof op.page !== 'string' || typeof op.writer !== 'string'
+                || (op.operation === 'delete' ? op.value !== null : ['lady', 'maxscore'].includes(op.field)
+                    ? typeof op.value !== 'boolean' : !Number.isSafeInteger(op.value) || op.value < (op.field === 'strokes' ? 1 : 0))) throw new Error('Beschädigte lokale Feldoperation.');
+            sequence = Math.max(sequence, op.sequence);
+            for (const id of op.supersedes)
+            {
+                if (!byId.has(id) || byId.get(id).key !== op.key) throw new Error('Ungültiger lokaler Vorgänger.');
+                superseded.add(id);
+            }
+        }
+        for (const req of requests)
+        {
+            if (!req.wire || req.requestId !== req.wire.requestId || req.wire.owner !== owner || req.wire.environment !== app.logic.v1Environment) throw new Error('Ungültiger lokaler Request.');
+            const ids = req.wire.payload.flatMap(card => card.changes.map(op => op.changeId));
+            if (new Set(ids).size !== ids.length || ids.some(id => !byId.has(id))) throw new Error('Request ohne eindeutige lokale Änderung.');
+            for (const card of req.wire.payload)
+                for (const change of card.changes)
+                {
+                    const op = byId.get(change.changeId);
+                    if (op.spieltagId !== req.wire.spieltagId || op.spieltagId !== card.spieltagId || op.spielerId !== card.spielerId
+                        || op.hole !== card.hole || op.field !== change.field || op.operation !== change.operation || op.value !== change.value) throw new Error('Request widerspricht lokaler Änderung.');
+                }
+            const matching = receipts.filter(r => r.requestId === req.requestId);
+            if (matching.length > 1) throw new Error('Mehrdeutige Bestätigung.');
+            const receipt = matching[0];
+            if (!receipt)
+            {
+                ids.forEach(id => { reserved.add(id); blocked.add(byId.get(id).key); });
+            }
+            else if (receipt.outcome === 'not-applied')
+            {
+                if (!receipt.retryable) ids.forEach(id => blocked.add(byId.get(id).key));
+            }
+            else
+            {
+                if (receipt.outcome !== 'acknowledged' || !Array.isArray(receipt.acknowledgedChangeIds)
+                    || new Set(receipt.acknowledgedChangeIds).size !== receipt.acknowledgedChangeIds.length
+                    || receipt.acknowledgedChangeIds.some(id => !ids.includes(id))) throw new Error('Fremde Bestätigung.');
+                receipt.acknowledgedChangeIds.forEach(id => acked.add(id));
+                ids.filter(id => !acked.has(id)).forEach(id => { reserved.add(id); blocked.add(byId.get(id).key); });
+            }
+        }
+        if (receipts.some(r => !requests.some(q => q.requestId === r.requestId))) throw new Error('Bestätigung ohne Request.');
+        const active = ops.filter(op => !acked.has(op.changeId) && !superseded.has(op.changeId));
+        const groups = new Map();
+        active.forEach(op => { const list = groups.get(op.key) || []; list.push(op); groups.set(op.key, list); });
+        for (const [key, list] of groups)
+            if (new Set(list.map(op => op.page)).size > 1 && new Set(list.map(op => op.writer)).size > 1) blocked.add(key);
+        const latest = [...groups.values()].map(list => list.sort((a, b) => a.sequence - b.sequence || a.changeId.localeCompare(b.changeId)).at(-1));
+        return { ops, requests, receipts, active, latest, acked, blocked, reserved };
+    }
+    function append(round, edits)
+    {
+        const state = read();
+        const changes = edits.map(edit =>
+        {
+            const context = app.logic.v1Key(round, edit.key);
+            const operation = edit.deleted ? 'delete' : 'set';
+            const value = edit.deleted ? null : edit.value;
+            if (operation === 'set' && (['lady', 'maxscore'].includes(context.field) ? typeof value !== 'boolean'
+                : !Number.isSafeInteger(value) || value < (context.field === 'strokes' ? 1 : 0))) throw new Error('Ungültiger Scorewert.');
+            return Object.assign(context, { key: edit.key, operation, value });
+        });
+        if (!changes.length || new Set(changes.map(edit => edit.key)).size !== changes.length) throw new Error('Ungültige Feldgruppe.');
+        const operations = changes.map(edit => Object.assign(edit, { schemaVersion: 1, owner, environment: app.logic.v1Environment,
+            changeId: crypto.randomUUID(), sequence: ++sequence, page, writer,
+            supersedes: state.active.filter(old => old.key === edit.key && old.writer === writer && !state.reserved.has(old.changeId)).map(old => old.changeId) }));
+        // Atomic acceptance of compound actions: quota failure cannot persist half a Strich.
+        if (operations.length === 1) write('op', operations[0].changeId, operations[0]);
+        else write('group', crypto.randomUUID(), { schemaVersion: 1, owner, environment: app.logic.v1Environment, operations });
+        return operations;
+    }
 
+    function prepare(wire)
+    {
+        write('request', wire.requestId, { schemaVersion: 1, owner, environment: app.logic.v1Environment, requestId: wire.requestId, wire });
+    }
+    function acknowledge(wire, response)
+    {
+        if (!response || response.requestId !== wire.requestId) throw new Error('Requestausgang unklar.');
+        const ids = wire.payload.flatMap(card => card.changes.map(op => op.changeId));
+        let receipt;
+        if (response.success !== true && response.definitelyNotApplied === true)
+            receipt = { outcome: 'not-applied', retryable: response.retryable === true, acknowledgedChangeIds: [] };
+        else
+        {
+            if (response.success !== true || !Array.isArray(response.acknowledgedChangeIds)
+                || new Set(response.acknowledgedChangeIds).size !== response.acknowledgedChangeIds.length
+                || response.acknowledgedChangeIds.some(id => !ids.includes(id))) throw new Error('Requestausgang unklar.');
+            receipt = { outcome: 'acknowledged', acknowledgedChangeIds: ids.filter(id => response.acknowledgedChangeIds.includes(id)) };
+        }
+        Object.assign(receipt, { schemaVersion: 1, owner, environment: app.logic.v1Environment, requestId: wire.requestId });
+        write('receipt', wire.requestId, receipt);
+        return receipt;
+    }
+    return { owner, prefix, read, append, prepare, acknowledge };
+};
+app.logic.refreshV1ScoreProjection = function(journal)
+{
+    if (journal !== app.state.v1Journal || journal.owner !== String(app.state.currentUser && app.state.currentUser.id)) return;
+    const data = journal.read();
+    app.state.liveScores = {};
+    app.state.pendingScoreKeys = {};
+    app.state.v1DeletedKeys = {};
+    data.latest.forEach(op =>
+    {
+        app.state.pendingScoreKeys[op.key] = op.changeId;
+        if (op.operation === 'delete') app.state.v1DeletedKeys[op.key] = true;
+        else app.state.liveScores[op.key] = op.value;
+    });
+    app.state.v1JournalState = data;
+    if (data.ops.length) app.state.scoreBufferOwner = journal.owner;
+    // Non-authoritative checkpoint only; operation records are the recovery source.
+    try { if (data.ops.length) localStorage.setItem(journal.prefix, JSON.stringify({ owner: journal.owner, environment: app.logic.v1Environment,
+        liveScores: app.state.liveScores, pendingScoreKeys: app.state.pendingScoreKeys })); } catch (_) { /* journal remains durable */ }
+};
 app.logic.restoreLocalScoreBuffer = function()
 {
-    const activeOwner = app.state.currentUser && String(app.state.currentUser.id);
-    if (app.state.scoreSyncRestored && app.state.scoreRestoredOwner === activeOwner) return;
-    if (app.state.scoreRestoredOwner !== activeOwner)
+    const owner = app.state.currentUser && String(app.state.currentUser.id);
+    if (!owner) return;
+    if (!app.state.v1Journal || app.state.v1Journal.owner !== owner || !app.state.scoreSyncRestored)
     {
-        app.state.liveScores = {};
-        app.state.pendingScoreKeys = {};
+        app.state.v1Journal = app.logic.createV1ScoreJournal(owner);
+        app.state.scoreBufferOwner = null;
+        app.state.v1PersistenceError = null;
+        app.state.v1WaitingKeys = new Set();
+        app.state.scoreRestoredOwner = owner;
+        app.state.scoreSyncRestored = true;
     }
-    app.state.scoreRestoredOwner = activeOwner;
-    app.state.scoreSyncRestored = true;
-    app.state.scoreBufferOwner = null;
-    app.state.pendingScoreKeys = app.state.pendingScoreKeys || {};
-
     try
     {
-        const raw = localStorage.getItem(app.logic.scoreSyncStorageKey + "__" + encodeURIComponent(activeOwner));
-        if (!raw)
-        {
-            return;
-        }
-
-        const saved = JSON.parse(raw);
-        const owner = app.state.currentUser && String(app.state.currentUser.id);
-        if (saved.environment !== 'local:demo-lie-scorecards-local' || saved.owner !== owner) return;
-        app.state.scoreBufferOwner = owner;
-        app.state.liveScores = Object.assign({}, saved.liveScores || {}, app.state.liveScores || {});
-        app.state.pendingScoreKeys = Object.assign({}, saved.pendingScoreKeys || {});
+        const old = 'lie_score_sync_v1__local:demo-lie-scorecards-local__' + encodeURIComponent(owner);
+        app.state.v1LegacyBuffer = !!(localStorage.getItem(old) || localStorage.getItem('lie_score_sync_v1'));
+        app.logic.refreshV1ScoreProjection(app.state.v1Journal);
     }
-    catch (err)
-    {
-        console.warn('[ScoreSync] Lokaler Score-Puffer konnte nicht geladen werden:', err);
-    }
+    catch (error) { app.state.v1PersistenceError = 'Speicherfehler – lokaler Puffer gesperrt.'; }
 };
-
 app.logic.persistLocalScoreBuffer = function()
 {
-    try
-    {
-        const owner = app.state.currentUser && String(app.state.currentUser.id);
-        if (!owner || app.state.scoreBufferOwner !== owner) return;
-        localStorage.setItem(
-            app.logic.scoreSyncStorageKey + "__" + encodeURIComponent(owner),
-            JSON.stringify(
-                {
-                    environment: 'local:demo-lie-scorecards-local',
-                    owner: app.state.currentUser && String(app.state.currentUser.id),
-                    liveScores: app.state.liveScores || {},
-                    pendingScoreKeys: app.state.pendingScoreKeys || {},
-                    savedAt: new Date().toISOString()
-                }
-            )
-        );
-    }
-    catch (err)
-    {
-        console.warn('[ScoreSync] Lokaler Score-Puffer konnte nicht gespeichert werden:', err);
-    }
+    try { app.logic.refreshV1ScoreProjection(app.state.v1Journal); return !app.state.v1PersistenceError; }
+    catch (_) { app.state.v1PersistenceError = 'Speicherfehler – nicht gespeichert.'; return false; }
+};
+app.logic.getV1DisplayedValue = function(key, fallback)
+{
+    if (app.state.v1DeletedKeys && app.state.v1DeletedKeys[key]) return undefined;
+    return app.logic.v1Own(app.state.liveScores || {}, key) ? app.state.liveScores[key] : fallback;
 };
 
 app.logic.getOwnFlightForSpieltag = function(spieltagId)
@@ -131,11 +283,14 @@ app.logic.getFlightSeq = function(flight)
         return 0;
     }
 
-    return parseInt(flight.seq || flight.flightSeq || String(flight.id || '').split('-').pop()) || 0;
+    const value = flight.seq ?? flight.flightSeq ?? String(flight.id || '').split('-').pop();
+    return /^[1-9]\d*$/.test(String(value)) && Number.isSafeInteger(Number(value)) ? Number(value) : 0;
 };
 
 app.logic.syncAllPendingScoreFlights = function(spieltagId)
 {
+    const owner = String(app.state.currentUser && app.state.currentUser.id);
+    app.logic.restoreLocalScoreBuffer();
     if (!navigator.onLine)
     {
         app.logic.updateScoreSyncStatus(spieltagId);
@@ -165,6 +320,7 @@ app.logic.syncAllPendingScoreFlights = function(spieltagId)
 
     const syncNext = function(index)
     {
+        if (owner !== String(app.state.currentUser && app.state.currentUser.id)) return;
         if (index >= flightSeqs.length)
         {
             app.logic.updateScoreSyncStatus(spieltagId);
@@ -196,87 +352,66 @@ app.logic.syncAllPendingScoreFlights = function(spieltagId)
     syncNext(0);
 };
 
-app.logic.updateScoreSyncStatus = function(spieltagId, state, pendingCount)
+app.logic.updateScoreSyncStatus = function(spieltagId, state)
 {
     const el = document.getElementById('score-sync-status');
-    if (!el)
-    {
-        return;
-    }
-
-    const count = pendingCount !== undefined
-        ? pendingCount
-        : Object.keys(app.state.pendingScoreKeys || {}).filter(function(key)
-        {
-            return key.startsWith(String(spieltagId) + '_');
-        }).length;
-
-    if (!navigator.onLine)
-    {
-        el.className = 'text-xs bg-zinc-100 text-zinc-600 font-bold px-3 py-2 rounded-xl shadow-3xs';
-        el.innerHTML = '<i class="fas fa-cloud mr-1"></i> Offline · lokal';
-        return;
-    }
-
-    if (state === 'syncing')
-    {
-        el.className = 'text-xs bg-amber-100 text-amber-800 font-bold px-3 py-2 rounded-xl shadow-3xs';
-        el.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-1"></i> ${count || ''} Sync`;
-        return;
-    }
-
-    if (state === 'error')
-    {
-        el.className = 'text-xs bg-red-100 text-red-700 font-bold px-3 py-2 rounded-xl shadow-3xs';
-        el.innerHTML = '<i class="fas fa-triangle-exclamation mr-1"></i> Sync-Fehler';
-        return;
-    }
-
-    if (count > 0)
-    {
-        el.className = 'text-xs bg-amber-100 text-amber-800 font-bold px-3 py-2 rounded-xl shadow-3xs';
-        el.innerHTML = `<i class="fas fa-cloud-arrow-up mr-1"></i> ${count} offen`;
-        return;
-    }
-
-    el.className = 'text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-2 rounded-xl shadow-3xs';
-    el.innerHTML = '<i class="fas fa-cloud-circle-check mr-1"></i> Synchronisiert';
+    if (!el || (app.state.activeScoreSpieltagId && String(app.state.activeScoreSpieltagId) !== String(spieltagId))) return;
+    const keys = Object.keys(app.state.pendingScoreKeys || {}).filter(k => k.startsWith(String(spieltagId) + '_'));
+    const blocked = app.state.v1JournalState && keys.some(k => app.state.v1JournalState.blocked.has(k));
+    let text;
+    if (app.state.v1PersistenceError) text = app.state.v1PersistenceError;
+    else if (blocked && !app.state.scoreSyncInProgress) text = 'Konflikt / Ausgang unklar – ' + keys.length + ' ausstehend; Senden gesperrt.';
+    else if (state === 'locking') text = 'Senden gesperrt – sichere Tabsperre fehlt.';
+    else if (state === 'error') text = 'Sync-Fehler – Änderungen bleiben ausstehend.';
+    else if (state === 'syncing' || app.state.scoreSyncInProgress) text = 'Lokal gespeichert · ' + keys.length + ' ausstehend · sende …';
+    else if (keys.length) text = 'Lokal gespeichert · ' + keys.length + ' ausstehend' + (!navigator.onLine ? ' · offline' : '')
+        + (app.state.v1WaitingKeys && keys.some(k => app.state.v1WaitingKeys.has(k)) ? ' · wartet auf gültige Schlagbasis' : '');
+    else if (app.state.v1JournalState && app.state.v1JournalState.ops.some(op => op.spieltagId === String(spieltagId) && app.state.v1JournalState.acked.has(op.changeId))) text = 'Serverbestätigt';
+    else text = 'Bereit – keine neuen Eingaben';
+    if (app.state.v1LegacyBuffer) text += ' · alter Puffer getrennt, Wiederherstellung prüfen';
+    el.className = 'text-xs font-bold px-3 py-2 rounded-xl ' + (/Fehler|fehler|gesperrt|Konflikt/.test(text) ? 'bg-red-100 text-red-800' : keys.length ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');
+    el.innerHTML = text;
 };
-
 app.logic.markScorePending = function(spieltagId, key)
 {
-    const owner = app.state.currentUser && String(app.state.currentUser.id);
-    if (app.state.scoreRestoredOwner !== owner)
+    return app.logic.markScoreFieldsPending(spieltagId, [key]);
+};
+app.logic.markScoreFieldsPending = function(spieltagId, keys)
+{
+    const edits = keys.map(key => ({ key, deleted: !app.logic.v1Own(app.state.liveScores || {}, key), value: app.state.liveScores && app.state.liveScores[key] }));
+    app.logic.restoreLocalScoreBuffer();
+    if (app.state.v1PersistenceError) { app.logic.updateScoreSyncStatus(spieltagId); return false; }
+    try
     {
-        // A screen must restore its own partition before accepting input.
-        app.logic.restoreLocalScoreBuffer();
+        app.state.v1Journal.append(String(spieltagId), edits);
+        app.logic.refreshV1ScoreProjection(app.state.v1Journal);
     }
-    app.state.scoreBufferOwner = owner;
-    app.state.pendingScoreKeys = app.state.pendingScoreKeys || {};
-    app.state.scoreAutoSyncTimers = app.state.scoreAutoSyncTimers || {};
-    app.state.pendingScoreKeys[key] = Date.now();
-    app.logic.persistLocalScoreBuffer();
+    catch (error)
+    {
+        try { app.logic.refreshV1ScoreProjection(app.state.v1Journal); } catch (_) {}
+        app.state.v1PersistenceError = 'Speicherfehler – Eingabe nicht gespeichert.';
+        if (app.logic.showToast) app.logic.showToast(app.state.v1PersistenceError, 'error');
+        app.logic.updateScoreSyncStatus(spieltagId);
+        return false;
+    }
     app.logic.updateScoreSyncStatus(spieltagId);
-
-    const parts = key.split('_');
-    const flight = app.logic.getFlightForPlayer(spieltagId, parts[1]);
-    const flightSeq = app.logic.getFlightSeq(flight);
-
-    if (flightSeq <= 0)
+    const owner = app.state.v1Journal.owner;
+    const parsed = app.logic.v1Key(String(spieltagId), keys[0]);
+    const flight = app.logic.getFlightForPlayer(spieltagId, parsed.spielerId);
+    const seq = app.logic.getFlightSeq(flight);
+    if (seq > 0)
     {
-        return;
-    }
-
-    const timerKey = `${spieltagId}_${flightSeq}`;
-    clearTimeout(app.state.scoreAutoSyncTimers[timerKey]);
-    app.state.scoreAutoSyncTimers[timerKey] = setTimeout(
-        function()
+        app.state.scoreAutoSyncTimers = app.state.scoreAutoSyncTimers || {};
+        const timerKey = owner + ':' + spieltagId + ':' + seq;
+        clearTimeout(app.state.scoreAutoSyncTimers[timerKey]);
+        app.state.scoreAutoSyncTimers[timerKey] = setTimeout(function()
         {
             delete app.state.scoreAutoSyncTimers[timerKey];
-            app.logic.syncScoresWithServer(spieltagId, flightSeq, true, true);
-        },
-        1500
-    );
+            if (String(app.state.currentUser && app.state.currentUser.id) === owner)
+                app.logic.syncScoresWithServer(spieltagId, seq, true, true);
+        }, 1500);
+    }
+    return true;
 };
 
 app.logic.initScoreAutoSync = function(spieltagId)
@@ -452,8 +587,10 @@ app.logic.adjustScore = function(spieltagId, spielerId, holeNr, delta, par, spie
         neuerScore = 1;
     }
 
+    const clearsMax = !!app.logic.getV1DisplayedValue(maxScoreKey, dbMatch && dbMatch.maxscore);
     app.state.liveScores[key] = neuerScore;
-    app.logic.markScorePending(spieltagId, key);
+    if (clearsMax) app.state.liveScores[maxScoreKey] = false;
+    if (app.logic.markScoreFieldsPending(spieltagId, clearsMax ? [key, maxScoreKey] : [key]) === false) return false;
 
     const scoreEl = document.getElementById(`score-val-${spielerId}`);
     if (scoreEl) 
@@ -461,7 +598,7 @@ app.logic.adjustScore = function(spieltagId, spielerId, holeNr, delta, par, spie
         scoreEl.innerText = neuerScore;
     }
 
-    if (app.state.liveScores[maxScoreKey])
+    if (clearsMax)
     {
         app.state.liveScores[maxScoreKey] = false;
         const maxBtn = document.getElementById(`maxscore-btn-${spielerId}`);
@@ -488,7 +625,8 @@ app.logic.adjustLiveValue = function(spieltagId, spielerId, holeNr, field, delta
 {
     const key = `${spieltagId}_${spielerId}_${holeNr}_${field}`;
     
-    let currentVal = app.state.liveScores[key];
+    const cached = (app.state.scoreCards || []).find(c => String(c.spieltagId) === String(spieltagId) && String(c.spielerId) === String(spielerId) && Number(c.hole) === Number(holeNr));
+    let currentVal = app.logic.getV1DisplayedValue(key, cached && cached[field]);
     if (currentVal === undefined)
     {
         currentVal = 2; 
@@ -501,7 +639,7 @@ app.logic.adjustLiveValue = function(spieltagId, spielerId, holeNr, field, delta
     }
     
     app.state.liveScores[key] = newVal;
-    app.logic.markScorePending(spieltagId, key);
+    if (app.logic.markScorePending(spieltagId, key) === false) return false;
     
     const element = document.getElementById(`${field}-val-${spielerId}`);
     if (element)
@@ -514,11 +652,12 @@ app.logic.toggleLiveBoolean = function(spieltagId, spielerId, holeNr, field)
 {
     const key = `${spieltagId}_${spielerId}_${holeNr}_${field}`;
     
-    const currentVal = !!app.state.liveScores[key];
+    const cached = (app.state.scoreCards || []).find(c => String(c.spieltagId) === String(spieltagId) && String(c.spielerId) === String(spielerId) && Number(c.hole) === Number(holeNr));
+    const currentVal = !!app.logic.getV1DisplayedValue(key, cached && cached[field]);
     const newVal = !currentVal;
     
     app.state.liveScores[key] = newVal;
-    app.logic.markScorePending(spieltagId, key);
+    if (app.logic.markScorePending(spieltagId, key) === false) return false;
     
     const btn = document.getElementById(`${field}-btn-${spielerId}`);
     if (btn)
@@ -549,11 +688,13 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
     const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
     
-    const currentMax = !!app.state.liveScores[maxScoreKey];
+    const cached = (app.state.scoreCards || []).find(c => String(c.spieltagId) === String(spieltagId) && String(c.spielerId) === String(spielerId) && Number(c.hole) === Number(holeNr));
+    const currentMax = !!app.logic.getV1DisplayedValue(maxScoreKey, cached && cached.maxscore);
     const newMax = !currentMax;
     
     app.state.liveScores[maxScoreKey] = newMax;
-    app.logic.markScorePending(spieltagId, maxScoreKey);
+    app.state.liveScores[scoreKey] = newMax ? maxScoreValue : par;
+    if (app.logic.markScoreFieldsPending(spieltagId, [maxScoreKey, scoreKey]) === false) return false;
     
     const scoreValElement = document.getElementById(`score-val-${spielerId}`);
     const maxBtn = document.getElementById(`maxscore-btn-${spielerId}`);
@@ -561,7 +702,7 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     if (newMax)
     {
         app.state.liveScores[scoreKey] = maxScoreValue;
-        app.logic.markScorePending(spieltagId, scoreKey);
+
         if (scoreValElement) 
         {
             scoreValElement.innerText = maxScoreValue;
@@ -581,7 +722,7 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     else
     {
         app.state.liveScores[scoreKey] = par;
-        app.logic.markScorePending(spieltagId, scoreKey);
+
         if (scoreValElement) 
         {
             scoreValElement.innerText = par;
@@ -608,214 +749,103 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     }
 };
 
-app.logic.syncScoresWithServer = function(spieltagId, flightSeq, silent, allowSelectedFlight)
+app.logic.syncScoresWithServer = async function(spieltagId, flightSeq, silent, allowSelectedFlight)
 {
-    app.environment.assertReady();
-    app.logic.restoreLocalScoreBuffer();
-    if (app.state.scoreBufferOwner !== (app.state.currentUser && String(app.state.currentUser.id))) return;
-
-    if (app.state.scoreSyncInProgress)
+    const roundId = String(spieltagId);
+    const owner = String(app.state.currentUser && app.state.currentUser.id);
+    try
     {
-        return;
-    }
-
-    let ownFlight = app.logic.getOwnFlightForSpieltag(spieltagId);
-
-    if (allowSelectedFlight && flightSeq)
-    {
-        const selectedSeq = parseInt(flightSeq);
-        const selectedFlight = (app.state.flights || []).find(
-            function(flight)
-            {
-                if (String(flight.spieltagId || '').trim() !== String(spieltagId || '').trim())
-                {
-                    return false;
-                }
-
-                const seq = parseInt(flight.seq || flight.flightSeq || String(flight.id || '').split('-').pop()) || 0;
-                return seq === selectedSeq;
-            }
-        );
-
-        if (selectedFlight)
+        app.environment.assertReady();
+        app.logic.restoreLocalScoreBuffer();
+        if (app.state.v1PersistenceError || !navigator.onLine) { app.logic.updateScoreSyncStatus(roundId); return; }
+        if (!navigator.locks || typeof navigator.locks.request !== 'function') { app.logic.updateScoreSyncStatus(roundId, 'locking'); return; }
+        const own = app.logic.getOwnFlightForSpieltag(roundId);
+        const candidates = (app.state.flights || []).filter(f => String(f.spieltagId) === roundId && app.logic.getFlightSeq(f) === Number(flightSeq));
+        const selected = allowSelectedFlight ? candidates[0] : own;
+        if (!Number.isInteger(Number(flightSeq)) || Number(flightSeq) < 1 || candidates.length !== 1 || !selected
+            || (!allowSelectedFlight && selected !== candidates[0])) throw new Error('Flight nicht eindeutig.');
+        const members = String(selected.spielerIdsCsv || '').split(',').map(x => x.trim());
+        if (members.some(x => !x || /[/_\s]/.test(x)) || new Set(members).size !== members.length) throw new Error('Ungültige Flight-Mitglieder.');
+        if (!members.includes(owner) && !['Admin', 'Spielleiter'].includes(app.state.currentUser.role)) throw new Error('Fremder Flight.');
+        if (members.some(id => (app.state.flights || []).filter(f => String(f.spieltagId) === roundId
+            && String(f.spielerIdsCsv || '').split(',').map(x => x.trim()).includes(id)).length !== 1)) throw new Error('Mehrdeutige Flight-Mitgliedschaft.');
+        const journal = app.state.v1Journal;
+        return await navigator.locks.request(journal.prefix + ':' + roundId + ':' + selected.id, { ifAvailable: true }, async function(lock)
         {
-            ownFlight = selectedFlight;
-        }
-    }
-
-    if (!ownFlight)
-    {
-        app.logic.updateScoreSyncStatus(spieltagId, 'error');
-        if (!silent)
-        {
-            app.logic.showToast('Flight konnte nicht ermittelt werden.', 'error');
-        }
-        return;
-    }
-
-    const ownPlayerIds = String(ownFlight.spielerIdsCsv || '')
-        .split(',')
-        .map(function(id) { return String(id).trim(); })
-        .filter(Boolean);
-
-    const pendingKeys = Object.keys(app.state.pendingScoreKeys || {}).filter(
-        function(key)
-        {
-            if (!key.startsWith(String(spieltagId) + '_'))
+            if (!lock || owner !== String(app.state.currentUser && app.state.currentUser.id) || journal !== app.state.v1Journal) return;
+            const data = journal.read(), grouped = new Map();
+            app.state.v1WaitingKeys = new Set();
+            for (const op of data.latest)
             {
-                return false;
-            }
-
-            const parts = key.split('_');
-            return ownPlayerIds.includes(String(parts[1] || '').trim());
-        }
-    );
-
-    if (pendingKeys.length === 0)
-    {
-        app.logic.updateScoreSyncStatus(spieltagId);
-        return;
-    }
-
-    if (!navigator.onLine)
-    {
-        app.logic.persistLocalScoreBuffer();
-        app.logic.updateScoreSyncStatus(spieltagId, 'offline', pendingKeys.length);
-        return;
-    }
-
-    const scoresPayload = [];
-    const processedHoles = {};
-    const ownFlightSeq = parseInt(ownFlight.seq || ownFlight.flightSeq || String(ownFlight.id || '').split('-').pop()) || parseInt(flightSeq) || 1;
-
-    pendingKeys.forEach(
-        function(key)
-        {
-            const parts = key.split('_');
-            const spielerId = parts[1];
-            const holeNr = parseInt(parts[2]);
-            const uniqueHoleKey = `${spielerId}_${holeNr}`;
-
-            if (processedHoles[uniqueHoleKey])
-            {
-                return;
-            }
-            processedHoles[uniqueHoleKey] = true;
-
-            const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
-            const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
-            const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
-            const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
-
-            const strokes = app.state.liveScores[scoreKey];
-            if (strokes === undefined || strokes === null || parseInt(strokes) <= 0)
-            {
-                return;
-            }
-
-            const spieler = (app.state.spieler || []).find(function(s)
-            {
-                return String(s.id).trim() === String(spielerId).trim();
-            });
-            const spieltag = (app.state.spieltage || []).find(function(st)
-            {
-                return String(st.id).trim() === String(spieltagId).trim();
-            });
-
-            if (!spieler || !spieltag)
-            {
-                return;
-            }
-
-            scoresPayload.push(
+                if (op.spieltagId !== roundId || !members.includes(op.spielerId) || data.blocked.has(op.key)) continue;
+                const id = 'SC-' + roundId + '-' + op.spielerId + '-' + op.hole;
+                const cached = (app.state.scoreCards || []).filter(c => c.id === id);
+                if (cached.length > 1 || cached.some(c => String(c.spieltagId) !== roundId || String(c.spielerId) !== op.spielerId || Number(c.hole) !== op.hole)) throw new Error('Widersprüchliche Scoreidentität.');
+                const stroke = data.latest.find(p => p.spieltagId === roundId && p.spielerId === op.spielerId && p.hole === op.hole && p.field === 'strokes');
+                if (op.field !== 'strokes' && !cached.some(c => Number.isSafeInteger(c.strokes) && c.strokes > 0)
+                    && !(stroke && stroke.operation === 'set' && !data.blocked.has(stroke.key))) { app.state.v1WaitingKeys.add(op.key); continue; }
+                if (!grouped.has(id))
                 {
-                    id: `SC-${spieltagId}-${spielerId}-${holeNr}`,
-                    spieltagId: spieltagId,
-                    flightSeq: ownFlightSeq,
-                    spielerId: spielerId,
-                    hole: holeNr,
-                    strokes: parseInt(strokes),
-                    strokesGiven: app.logic.calculateHoleVorgabe(spieler, spieltag, holeNr),
-                    hcpStart: parseInt(spieler.hcpLIE),
-                    lady: !!app.state.liveScores[ladyKey],
-                    puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
-                    maxscore: !!app.state.liveScores[maxScoreKey]
+                    const player = (app.state.spieler || []).filter(p => String(p.id) === op.spielerId);
+                    const rounds = (app.state.spieltage || []).filter(r => String(r.id) === roundId);
+                    if (player.length !== 1 || rounds.length !== 1) throw new Error('Spieler/Runde nicht eindeutig.');
+                    grouped.set(id, { id, spieltagId: roundId, spielerId: op.spielerId, hole: op.hole, flightSeq: Number(flightSeq),
+                        creation: { hcpStart: player[0].hcpLIE == null ? NaN : Number(player[0].hcpLIE), strokesGiven: app.logic.calculateHoleVorgabe(player[0], rounds[0], op.hole) }, changes: [] });
                 }
-            );
-        }
-    );
-
-    if (scoresPayload.length === 0)
-    {
-        app.logic.updateScoreSyncStatus(spieltagId, 'error', pendingKeys.length);
-        return;
-    }
-
-    app.state.scoreSyncInProgress = true;
-    app.logic.updateScoreSyncStatus(spieltagId, 'syncing', pendingKeys.length);
-
-    const sendingOwner = app.state.scoreBufferOwner;
-    const sendingPending = app.state.pendingScoreKeys;
-    app.logic.apiRequest('saveLiveScores', { payload: scoresPayload })
-        .then(
-            function(response)
+                grouped.get(id).changes.push({ changeId: op.changeId, field: op.field, operation: op.operation, value: op.value });
+            }
+            if (!grouped.size) { app.logic.refreshV1ScoreProjection(journal); app.logic.updateScoreSyncStatus(roundId); return; }
+            const wire = app.logic.v1Freeze({ protocol: 'v1-s01', requestId: crypto.randomUUID(), owner, environment: app.logic.v1Environment,
+                spieltagId: roundId, flightId: String(selected.id), flightSeq: Number(flightSeq), payload: [...grouped.values()] });
+            // Must be durable before the first possible network send.
+            try { journal.prepare(wire); }
+            catch (error)
             {
-                if (!response || !response.success)
+                app.state.v1PersistenceError = 'Speicherfehler – Request nicht gesendet.';
+                throw error;
+            }
+            app.state.v1RequestsRunning = (app.state.v1RequestsRunning || 0) + 1;
+            app.state.scoreSyncInProgress = true;
+            try
+            {
+                app.logic.updateScoreSyncStatus(roundId, 'syncing');
+                const response = await app.logic.apiRequest('saveLiveScores', wire);
+                const receipt = journal.acknowledge(wire, response);
+                if (journal === app.state.v1Journal && owner === String(app.state.currentUser && app.state.currentUser.id))
                 {
-                    throw new Error(response ? response.error : 'Unbekannter Sync-Fehler');
-                }
-
-                if (app.state.scoreBufferOwner !== sendingOwner || app.state.pendingScoreKeys !== sendingPending
-                    || String(app.state.currentUser && app.state.currentUser.id) !== sendingOwner) return;
-                pendingKeys.forEach(function(key)
-                {
-                    delete app.state.pendingScoreKeys[key];
-                });
-
-                scoresPayload.forEach(function(item)
-                {
-                    const idx = app.state.scoreCards.findIndex(function(sc)
-                    {
-                        return String(sc.id).trim() === String(item.id).trim();
-                    });
-
-                    if (idx !== -1)
-                    {
-                        app.state.scoreCards[idx] = item;
-                    }
-                    else
-                    {
-                        app.state.scoreCards.push(item);
-                    }
-                });
-
-                app.logic.persistLocalScoreBuffer();
-                app.logic.updateScoreSyncStatus(spieltagId);
-
-                if (!silent)
-                {
-                    app.logic.showToast('Scores synchronisiert.', 'success');
+                    if (receipt.outcome === 'acknowledged')
+                        wire.payload.forEach(card =>
+                        {
+                            const applied = card.changes.filter(op => receipt.acknowledgedChangeIds.includes(op.changeId));
+                            if (!applied.length) return;
+                            let target = (app.state.scoreCards || []).find(c => c.id === card.id);
+                            if (!target)
+                            {
+                                target = { id: card.id, spieltagId: card.spieltagId, spielerId: card.spielerId, hole: card.hole, flightSeq: card.flightSeq, ...card.creation };
+                                app.state.scoreCards.push(target);
+                            }
+                            applied.forEach(op => { if (op.operation === 'delete') delete target[op.field]; else target[op.field] = op.value; });
+                        });
+                    app.logic.refreshV1ScoreProjection(journal);
                 }
             }
-        )
-        .catch(
-            function(err)
+            catch (error)
             {
-                console.error('[ScoreSync] Synchronisation fehlgeschlagen:', err);
-                app.logic.persistLocalScoreBuffer();
-                app.logic.updateScoreSyncStatus(spieltagId, 'error', pendingKeys.length);
-
-                if (!silent)
-                {
-                    app.logic.showToast('Synchronisation fehlgeschlagen – Daten bleiben lokal gespeichert.', 'error');
-                }
+                // Prepared record stays durable. Unknown outcomes cannot be blindly retried.
+                if (journal === app.state.v1Journal) app.logic.refreshV1ScoreProjection(journal);
             }
-        )
-        .finally(
-            function()
+            finally
             {
-                app.state.scoreSyncInProgress = false;
+                app.state.v1RequestsRunning--;
+                app.state.scoreSyncInProgress = app.state.v1RequestsRunning > 0;
+                if (journal === app.state.v1Journal) app.logic.updateScoreSyncStatus(roundId);
             }
-        );
+        });
+    }
+    catch (error)
+    {
+        if (app.logic.showToast && !silent) app.logic.showToast('V1 nicht gesendet: ' + error.message, 'error');
+        try { app.logic.updateScoreSyncStatus(roundId, 'error'); } catch (_) { /* UI failure cannot retain the flight lock. */ }
+        return { success: false };
+    }
 };
-
