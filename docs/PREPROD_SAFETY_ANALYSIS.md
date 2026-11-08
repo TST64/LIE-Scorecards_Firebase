@@ -2,6 +2,8 @@
 
 Stand: 08.11.2026, Europe/Berlin. Ausschließlich lokale Quelltext-/Git-Analyse und lesender Abgleich mit offizieller Firebase-Dokumentation. Keine App gestartet, keine Firebase-/GAS-Endpunkte aufgerufen, keine Tests mit Datenbankzugriff ausgeführt, keine Deployments oder Projektänderungen.
 
+Auftrag: [GitHub-Issue #2 – PreProd-Sicherheitsanalyse](https://github.com/TST64/LIE-Scorecards_Firebase/issues/2). Der vollständige Issue-Text einschließlich aller Sicherheitsgrenzen und Akzeptanzkriterien wurde gelesen; zum Abgleich lagen keine Issue-Kommentare vor. Der bereits vorhandene Analyse-PR wird für dieses Issue weitergeführt.
+
 ## Ergebnis und Evidenzgrenze
 
 **Die lokale Entwicklungsumgebung ist im untersuchten Stand nicht vollständig und zuverlässig vom konfigurierten produktiven Firebase-System getrennt.** Der lokale Browser lädt eine Firebase-Konfiguration für `liescorecard-70c5e`; Auth, Firestore und Functions werden nicht auf Emulatoren umgeleitet. Eine lokale URL oder der Ordnername „PreProd“ bewirken keine Backend-Isolation. Bereits der Start ohne Login kann über eine vermeintliche Lese-Function serverseitige Schreiboperationen auslösen.
@@ -181,5 +183,7 @@ Freigabekriterium: Kein lokal/PreProd getesteter Ablauf darf Produktionsziele al
 - Keine Aussage, dass bereits produktiv geschrieben wurde: festgestellt wurden erreichbare Codepfade und fehlende technische Schutzgrenzen, kein nachgewiesener Vorfall.
 
 ## Prüfprotokoll dieser Phase
+
+Beim erneuten Abgleich mit Issue #2 wurden Branch, vollständiger HEAD, Dirty-State und Worktree-Liste lesend geprüft: Der Entwicklungs-Worktree liegt weiterhin auf `feature/score-autosync` bei `cb4661f5194147fa0ef0f40fe44838ce3d0aa19e` mit den oben aufgeführten sechs geänderten Anwendungsdateien. Der zuvor für diese Analyse angelegte `.codex-safety-worktree/` erscheint inzwischen zusätzlich als unversionierter Verzeichniseintrag im ursprünglichen Worktree. Es erfolgte dort kein Checkout, Reset, Clean, Stash oder Dateischreibzugriff. Der Analyse-Worktree war vor dieser Ergänzung sauber; sein Diff gegen die lokale `main`-Basis enthielt ausschließlich `docs/PREPROD_SAFETY_ANALYSIS.md`, und `git diff main HEAD --check` meldete keine Fehler. Die GitHub-Lesezugriffe betrafen ausschließlich Issue-Text und Kommentare, keine Firebase-/GAS-Daten. Historische Testergebnisse aus dem Projektstatus bleiben ausdrücklich frühere Berichte, keine in diesem Abgleich erneut ausgeführten Prüfungen.
 
 Gelesen: `docs/PROJECT_STATUS.md`, Git-Branch/HEAD/Status/Worktrees, `.firebaserc`, `config.js`, `firebase.json`, relevante App-Initialisierungen/Schreibpfade, `functions/index.js`, `firestore.rules`, Emulator-Testkonfiguration, Test-Runner und zugehörige Testquellen/READMEs. Offizielle Firebase-Dokumentation wurde nur für die Zielarchitektur herangezogen. Keine App-, Emulator- oder Produktionsschreibtests ausgeführt. Für den Dokumentations-PR wird der Diff gegen `main` auf genau diese Datei und Whitespacefehler geprüft; der ursprüngliche Feature-HEAD und dessen bestehender Diff werden abschließend erneut verglichen.
