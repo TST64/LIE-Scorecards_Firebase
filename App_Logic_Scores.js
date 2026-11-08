@@ -7,6 +7,300 @@
 var app = app || {};
 app.logic = app.logic || {};
 
+
+// =========================================================================
+// Lokaler Score-Puffer & automatischer Flight-Sync
+// =========================================================================
+
+app.logic.scoreSyncStorageKey = 'lie_score_sync_v1';
+
+app.logic.restoreLocalScoreBuffer = function()
+{
+    if (app.state.scoreSyncRestored)
+    {
+        return;
+    }
+
+    app.state.scoreSyncRestored = true;
+    app.state.pendingScoreKeys = app.state.pendingScoreKeys || {};
+
+    try
+    {
+        const raw = localStorage.getItem(app.logic.scoreSyncStorageKey);
+        if (!raw)
+        {
+            return;
+        }
+
+        const saved = JSON.parse(raw);
+        app.state.liveScores = Object.assign({}, saved.liveScores || {}, app.state.liveScores || {});
+        app.state.pendingScoreKeys = Object.assign({}, saved.pendingScoreKeys || {});
+    }
+    catch (err)
+    {
+        console.warn('[ScoreSync] Lokaler Score-Puffer konnte nicht geladen werden:', err);
+    }
+};
+
+app.logic.persistLocalScoreBuffer = function()
+{
+    try
+    {
+        localStorage.setItem(
+            app.logic.scoreSyncStorageKey,
+            JSON.stringify(
+                {
+                    liveScores: app.state.liveScores || {},
+                    pendingScoreKeys: app.state.pendingScoreKeys || {},
+                    savedAt: new Date().toISOString()
+                }
+            )
+        );
+    }
+    catch (err)
+    {
+        console.warn('[ScoreSync] Lokaler Score-Puffer konnte nicht gespeichert werden:', err);
+    }
+};
+
+app.logic.getOwnFlightForSpieltag = function(spieltagId)
+{
+    if (!app.state.currentUser)
+    {
+        return null;
+    }
+
+    const currentPlayerId = String(app.state.currentUser.id || '').trim();
+
+    return (app.state.flights || []).find(
+        function(flight)
+        {
+            if (String(flight.spieltagId || '').trim() !== String(spieltagId || '').trim())
+            {
+                return false;
+            }
+
+            const ids = String(flight.spielerIdsCsv || '')
+                .split(',')
+                .map(function(id) { return String(id).trim(); })
+                .filter(Boolean);
+
+            return ids.includes(currentPlayerId);
+        }
+    ) || null;
+};
+
+
+app.logic.getFlightForPlayer = function(spieltagId, spielerId)
+{
+    const targetPlayerId = String(spielerId || '').trim();
+
+    return (app.state.flights || []).find(
+        function(flight)
+        {
+            if (String(flight.spieltagId || '').trim() !== String(spieltagId || '').trim())
+            {
+                return false;
+            }
+
+            const ids = String(flight.spielerIdsCsv || '')
+                .split(',')
+                .map(function(id) { return String(id).trim(); })
+                .filter(Boolean);
+
+            return ids.includes(targetPlayerId);
+        }
+    ) || null;
+};
+
+app.logic.getFlightSeq = function(flight)
+{
+    if (!flight)
+    {
+        return 0;
+    }
+
+    return parseInt(flight.seq || flight.flightSeq || String(flight.id || '').split('-').pop()) || 0;
+};
+
+app.logic.syncAllPendingScoreFlights = function(spieltagId)
+{
+    if (!navigator.onLine)
+    {
+        app.logic.updateScoreSyncStatus(spieltagId);
+        return;
+    }
+
+    const flightSeqs = [];
+
+    Object.keys(app.state.pendingScoreKeys || {}).forEach(
+        function(key)
+        {
+            if (!key.startsWith(String(spieltagId) + '_'))
+            {
+                return;
+            }
+
+            const parts = key.split('_');
+            const flight = app.logic.getFlightForPlayer(spieltagId, parts[1]);
+            const seq = app.logic.getFlightSeq(flight);
+
+            if (seq > 0 && !flightSeqs.includes(seq))
+            {
+                flightSeqs.push(seq);
+            }
+        }
+    );
+
+    const syncNext = function(index)
+    {
+        if (index >= flightSeqs.length)
+        {
+            app.logic.updateScoreSyncStatus(spieltagId);
+            return;
+        }
+
+        if (app.state.scoreSyncInProgress)
+        {
+            setTimeout(function() { syncNext(index); }, 300);
+            return;
+        }
+
+        app.logic.syncScoresWithServer(spieltagId, flightSeqs[index], true, true);
+
+        const waitForFinish = function()
+        {
+            if (app.state.scoreSyncInProgress)
+            {
+                setTimeout(waitForFinish, 300);
+                return;
+            }
+
+            syncNext(index + 1);
+        };
+
+        setTimeout(waitForFinish, 300);
+    };
+
+    syncNext(0);
+};
+
+app.logic.updateScoreSyncStatus = function(spieltagId, state, pendingCount)
+{
+    const el = document.getElementById('score-sync-status');
+    if (!el)
+    {
+        return;
+    }
+
+    const count = pendingCount !== undefined
+        ? pendingCount
+        : Object.keys(app.state.pendingScoreKeys || {}).filter(function(key)
+        {
+            return key.startsWith(String(spieltagId) + '_');
+        }).length;
+
+    if (!navigator.onLine)
+    {
+        el.className = 'text-xs bg-zinc-100 text-zinc-600 font-bold px-3 py-2 rounded-xl shadow-3xs';
+        el.innerHTML = '<i class="fas fa-cloud mr-1"></i> Offline · lokal';
+        return;
+    }
+
+    if (state === 'syncing')
+    {
+        el.className = 'text-xs bg-amber-100 text-amber-800 font-bold px-3 py-2 rounded-xl shadow-3xs';
+        el.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-1"></i> ${count || ''} Sync`;
+        return;
+    }
+
+    if (state === 'error')
+    {
+        el.className = 'text-xs bg-red-100 text-red-700 font-bold px-3 py-2 rounded-xl shadow-3xs';
+        el.innerHTML = '<i class="fas fa-triangle-exclamation mr-1"></i> Sync-Fehler';
+        return;
+    }
+
+    if (count > 0)
+    {
+        el.className = 'text-xs bg-amber-100 text-amber-800 font-bold px-3 py-2 rounded-xl shadow-3xs';
+        el.innerHTML = `<i class="fas fa-cloud-arrow-up mr-1"></i> ${count} offen`;
+        return;
+    }
+
+    el.className = 'text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-2 rounded-xl shadow-3xs';
+    el.innerHTML = '<i class="fas fa-cloud-circle-check mr-1"></i> Synchronisiert';
+};
+
+app.logic.markScorePending = function(spieltagId, key)
+{
+    app.state.pendingScoreKeys = app.state.pendingScoreKeys || {};
+    app.state.scoreAutoSyncTimers = app.state.scoreAutoSyncTimers || {};
+    app.state.pendingScoreKeys[key] = Date.now();
+    app.logic.persistLocalScoreBuffer();
+    app.logic.updateScoreSyncStatus(spieltagId);
+
+    const parts = key.split('_');
+    const flight = app.logic.getFlightForPlayer(spieltagId, parts[1]);
+    const flightSeq = app.logic.getFlightSeq(flight);
+
+    if (flightSeq <= 0)
+    {
+        return;
+    }
+
+    const timerKey = `${spieltagId}_${flightSeq}`;
+    clearTimeout(app.state.scoreAutoSyncTimers[timerKey]);
+    app.state.scoreAutoSyncTimers[timerKey] = setTimeout(
+        function()
+        {
+            delete app.state.scoreAutoSyncTimers[timerKey];
+            app.logic.syncScoresWithServer(spieltagId, flightSeq, true, true);
+        },
+        1500
+    );
+};
+
+app.logic.initScoreAutoSync = function(spieltagId)
+{
+    app.logic.restoreLocalScoreBuffer();
+    app.logic.updateScoreSyncStatus(spieltagId);
+
+    if (!app.state.scoreSyncListenersReady)
+    {
+        app.state.scoreSyncListenersReady = true;
+
+        window.addEventListener('online', function()
+        {
+            const currentSpieltagId = app.state.activeScoreSpieltagId;
+            if (currentSpieltagId)
+            {
+                app.logic.updateScoreSyncStatus(currentSpieltagId);
+                app.logic.syncAllPendingScoreFlights(currentSpieltagId);
+            }
+        });
+
+        window.addEventListener('offline', function()
+        {
+            if (app.state.activeScoreSpieltagId)
+            {
+                app.logic.updateScoreSyncStatus(app.state.activeScoreSpieltagId);
+            }
+        });
+
+        app.state.scorePeriodicSyncId = setInterval(function()
+        {
+            const currentSpieltagId = app.state.activeScoreSpieltagId;
+            if (currentSpieltagId && navigator.onLine)
+            {
+                app.logic.syncAllPendingScoreFlights(currentSpieltagId);
+            }
+        }, 30000);
+    }
+
+    app.state.activeScoreSpieltagId = spieltagId;
+};
+
 app.logic.calculateHoleVorgabe = function(spieler, spieltag, holeNr)
 {
     if (!spieler || !spieltag)
@@ -141,6 +435,7 @@ app.logic.adjustScore = function(spieltagId, spielerId, holeNr, delta, par, spie
     }
 
     app.state.liveScores[key] = neuerScore;
+    app.logic.markScorePending(spieltagId, key);
 
     const scoreEl = document.getElementById(`score-val-${spielerId}`);
     if (scoreEl) 
@@ -188,6 +483,7 @@ app.logic.adjustLiveValue = function(spieltagId, spielerId, holeNr, field, delta
     }
     
     app.state.liveScores[key] = newVal;
+    app.logic.markScorePending(spieltagId, key);
     
     const element = document.getElementById(`${field}-val-${spielerId}`);
     if (element)
@@ -204,6 +500,7 @@ app.logic.toggleLiveBoolean = function(spieltagId, spielerId, holeNr, field)
     const newVal = !currentVal;
     
     app.state.liveScores[key] = newVal;
+    app.logic.markScorePending(spieltagId, key);
     
     const btn = document.getElementById(`${field}-btn-${spielerId}`);
     if (btn)
@@ -238,6 +535,7 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     const newMax = !currentMax;
     
     app.state.liveScores[maxScoreKey] = newMax;
+    app.logic.markScorePending(spieltagId, maxScoreKey);
     
     const scoreValElement = document.getElementById(`score-val-${spielerId}`);
     const maxBtn = document.getElementById(`maxscore-btn-${spielerId}`);
@@ -245,6 +543,7 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     if (newMax)
     {
         app.state.liveScores[scoreKey] = maxScoreValue;
+        app.logic.markScorePending(spieltagId, scoreKey);
         if (scoreValElement) 
         {
             scoreValElement.innerText = maxScoreValue;
@@ -264,6 +563,7 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     else
     {
         app.state.liveScores[scoreKey] = par;
+        app.logic.markScorePending(spieltagId, scoreKey);
         if (scoreValElement) 
         {
             scoreValElement.innerText = par;
@@ -290,117 +590,208 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     }
 };
 
-app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
+app.logic.syncScoresWithServer = function(spieltagId, flightSeq, silent, allowSelectedFlight)
 {
-    const keysToSync = Object.keys(app.state.liveScores).filter(function(k) { return k.startsWith(spieltagId + "_"); });
-    
-    if (keysToSync.length === 0)
+    app.logic.restoreLocalScoreBuffer();
+
+    if (app.state.scoreSyncInProgress)
     {
-        app.logic.showToast("Keine ausstehenden Änderungen.", "info");
         return;
     }
 
-    const syncBtn = document.getElementById('sync-btn');
-    if (syncBtn)
+    let ownFlight = app.logic.getOwnFlightForSpieltag(spieltagId);
+
+    if (allowSelectedFlight && flightSeq)
     {
-        syncBtn.disabled = true;
-        syncBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Sende...`;
+        const selectedSeq = parseInt(flightSeq);
+        const selectedFlight = (app.state.flights || []).find(
+            function(flight)
+            {
+                if (String(flight.spieltagId || '').trim() !== String(spieltagId || '').trim())
+                {
+                    return false;
+                }
+
+                const seq = parseInt(flight.seq || flight.flightSeq || String(flight.id || '').split('-').pop()) || 0;
+                return seq === selectedSeq;
+            }
+        );
+
+        if (selectedFlight)
+        {
+            ownFlight = selectedFlight;
+        }
     }
 
-    app.logic.stopLivePolling();
+    if (!ownFlight)
+    {
+        app.logic.updateScoreSyncStatus(spieltagId, 'error');
+        if (!silent)
+        {
+            app.logic.showToast('Flight konnte nicht ermittelt werden.', 'error');
+        }
+        return;
+    }
+
+    const ownPlayerIds = String(ownFlight.spielerIdsCsv || '')
+        .split(',')
+        .map(function(id) { return String(id).trim(); })
+        .filter(Boolean);
+
+    const pendingKeys = Object.keys(app.state.pendingScoreKeys || {}).filter(
+        function(key)
+        {
+            if (!key.startsWith(String(spieltagId) + '_'))
+            {
+                return false;
+            }
+
+            const parts = key.split('_');
+            return ownPlayerIds.includes(String(parts[1] || '').trim());
+        }
+    );
+
+    if (pendingKeys.length === 0)
+    {
+        app.logic.updateScoreSyncStatus(spieltagId);
+        return;
+    }
+
+    if (!navigator.onLine)
+    {
+        app.logic.persistLocalScoreBuffer();
+        app.logic.updateScoreSyncStatus(spieltagId, 'offline', pendingKeys.length);
+        return;
+    }
 
     const scoresPayload = [];
-    const verarbeiteteKeys = {};
+    const processedHoles = {};
+    const ownFlightSeq = parseInt(ownFlight.seq || ownFlight.flightSeq || String(ownFlight.id || '').split('-').pop()) || parseInt(flightSeq) || 1;
 
-    keysToSync.forEach(function(key)
-    {
-        const parts = key.split('_'); 
-        const spielerId = parts[1];
-        const holeNr = parseInt(parts[2]);
-        
-        const uniqueHoleKey = `${spielerId}_${holeNr}`;
-        if (verarbeiteteKeys[uniqueHoleKey]) return;
-        verarbeiteteKeys[uniqueHoleKey] = true;
+    pendingKeys.forEach(
+        function(key)
+        {
+            const parts = key.split('_');
+            const spielerId = parts[1];
+            const holeNr = parseInt(parts[2]);
+            const uniqueHoleKey = `${spielerId}_${holeNr}`;
 
-        const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
-        const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
-        const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
-        const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
-        
-        let strokes = app.state.liveScores[scoreKey];
-        if (strokes === undefined || strokes === null || strokes <= 0) return;
+            if (processedHoles[uniqueHoleKey])
+            {
+                return;
+            }
+            processedHoles[uniqueHoleKey] = true;
 
-        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
-        const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
+            const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
+            const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
+            const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
+            const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
 
-        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag, holeNr);
+            const strokes = app.state.liveScores[scoreKey];
+            if (strokes === undefined || strokes === null || parseInt(strokes) <= 0)
+            {
+                return;
+            }
 
-        scoresPayload.push({
-            id: `SC-${spieltagId}-${spielerId}-${holeNr}`,
-            spieltagId: spieltagId,
-            flightSeq: parseInt(flightSeq) || 1,
-            spielerId: spielerId,
-            hole: holeNr,
-            strokes: parseInt(strokes),
-            strokesGiven: strokesGiven,
-            hcpStart: parseInt(spieler.hcpLIE),
-            lady: !!app.state.liveScores[ladyKey],
-            puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
-            maxscore: !!app.state.liveScores[maxScoreKey]
-        });
-    });
+            const spieler = (app.state.spieler || []).find(function(s)
+            {
+                return String(s.id).trim() === String(spielerId).trim();
+            });
+            const spieltag = (app.state.spieltage || []).find(function(st)
+            {
+                return String(st.id).trim() === String(spieltagId).trim();
+            });
+
+            if (!spieler || !spieltag)
+            {
+                return;
+            }
+
+            scoresPayload.push(
+                {
+                    id: `SC-${spieltagId}-${spielerId}-${holeNr}`,
+                    spieltagId: spieltagId,
+                    flightSeq: ownFlightSeq,
+                    spielerId: spielerId,
+                    hole: holeNr,
+                    strokes: parseInt(strokes),
+                    strokesGiven: app.logic.calculateHoleVorgabe(spieler, spieltag, holeNr),
+                    hcpStart: parseInt(spieler.hcpLIE),
+                    lady: !!app.state.liveScores[ladyKey],
+                    puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
+                    maxscore: !!app.state.liveScores[maxScoreKey]
+                }
+            );
+        }
+    );
 
     if (scoresPayload.length === 0)
     {
-        if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
-        app.logic.startLivePolling(spieltagId, null, flightSeq);
+        app.logic.updateScoreSyncStatus(spieltagId, 'error', pendingKeys.length);
         return;
     }
 
+    app.state.scoreSyncInProgress = true;
+    app.logic.updateScoreSyncStatus(spieltagId, 'syncing', pendingKeys.length);
+
     app.logic.apiRequest('saveLiveScores', { payload: scoresPayload })
-        .then(function(response)
-        {
-            if (response && response.success)
+        .then(
+            function(response)
             {
-                keysToSync.forEach(function(key)
+                if (!response || !response.success)
                 {
-                    delete app.state.liveScores[key];
+                    throw new Error(response ? response.error : 'Unbekannter Sync-Fehler');
+                }
+
+                pendingKeys.forEach(function(key)
+                {
+                    delete app.state.pendingScoreKeys[key];
                 });
 
                 scoresPayload.forEach(function(item)
                 {
-                    const idx = app.state.scoreCards.findIndex(function(sc) { return String(sc.id).trim() === String(item.id).trim(); });
-                    if (idx !== -1) 
+                    const idx = app.state.scoreCards.findIndex(function(sc)
+                    {
+                        return String(sc.id).trim() === String(item.id).trim();
+                    });
+
+                    if (idx !== -1)
                     {
                         app.state.scoreCards[idx] = item;
                     }
-                    else 
+                    else
                     {
                         app.state.scoreCards.push(item);
                     }
                 });
 
-                app.logic.showToast("Scores erfolgreich gesichert!", "success");
-            }
-            else
-            {
-                app.logic.showToast("Sync-Fehler: " + (response ? response.error : "Unbekannt"), "error");
-            }
+                app.logic.persistLocalScoreBuffer();
+                app.logic.updateScoreSyncStatus(spieltagId);
 
-            if (syncBtn)
-            {
-                syncBtn.disabled = false;
-                syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`;
+                if (!silent)
+                {
+                    app.logic.showToast('Scores synchronisiert.', 'success');
+                }
             }
-            app.logic.startLivePolling(spieltagId, null, flightSeq);
-        })
-        .catch(function(err)
-        {
-            console.error("Netzwerkfehler beim Sichern:", err);
-            app.logic.showToast("Fehler beim Sichern der Daten", "error");
-            if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
-            app.logic.startLivePolling(spieltagId, null, flightSeq);
-        });
+        )
+        .catch(
+            function(err)
+            {
+                console.error('[ScoreSync] Synchronisation fehlgeschlagen:', err);
+                app.logic.persistLocalScoreBuffer();
+                app.logic.updateScoreSyncStatus(spieltagId, 'error', pendingKeys.length);
+
+                if (!silent)
+                {
+                    app.logic.showToast('Synchronisation fehlgeschlagen – Daten bleiben lokal gespeichert.', 'error');
+                }
+            }
+        )
+        .finally(
+            function()
+            {
+                app.state.scoreSyncInProgress = false;
+            }
+        );
 };
-
 

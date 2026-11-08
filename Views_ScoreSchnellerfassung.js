@@ -20,6 +20,7 @@ app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(pa
     targetFlightSeq = parseInt(targetFlightSeq) || 1;
 
     app.state.liveScores = app.state.liveScores || {};
+    app.logic.initScoreAutoSync(spieltagId);
 
     const spieltage = app.state.spieltage || [];
     const spieltag = spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
@@ -197,7 +198,7 @@ app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(pa
                         </div>
                     </div>
 
-                    <button onclick="app.logic.syncScoresWithServer('${spieltagId}', ${targetFlightSeq})" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl transition shadow-3xs flex items-center h-10">
+                    <button onclick="app.logic.syncScoresWithServer('${spieltagId}', ${targetFlightSeq}, false, true)" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl transition shadow-3xs flex items-center h-10">
                         <i class="fas fa-cloud-upload-alt mr-2"></i> Alles sichern
                     </button>
                 </div>

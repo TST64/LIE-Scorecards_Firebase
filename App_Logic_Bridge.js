@@ -731,7 +731,7 @@ app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
                         }
                         else if (app.state.currentView === 'score_eingabe' && holeNr && !app.state.scoreEntryV2)
                         {
-                            const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(
+                            const ungesicherteAenderungen = Object.keys(app.state.pendingScoreKeys || {}).filter(
                                 function(k)
                                 {
                                     return k.startsWith(spieltagId + "_");
