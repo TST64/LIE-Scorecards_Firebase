@@ -151,7 +151,7 @@ app.scoreSyncV2CallableTransport = async function(request)
     {
         throw new Error('No matching Firebase session for V2 request.');
     }
-    const callable = firebase.app().functions('europe-west1').httpsCallable('saveScoreOperationsV2');
+    const callable = app.environment.callable('saveScoreOperationsV2');
     const response = await callable(request);
     return response.data;
 };
@@ -190,7 +190,7 @@ app.scoreSyncV2ReadCallableTransport = async function(request)
     {
         throw new Error('V2 read identity changed or is invalid.');
     }
-    const callable = firebase.app().functions('europe-west1').httpsCallable('readOwnFlightScoresV2');
+    const callable = app.environment.callable('readOwnFlightScoresV2');
     const response = await callable(request);
     return response.data;
 };

@@ -10,7 +10,7 @@ app.createScoreEntryContextStore = function(name)
         {
             connection = new Promise(function(resolve, reject)
             {
-                const request = indexedDB.open(name || 'lie_score_entry_context_v2', 1);
+                const request = indexedDB.open(name || 'lie_score_entry_context_v2__local:demo-lie-scorecards-local', 1);
                 request.onupgradeneeded = function()
                 {
                     request.result.createObjectStore('contexts', { keyPath: ['ownerUid', 'playerId', 'spieltagId'] });

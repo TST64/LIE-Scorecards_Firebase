@@ -7,7 +7,7 @@ app.createScoreSyncStore = function(databaseName)
 {
     'use strict';
 
-    const name = databaseName || 'lie_score_sync_v2';
+    const name = databaseName || 'lie_score_sync_v2__local:demo-lie-scorecards-local';
     const fields = ['strokes', 'puts', 'lady', 'maxscore'];
     const stores = ['pendingOperations', 'serverCache', 'requestSnapshots', 'operationReceipts', 'operationIssues'];
     let connection = null;

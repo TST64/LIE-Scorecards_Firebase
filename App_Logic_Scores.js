@@ -12,27 +12,34 @@ app.logic = app.logic || {};
 // Lokaler Score-Puffer & automatischer Flight-Sync
 // =========================================================================
 
-app.logic.scoreSyncStorageKey = 'lie_score_sync_v1';
+app.logic.scoreSyncStorageKey = 'lie_score_sync_v1__local:demo-lie-scorecards-local';
 
 app.logic.restoreLocalScoreBuffer = function()
 {
-    if (app.state.scoreSyncRestored)
+    const activeOwner = app.state.currentUser && String(app.state.currentUser.id);
+    if (app.state.scoreSyncRestored && app.state.scoreRestoredOwner === activeOwner) return;
+    if (app.state.scoreRestoredOwner !== activeOwner)
     {
-        return;
+        app.state.liveScores = {};
+        app.state.pendingScoreKeys = {};
     }
-
+    app.state.scoreRestoredOwner = activeOwner;
     app.state.scoreSyncRestored = true;
+    app.state.scoreBufferOwner = null;
     app.state.pendingScoreKeys = app.state.pendingScoreKeys || {};
 
     try
     {
-        const raw = localStorage.getItem(app.logic.scoreSyncStorageKey);
+        const raw = localStorage.getItem(app.logic.scoreSyncStorageKey + "__" + encodeURIComponent(activeOwner));
         if (!raw)
         {
             return;
         }
 
         const saved = JSON.parse(raw);
+        const owner = app.state.currentUser && String(app.state.currentUser.id);
+        if (saved.environment !== 'local:demo-lie-scorecards-local' || saved.owner !== owner) return;
+        app.state.scoreBufferOwner = owner;
         app.state.liveScores = Object.assign({}, saved.liveScores || {}, app.state.liveScores || {});
         app.state.pendingScoreKeys = Object.assign({}, saved.pendingScoreKeys || {});
     }
@@ -46,10 +53,14 @@ app.logic.persistLocalScoreBuffer = function()
 {
     try
     {
+        const owner = app.state.currentUser && String(app.state.currentUser.id);
+        if (!owner || app.state.scoreBufferOwner !== owner) return;
         localStorage.setItem(
-            app.logic.scoreSyncStorageKey,
+            app.logic.scoreSyncStorageKey + "__" + encodeURIComponent(owner),
             JSON.stringify(
                 {
+                    environment: 'local:demo-lie-scorecards-local',
+                    owner: app.state.currentUser && String(app.state.currentUser.id),
                     liveScores: app.state.liveScores || {},
                     pendingScoreKeys: app.state.pendingScoreKeys || {},
                     savedAt: new Date().toISOString()
@@ -234,6 +245,13 @@ app.logic.updateScoreSyncStatus = function(spieltagId, state, pendingCount)
 
 app.logic.markScorePending = function(spieltagId, key)
 {
+    const owner = app.state.currentUser && String(app.state.currentUser.id);
+    if (app.state.scoreRestoredOwner !== owner)
+    {
+        // A screen must restore its own partition before accepting input.
+        app.logic.restoreLocalScoreBuffer();
+    }
+    app.state.scoreBufferOwner = owner;
     app.state.pendingScoreKeys = app.state.pendingScoreKeys || {};
     app.state.scoreAutoSyncTimers = app.state.scoreAutoSyncTimers || {};
     app.state.pendingScoreKeys[key] = Date.now();
@@ -592,7 +610,9 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
 
 app.logic.syncScoresWithServer = function(spieltagId, flightSeq, silent, allowSelectedFlight)
 {
+    app.environment.assertReady();
     app.logic.restoreLocalScoreBuffer();
+    if (app.state.scoreBufferOwner !== (app.state.currentUser && String(app.state.currentUser.id))) return;
 
     if (app.state.scoreSyncInProgress)
     {
@@ -734,6 +754,8 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq, silent, allowSe
     app.state.scoreSyncInProgress = true;
     app.logic.updateScoreSyncStatus(spieltagId, 'syncing', pendingKeys.length);
 
+    const sendingOwner = app.state.scoreBufferOwner;
+    const sendingPending = app.state.pendingScoreKeys;
     app.logic.apiRequest('saveLiveScores', { payload: scoresPayload })
         .then(
             function(response)
@@ -743,6 +765,8 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq, silent, allowSe
                     throw new Error(response ? response.error : 'Unbekannter Sync-Fehler');
                 }
 
+                if (app.state.scoreBufferOwner !== sendingOwner || app.state.pendingScoreKeys !== sendingPending
+                    || String(app.state.currentUser && app.state.currentUser.id) !== sendingOwner) return;
                 pendingKeys.forEach(function(key)
                 {
                     delete app.state.pendingScoreKeys[key];

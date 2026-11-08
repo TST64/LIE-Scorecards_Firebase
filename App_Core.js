@@ -33,42 +33,12 @@ app.core = (function()
 {
     'use strict';
 
-    function initFirebase()
+    async function initFirebase()
     {
-        if (typeof firebase === 'undefined')
-        {
-            console.error('[App_Core] Firebase SDK wurde nicht geladen.');
-            return;
-        }
-
-        const config = window.firebaseConfig || (typeof firebaseConfig !== 'undefined' ? firebaseConfig : null);
-
-        if (!config)
-        {
-            console.error('[App_Core] Firebase-Konfiguration fehlt.');
-            return;
-        }
-
-        if (!firebase.apps.length)
-        {
-            firebase.initializeApp(config);
-            
-            const dbInstance = firebase.firestore();
-
-            app.db = dbInstance;
-            console.log('[Firebase] Cloud Firestore erfolgreich initialisiert.');
-        }
-        else if (!app.db)
-        {
-            app.db = firebase.firestore();
-        }
+        if (!app.environment) throw new Error('Local environment bootstrap missing.');
+        app.db = await app.environment.start();
     }
-
-
-    function init()
-    {
-        initFirebase();
-    }
+    async function init() { await initFirebase(); }
 
     return {
         init: init,

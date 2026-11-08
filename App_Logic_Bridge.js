@@ -321,8 +321,7 @@ app.logic.callFunction = async function(functionName, payload)
         throw new Error('Firebase Functions SDK wurde nicht geladen.');
     }
 
-    const functions = firebase.app().functions('europe-west1');
-    const callable = functions.httpsCallable(functionName);
+    const callable = app.environment.callable(functionName);
     const result = await callable(payload || {});
     return result && result.data ? result.data : {};
 };
@@ -342,6 +341,7 @@ app.logic.loadLoginPlayers = async function()
 // Abstraction layer for API requests
 app.logic.apiRequest = async function(action, payload = {})
 {
+    await app.environment.checkOnline();
     // Payload absichtlich nicht protokollieren:
     // API-Aufrufe können PINs oder andere sensible Daten enthalten.
     console.log(`[Bridge Firestore Request] Action: ${action}`);

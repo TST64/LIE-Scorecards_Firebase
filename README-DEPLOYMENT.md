@@ -1,4 +1,6 @@
-# LIE Scorecard 5.2.0 – Custom-Token-Authentifizierung
+# Historische Deployment-Notizen (in Phase 2A nicht ausführen)
+
+Dieser Branch ist ausschließlich lokal und kein Produktionsartefakt. Keine der folgenden historischen Deployanweisungen für diesen Branch verwenden. Einstieg und Tests: [docs/LOCAL_EMULATOR.md](docs/LOCAL_EMULATOR.md). Ein eigener Cloud-/Produktionsworkflow ist nicht Teil von Phase 2A.
 
 Diese Version basiert auf dem gelieferten Projekt-Dump und ersetzt die zuvor vorbereitete anonyme Firebase-Anmeldung.
 
