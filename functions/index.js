@@ -110,12 +110,48 @@ function verifyPinHash(storedHash, pin)
 
 async function setPlayerClaims(uid, playerId, role, mustChangePin)
 {
-    await admin.auth().setCustomUserClaims(uid,
+    let user;
+    try { user = await admin.auth().getUser(uid); }
+    catch (error)
     {
-        playerId: String(playerId),
-        role: role || "Spieler",
-        mustChangePin: !!mustChangePin
+        if (error.code !== "auth/user-not-found") throw error;
+        user = await admin.auth().createUser({ uid });
+    }
+    if (user.disabled) throw new HttpsError("permission-denied", "Konto nicht verfügbar.");
+    await admin.auth().setCustomUserClaims(uid, {
+        ...user.customClaims, playerId: String(playerId), role: role || "Spieler", mustChangePin: !!mustChangePin
     });
+}
+
+function validatePlayerId(value)
+{
+    const id = typeof value === "string" ? value.trim() : "";
+    if (!id || id.length > 128 || /[/\s]/.test(id)) throw new HttpsError("invalid-argument", "Ungültiger Spieler.");
+    return id;
+}
+
+// Firestore and Auth cannot commit atomically. The durable pending marker and
+// mustChangePin=true gate remain until persistent claims AND final DB CAS succeed.
+async function completePinChange(ref, expected)
+{
+    await setPlayerClaims(ref.id, ref.id, expected.role, false);
+    await db.runTransaction(async tx =>
+    {
+        const snap = await tx.get(ref), data = snap.exists && snap.data();
+        if (!data || data.istGeloescht === true || data.pinHash !== expected.pinHash
+            || (data.role || "Spieler") !== expected.role
+            || (data.pinChangePending !== expected.pending && !(data.pinChangePending === undefined && data.mustChangePin === false)))
+            throw new HttpsError("failed-precondition", "PIN-Änderung muss geprüft werden.");
+        tx.set(ref, { mustChangePin: false, pinChangePending: FieldValue.delete(),
+            pin: FieldValue.delete(), tempPinSentAt: FieldValue.delete(), failedPinAttempts: 0,
+            pinLockUntil: FieldValue.delete() }, { merge: true });
+    });
+}
+function pinRecoveryError(error)
+{
+    // Never log/return provider errors, request payloads or credential material.
+    if (error instanceof HttpsError) return error;
+    return new HttpsError("unavailable", "PIN-Status unklar. Mit derselben neuen PIN erneut versuchen oder neu anmelden.");
 }
 
 function publicPlayerData(id, data)
@@ -130,6 +166,23 @@ function publicPlayerData(id, data)
         role: data.role || "Spieler"
     };
 }
+
+exports.getPlayerSessionState = onCall(async request =>
+{
+    requireAuth(request);
+    if (!request.auth.token || request.auth.token.playerId !== request.auth.uid)
+        throw new HttpsError("permission-denied", "Ungültige Kontobindung.");
+    try
+    {
+        const snap = await db.collection("spieler").doc(request.auth.uid).get();
+        if (!snap.exists || snap.data().istGeloescht === true)
+            throw new HttpsError("permission-denied", "Konto nicht verfügbar.");
+        const data = snap.data();
+        return { success: true, playerId: request.auth.uid, role: data.role || "Spieler",
+            mustChangePin: request.auth.token.mustChangePin !== false || data.mustChangePin === true || !!data.pinChangePending };
+    }
+    catch (error) { throw pinRecoveryError(error); }
+});
 
 exports.getLoginPlayers = onCall(async (request) =>
 {
@@ -185,152 +238,96 @@ exports.getLoginPlayers = onCall(async (request) =>
 
 exports.verifyPlayerPin = onCall(async (request) =>
 {
-
-    const playerId = String(request.data && request.data.spielerId || "").trim();
-    const pin = validatePin(request.data && request.data.pin);
-
-    if (!playerId)
+    try
     {
-        throw new HttpsError("invalid-argument", "Spieler fehlt.");
-    }
-
-    const ref = db.collection("spieler").doc(playerId);
-    const snap = await ref.get();
-
-    // Gleiche Fehlermeldung für unbekannte Spieler und falsche PIN.
-    if (!snap.exists || snap.data().istGeloescht === true)
-    {
-        throw new HttpsError("permission-denied", "Spieler oder PIN nicht korrekt.");
-    }
-
-    const data = snap.data();
-    const now = Date.now();
-    const lockUntil = data.pinLockUntil && typeof data.pinLockUntil.toMillis === "function"
-        ? data.pinLockUntil.toMillis()
-        : 0;
-
-    if (lockUntil > now)
-    {
-        throw new HttpsError("resource-exhausted", "Zu viele Fehlversuche. Bitte später erneut versuchen.");
-    }
-
-    const storedHash = data.pinHash || "";
-    const storedLegacyPin = data.pin != null ? String(data.pin).trim() : "";
-
-
-    let valid = false;
-    let migrated = false;
-
-    if (storedHash)
-    {
-        valid = verifyPinHash(storedHash, pin);
-    }
-    else
-    {
-        // Übergangskompatibilität: bestehende Klartext-PINs werden beim
-        // ersten erfolgreichen Login sofort in einen scrypt-Hash umgewandelt.
-        valid = storedLegacyPin ? storedLegacyPin === pin : pin === "4227";
-        migrated = valid;
-    }
-
-    if (!valid)
-    {
-        const failed = Number(data.failedPinAttempts || 0) + 1;
-        const update = { failedPinAttempts: failed };
-
-        if (failed >= 5)
+        const playerId = validatePlayerId(request.data && request.data.spielerId);
+        const pin = validatePin(request.data && request.data.pin);
+        const ref = db.collection("spieler").doc(playerId);
+        const snap = await ref.get();
+        if (!snap.exists || snap.data().istGeloescht === true)
+            throw new HttpsError("permission-denied", "Spieler oder PIN nicht korrekt.");
+        let data = snap.data();
+        const now = Date.now();
+        const lockUntil = data.pinLockUntil && typeof data.pinLockUntil.toMillis === "function" ? data.pinLockUntil.toMillis() : 0;
+        if (lockUntil > now) throw new HttpsError("resource-exhausted", "Zu viele Fehlversuche. Bitte später erneut versuchen.");
+        const storedHash = data.pinHash || "";
+        const legacyPin = data.pin != null ? String(data.pin).trim() : "";
+        const valid = storedHash ? verifyPinHash(storedHash, pin) : legacyPin ? legacyPin === pin : pin === "4227";
+        if (!valid)
         {
-            update.failedPinAttempts = 0;
-            update.pinLockUntil = Timestamp.fromMillis(now + 15 * 60 * 1000);
+            const failed = Number(data.failedPinAttempts || 0) + 1;
+            await ref.set(failed >= 5 ? { failedPinAttempts: 0, pinLockUntil: Timestamp.fromMillis(now + 15 * 60 * 1000) }
+                : { failedPinAttempts: failed }, { merge: true });
+            throw new HttpsError("permission-denied", "Spieler oder PIN nicht korrekt.");
         }
-
-        await ref.set(update, { merge: true });
-
-        throw new HttpsError("permission-denied", "Spieler oder PIN nicht korrekt.");
+        if (data.pinChangePending)
+        {
+            await completePinChange(ref, { pinHash: storedHash, pending: data.pinChangePending, role: data.role || "Spieler" });
+            data = (await ref.get()).data();
+        }
+        const mustChangePin = data.mustChangePin === true || !storedHash;
+        const successUpdate = { failedPinAttempts: 0, pinLockUntil: FieldValue.delete() };
+        if (!storedHash) Object.assign(successUpdate, { pinHash: hashPin(pin), pin: FieldValue.delete(), mustChangePin: true });
+        await db.runTransaction(async tx =>
+        {
+            const current = await tx.get(ref), latest = current.exists && current.data();
+            if (!latest || latest.istGeloescht === true || latest.pinHash !== data.pinHash
+                || latest.pinChangePending || (latest.role || "Spieler") !== (data.role || "Spieler")
+                || latest.mustChangePin !== data.mustChangePin)
+                throw new HttpsError("failed-precondition", "Anmeldestatus geändert. Bitte erneut anmelden.");
+            tx.set(ref, successUpdate, { merge: true });
+        });
+        await setPlayerClaims(playerId, playerId, data.role || "Spieler", mustChangePin);
+        // No additional claims: old custom-token claims would override future persistent claims.
+        const customToken = await admin.auth().createCustomToken(playerId);
+        return { success: true, mustChangePin, customToken };
     }
-
-    const mustChangePin = data.mustChangePin === true || !storedHash;
-
-    const successUpdate =
-    {
-        failedPinAttempts: 0,
-        pinLockUntil: FieldValue.delete()
-    };
-
-    if (migrated)
-    {
-        successUpdate.pinHash = hashPin(pin);
-        successUpdate.pin = FieldValue.delete();
-        successUpdate.mustChangePin = true;
-    }
-
-    await ref.set(successUpdate, { merge: true });
-
-    const role = data.role || "Spieler";
-
-    // Der Spieler wird erst NACH erfolgreicher PIN-Prüfung bei Firebase
-    // authentifiziert. Die UID entspricht stabil der vorhandenen Spieler-ID.
-    const customToken = await admin.auth().createCustomToken(playerId,
-    {
-        playerId: playerId,
-        role: role,
-        mustChangePin: !!mustChangePin
-    });
-
-    return {
-        success: true,
-        mustChangePin: !!mustChangePin,
-        customToken: customToken
-    };
+    catch (error) { throw pinRecoveryError(error); }
 });
 
 exports.updatePlayerPin = onCall(async (request) =>
 {
     requireAuth(request);
-
-    const playerId = String(request.data && request.data.spielerId || "").trim();
+    const playerId = validatePlayerId(request.data && request.data.spielerId);
     const newPin = validatePin(request.data && request.data.newPin);
-
-    if (!playerId)
-    {
-        throw new HttpsError("invalid-argument", "Spieler fehlt.");
-    }
-
-    const ownPlayer = String(request.auth.token.playerId || "") === playerId;
-
-    if (!ownPlayer && !isAdmin(request))
-    {
-        throw new HttpsError("permission-denied", "Du darfst diese PIN nicht ändern.");
-    }
-
+    const token = request.auth.token || {};
+    if (String(token.playerId || "") !== request.auth.uid)
+        throw new HttpsError("permission-denied", "Ungültige Kontobindung.");
+    const ownPlayer = request.auth.uid === playerId;
     const ref = db.collection("spieler").doc(playerId);
-    const snap = await ref.get();
-
-    if (!snap.exists)
+    try
     {
-        throw new HttpsError("not-found", "Spieler nicht gefunden.");
+        const authActor = await admin.auth().getUser(request.auth.uid);
+        if (authActor.disabled) throw new HttpsError("permission-denied", "Konto nicht verfügbar.");
+        const preparedHash = hashPin(newPin);
+        const expected = await db.runTransaction(async tx =>
+        {
+            const actor = await tx.get(db.collection("spieler").doc(request.auth.uid));
+            const target = await tx.get(ref);
+            if (!actor.exists || actor.data().istGeloescht === true
+                || (!ownPlayer && (!isAdmin(request) || actor.data().role !== "Admin"
+                    || token.mustChangePin !== false || actor.data().mustChangePin === true || actor.data().pinChangePending)))
+                throw new HttpsError("permission-denied", "Du darfst diese PIN nicht ändern.");
+            if (!target.exists || target.data().istGeloescht === true)
+                throw new HttpsError("not-found", "Spieler nicht verfügbar.");
+            const data = target.data(), role = data.role || "Spieler";
+            const samePin = data.pinHash && verifyPinHash(data.pinHash, newPin);
+            if (data.pinChangePending)
+            {
+                if (!samePin) throw new HttpsError("failed-precondition", "Ausstehende Änderung mit derselben neuen PIN abschließen.");
+                return { pinHash: data.pinHash, pending: data.pinChangePending, role };
+            }
+            if (samePin && data.mustChangePin === false) return { pinHash: data.pinHash, pending: undefined, role };
+            const pending = crypto.randomUUID();
+            tx.set(ref, { pinHash: preparedHash, pin: FieldValue.delete(), mustChangePin: true,
+                pinChangePending: pending, failedPinAttempts: 0, pinLockUntil: FieldValue.delete() }, { merge: true });
+            return { pinHash: preparedHash, pending, role };
+        });
+        await completePinChange(ref, expected);
+        const customToken = ownPlayer ? await admin.auth().createCustomToken(playerId) : undefined;
+        return { success: true, mustChangePin: false, ...(ownPlayer ? { customToken } : {}) };
     }
-
-    await ref.set(
-    {
-        pinHash: hashPin(tempPin),
-        pin: FieldValue.delete(),
-        mustChangePin: true,
-        tempPinSentAt: FieldValue.serverTimestamp(),
-    
-        // Ein neu angeforderter Einmal-Code startet einen frischen
-        // Anmeldeversuch. Vorherige PIN-Fehlversuche und Sperren werden gelöscht.
-        failedPinAttempts: 0,
-        pinLockUntil: FieldValue.delete()
-    },
-    { merge: true });
-
-    if (ownPlayer)
-    {
-        await setPlayerClaims(request.auth.uid, playerId, snap.data().role || "Spieler", false);
-    }
-
-    return { success: true };
+    catch (error) { throw pinRecoveryError(error); }
 });
 
 exports.requestTempPin = onCall(async (request) =>
@@ -346,7 +343,7 @@ exports.requestTempPin = onCall(async (request) =>
     const ref = db.collection("spieler").doc(playerId);
     const snap = await ref.get();
 
-    if (!snap.exists || snap.data().istGeloescht === true)
+    if (!snap.exists || snap.data().istGeloescht === true || snap.data().pinChangePending)
     {
         // Keine unnötige Information darüber, welche Namen existieren.
         return { success: true };
@@ -382,19 +379,24 @@ exports.requestTempPin = onCall(async (request) =>
         tempPinSentAt: data.tempPinSentAt
     };
 
-    // Neuen Einmal-Code zunächst aktivieren.
-    await ref.set(
+    // Do not overwrite an S04 operation that started after the initial read.
+    const temporaryHash = hashPin(tempPin);
+    const activated = await db.runTransaction(async tx =>
     {
-        pinHash: hashPin(tempPin),
-        pin: FieldValue.delete(),
-        mustChangePin: true,
-        tempPinSentAt: FieldValue.serverTimestamp(),
-
-        // Ein neuer Einmal-Code startet einen frischen Anmeldeversuch.
-        failedPinAttempts: 0,
-        pinLockUntil: FieldValue.delete()
-    },
-    { merge: true });
+        const current = await tx.get(ref);
+        if (!current.exists || current.data().istGeloescht === true || current.data().pinChangePending
+            || current.data().pinHash !== data.pinHash) return false;
+        tx.set(ref, {
+            pinHash: temporaryHash,
+            pin: FieldValue.delete(),
+            mustChangePin: true,
+            tempPinSentAt: FieldValue.serverTimestamp(),
+            failedPinAttempts: 0,
+            pinLockUntil: FieldValue.delete()
+        }, { merge: true });
+        return true;
+    });
+    if (!activated) return { success: true };
 
 
     try
@@ -427,7 +429,7 @@ exports.requestTempPin = onCall(async (request) =>
     }
     catch (err)
     {
-        console.error("[requestTempPin] E-Mail-Versand:", err);
+        console.error("[requestTempPin] Zustellung fehlgeschlagen.");
 
         // E-Mail konnte nicht versendet werden:
         // vorherigen PIN-Zustand wiederherstellen.
@@ -450,7 +452,12 @@ exports.requestTempPin = onCall(async (request) =>
                 : FieldValue.delete()
         };
 
-        await ref.set(rollback, { merge: true });
+        await db.runTransaction(async tx =>
+        {
+            const current = await tx.get(ref);
+            if (current.exists && current.data().pinHash === temporaryHash && !current.data().pinChangePending)
+                tx.set(ref, rollback, { merge: true });
+        });
 
         throw new HttpsError(
             "internal",
