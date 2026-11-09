@@ -142,6 +142,7 @@ function createScoreOperationsV2(db, FieldValue)
 
         return db.runTransaction(async function(tx)
         {
+            await require('./local-maintenance').assertWritable(tx,db);
             if((await require('./history-lock').historyState(tx,db)).activeRun)return rejectAll('history-correction-barrier');
             const actorRef = db.collection("spieler").doc(auth.token.playerId);
             const roundRef = db.collection("spieltage").doc(request.spieltagId);

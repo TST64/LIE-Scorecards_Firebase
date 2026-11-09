@@ -22,6 +22,7 @@ async function run(primary){
         stage='normal-prepare-and-first-400';assert.equal(await primary.evaluate("(async()=>{document.getElementById('history-review').checked=true;return (await app.logic.historyCorrectionActionV1('prepare')).phase==='staging';})()"),true);
         const runId=await primary.evaluate('app.state.historyCorrectionView.status.runId');
         assert.equal((await primary.evaluate("app.logic.historyCorrectionActionV1('stage')")).staged,400);await serverOld();
+        if(primary.onStage400)await primary.onStage400({db,instance,runId,change,preview,reader,primary});
         assert.equal((await db.collection('historyCorrectionStages').where('planHash','==',preview.planHash||((await db.collection('historyCorrectionRuns').doc(runId).get()).data().planHash)).get()).size,400);
         const read=await primary.evaluate("app.logic.callFunction('readPublishedSeasonV1',{})");assert.equal(read.scorecards.find(c=>c.id===targetId).strokes,7);assert.equal(read.spieler.find(p=>p.id==='MS02').hcpLIE,24);assert.equal(read.publication.activeRun,runId);
         assert.equal(await primary.evaluate("app.db.collection('historyCorrectionStages').get().then(()=>false,e=>e.code==='permission-denied')"),true);
@@ -31,11 +32,12 @@ async function run(primary){
         assert.equal(await primary.evaluate(`app.logic.callFunction('createRoundStart',${q(next)}).then(()=>false,()=>true)`),true);
         assert.equal(await primary.evaluate(`app.logic.callFunction('historyCorrectionV1',${q({action:'prepare',runId:'COMPETING',change,expectedBasis:preview.basisHash})}).then(()=>false,()=>true)`),true);
         stage='second-batch-failure-59';let attempted=0;
-        const faulty={collection:db.collection.bind(db),runTransaction:db.runTransaction.bind(db),batch(){return {set(){attempted++;},async commit(){throw new Error('synthetic second Firestore batch failure');}};}};
-        await assert.rejects(require('../functions/history-correction').createHistoryCorrection(faulty)(auth,{action:'stage',runId}));assert.equal(attempted,59);await serverOld();
+        const faulty={collection:db.collection.bind(db),runTransaction:db.runTransaction.bind(db),batch(){return {set(){attempted++;},async commit(){if(primary.onActiveStage)await primary.onActiveStage({db,runId});throw new Error('synthetic second Firestore batch failure');}};}};
+        await assert.rejects(require('../functions/history-correction').createHistoryCorrection(faulty)(auth,{action:'stage',runId}));if(primary.onStageFailure)await primary.onStageFailure({db,runId});assert.equal(attempted,59);await serverOld();
         assert.equal((await primary.evaluate(`app.logic.callFunction('historyCorrectionV1',${q({action:'status',runId})})`)).staged,400);
         stage='real-worker-crash-after-second-commit';
         const crashed=spawnSync(process.execPath,[path.join(__dirname,'history-s07-worker.cjs'),runId,'crash-after-batch'],{cwd:path.join(__dirname,'..'),env:process.env,encoding:'utf8',windowsHide:true,timeout:90000});assert.equal(crashed.status,73,'test worker exits after real stage commit before checkpoint');await serverOld();
+        if(primary.onWorkerExit)await primary.onWorkerExit({db,pid:crashed.pid,exitCode:crashed.status});
         assert.equal((await primary.evaluate(`app.logic.callFunction('historyCorrectionV1',${q({action:'status',runId})})`)).staged,400);
         stage='fresh-worker-recovery';
         const recovered=spawnSync(process.execPath,[path.join(__dirname,'history-s07-worker.cjs'),runId],{cwd:path.join(__dirname,'..'),env:process.env,encoding:'utf8',windowsHide:true,timeout:90000});assert.equal(recovered.status,0);assert.match(recovered.stdout,/"staged":459/);await serverOld();

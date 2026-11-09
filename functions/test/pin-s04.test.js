@@ -45,6 +45,7 @@ async function fixture()
         if(name==='./round-start')return require('../round-start');
         if(name==='./round-close')return require('../round-close');
         if(name==='./history-correction')return require('../history-correction');
+        if(name==='./local-maintenance')return require('../local-maintenance');
         if(name==='./published-season')return require('../published-season');
         if(name.startsWith('./score-'))return require('../'+name.slice(2));
         throw new Error('unexpected dependency');

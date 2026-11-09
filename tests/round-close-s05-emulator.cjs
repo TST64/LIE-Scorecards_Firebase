@@ -72,6 +72,7 @@ async function run(primary){
             await primary.evaluate(`app.logic.openRoundClose(${q(round.id)}).then(()=>true)`);
             assert.equal(await primary.evaluate("app.state.currentView==='round_close'&&!!document.getElementById('close-begin')"),true);
             assert.equal((await primary.evaluate(`app.logic.roundCloseAction('begin',${q(round.id)})`)).closure.phase,'collecting');
+            if(index===0&&primary.onClosingWindow)await primary.onClosingWindow({db,roundId:round.id,clients,shadow});
             if(index===0){
                 // A stale real UI writer still holds an old active context. The
                 // server freeze must reject it, and the local queue must survive.
