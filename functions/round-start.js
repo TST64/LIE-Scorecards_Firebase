@@ -53,6 +53,7 @@ function createRoundStart(db)
             const plan=H.plan(previous,historical,start,old=>old.hcpHoleData,old=>old.hcpCourseTable||[]);
             requireValue(plan.entries.every(e=>e.complete),'Incomplete history blocks start HCP');
             requireValue(plan.entries.every(e=>previous.find(r=>r.id===e.roundId).hcpStart?.[e.playerId]===e.startHcp),'Historical start chain requires S07 verification');
+            requireValue(plan.entries.every(e=>{const old=previous.find(r=>r.id===e.roundId);return old._roundClose?.version===1&&old.closure?.phase==='published'&&old._roundClose.hcpEnd?.[e.playerId]===e.endHcp;}),'Historical closure requires S07 verification');
             const snapshots=Object.fromEntries(members.map(p=>[p,H.snapshot(raw,courseHoles,plan.currentHcp[p],table)]));
             const occupied=await tx.get(db.collection('scorecards').where('spieltagId','==',raw.id));requireValue(!occupied.docs.length,'Orphan scorecards prevent initialization');
             for(const f of normalizedFlights){const old=await tx.get(db.collection('flights').doc(f.id));requireValue(!old.exists,'Flight already exists');}

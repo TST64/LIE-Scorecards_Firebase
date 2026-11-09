@@ -84,8 +84,10 @@ PIN-Wechselstatus, den aktuellen Spieler-Datensatz und dessen aktuelle Rolle,
 Löschstatus, Spieltagsstatus, exakte Flight-Zugehörigkeit und Zielspieler.
 `ownFlight` verlangt Mitgliedschaft des Aufrufers; `selectedFlight` verlangt
 aktuell Admin/Spielleiter. Auch Spielleiter dürfen nur explizit ausgewählte,
-existierende Flights bearbeiten. Beendete Runden bleiben Administratoren
-vorbehalten; abgebrochene/gelöschte Runden werden abgewiesen.
+existierende Flights bearbeiten. S05 sperrt neue Writes im Abschlussfenster
+und nach Rundenschluss auch für Administratoren; historische Korrekturen bleiben
+bis S07 gesperrt. Vorhandene Receipts dürfen ausschließlich den bereits
+committeten Wert bestätigen. Abgebrochene/gelöschte Runden werden abgewiesen.
 
 Das Admin SDK umgeht Firestore Rules. Deshalb erfolgen Whitelist-, Typ-,
 Revisions-, Identitäts- und Berechtigungsprüfungen im Server und innerhalb

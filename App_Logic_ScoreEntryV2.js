@@ -245,10 +245,12 @@ app.createScoreEntryV2Controller = function(options)
 
     function action(spielerId, hole, name, delta)
     {
+        if(options.getState().roundCloseLocalBusy)return Promise.reject(new Error('Abschlussprüfung läuft; keine neue Eingabe angenommen.'));
         const selected = active;
         const work = async function()
         {
             requireValid(selected && selected === active, 'Stale score action.');
+            requireValid(!options.getState().roundCloseInputLocks?.[selected.context.spieltagId]&&selected.response.round.closure?.phase!=='collecting', 'Abschlussfenster aktiv. Keine neue Eingabe; Abschlussstand online prüfen.');
             requireValid(['confirm', 'strokes', 'puts', 'lady', 'strich'].includes(name), 'Invalid score action.');
             if (name === 'strokes' || name === 'puts')
             {
@@ -343,7 +345,7 @@ app.createScoreEntryV2Controller = function(options)
     }
 
     return Object.freeze({ open: open, refresh: refresh, invalidate: invalidate,
-        readEntry: readEntry, readAll: readAll, action: action, project: project });
+        readEntry: readEntry, readAll: readAll, action: action, project: project, settleActions:()=>actionTail });
 
 };
 

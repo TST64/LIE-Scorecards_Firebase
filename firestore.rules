@@ -53,17 +53,14 @@ service cloud.firestore
     {
       allow read: if isAdmin() || isOwnPlayer(spielerId);
 
-      allow create, delete: if isAdmin();
+      allow create: if isAdmin()
+        && (!exists(/databases/$(database)/documents/spieler_public/$(spielerId))
+          || !get(/databases/$(database)/documents/spieler_public/$(spielerId)).data.keys().hasAny(['hcpClosure']));
+      allow delete: if isAdmin() && !resource.data.keys().hasAny(['hcpClosure']);
 
-      // Admin: alles.
-      // Spielleiter: ausschließlich LIE-Handicap.
-      // Spieler: nur eigene allgemeine Profildaten.
-      allow update: if isAdmin()
-        || (
-          isSpielleiter()
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['hcpLIE'])
-        )
+      // HCP and closure provenance are server-authoritative, including for Admin.
+      // Players may still change their own general profile.
+      allow update: if isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpLIE','hcpClosure'])
         || (
           signedIn() && isOwnPlayer(spielerId)
           && request.resource.data.diff(resource.data).affectedKeys()
@@ -76,14 +73,12 @@ service cloud.firestore
     {
       allow read: if identified();
 
-      allow create, delete: if isAdmin();
+      allow create: if isAdmin()
+        && (!exists(/databases/$(database)/documents/spieler/$(spielerId))
+          || !get(/databases/$(database)/documents/spieler/$(spielerId)).data.keys().hasAny(['hcpClosure']));
+      allow delete: if isAdmin() && !resource.data.keys().hasAny(['hcpClosure']);
 
-      allow update: if isAdmin()
-        || (
-          isSpielleiter()
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['hcpLIE'])
-        )
+      allow update: if isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpLIE','hcpClosure'])
         || (
           signedIn() && isOwnPlayer(spielerId)
           && request.resource.data.diff(resource.data).affectedKeys()
@@ -97,7 +92,7 @@ service cloud.firestore
       allow read: if signedIn();
       allow create, delete: if false;
       allow update: if isSpielleiter()
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpStart','holeAllowances','hcpHoleData','hcpCourseTable','hcpSnapshotVersion','_roundStart','kursId','rundenTyp','bahnAnzahl','teilnehmerCsv','date','status']);
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id','istGeloescht','hcpStart','holeAllowances','hcpHoleData','hcpCourseTable','hcpSnapshotVersion','_roundStart','kursId','rundenTyp','bahnAnzahl','teilnehmerCsv','date','status','closure','scoreRevision','_roundClose','hcpEnd','nettoSieger','bruttoSieger']);
     }
 
     // Scores dürfen angemeldete Mitglieder während einer laufenden Runde erfassen.

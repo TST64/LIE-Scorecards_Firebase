@@ -141,7 +141,7 @@ function createScoreReadV2(db)
             }
             return { ownerUid: auth.uid, playerId: auth.token.playerId, actorRole: actor.data().role || "Spieler", spieltagId: request.spieltagId,
                 flightId: flight.id, flightSeq: flightSeq, members: members, players: players,
-                round: Object.assign(pick(round, ["kursId", "rundenTyp", "bahnAnzahl", "status", "hcpStart", "holeAllowances", "hcpSnapshotVersion", "hcpHoleData", "hcpCourseTable"]), { holes: holes, holeData: holeData }),
+                round: Object.assign(pick(round, ["kursId", "rundenTyp", "bahnAnzahl", "status", "hcpStart", "holeAllowances", "hcpSnapshotVersion", "hcpHoleData", "hcpCourseTable", "closure"]), { holes: holes, holeData: holeData }),
                 cards: cards, handicaps: handicaps,
                 calculationHoles: courseHoles.docs.map(function(doc)
                 {

@@ -176,7 +176,7 @@ function createScoreOperationsV2(db, FieldValue)
                 return deny("invalid-role");
             }
             if (!round.exists || round.data().istGeloescht === true
-                || (round.data().status !== "Aktiv" && !(role === "Admin" && round.data().status === "Beendet")))
+                || !['Aktiv','Beendet'].includes(round.data().status))
             {
                 return deny("round-not-editable");
             }
@@ -199,6 +199,7 @@ function createScoreOperationsV2(db, FieldValue)
             }
             try { HcpRules.validateRoundSnapshot(round.data(),members); }
             catch (_) { return deny('round-start-snapshots-missing-or-invalid'); }
+            const writeLocked=round.data().status!=='Aktiv'||round.data().closure?.phase==='collecting'||!!round.data()._roundClose;
 
             const valid = operations.map(function(op)
             {
@@ -312,6 +313,9 @@ function createScoreOperationsV2(db, FieldValue)
                 {
                     return result(op, previousDecision.status, revision, previousDecision.reason);
                 }
+                // Durable receipt replay above remains possible after freeze/close;
+                // it acknowledges an existing commit and never mutates a score.
+                if(writeLocked)return result(op,'rejected',revision,'round-frozen-or-closed');
                 if (op.baseDocumentGeneration !== doc.observedGeneration)
                 {
                     return result(op, "rejected", doc.exists ? revision : null,
@@ -374,6 +378,11 @@ function createScoreOperationsV2(db, FieldValue)
             {
                 tx.set(write.ref, write.data);
             });
+            if(receiptWrites.length){
+                const revision=round.data().scoreRevision??0;
+                if(!Number.isSafeInteger(revision)||revision<0||revision===Number.MAX_SAFE_INTEGER)throw new Error('Round revision invalid');
+                tx.set(roundRef,{scoreRevision:revision+1},{merge:true});
+            }
             tx.set(requestRef, { fingerprint: fingerprint, terminalResults: results.filter(function(entry)
             {
                 return entry.status !== "acknowledged";

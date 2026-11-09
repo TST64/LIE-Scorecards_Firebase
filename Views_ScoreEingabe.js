@@ -107,6 +107,7 @@ app.logic.scoreScreenLoadV2 = function(id)
 
 app.logic.scoreScreenInput = function(playerId, action, delta)
 {
+    if(app.state.roundCloseLocalBusy){app.logic.showToast('Abschlussprüfung läuft; keine neue Eingabe angenommen.','error');return Promise.resolve();}
     const c = app.state.scoreScreenContext;
     const selection = app.state.scoreScreenSelection;
     if (!c || !selection || c.owner !== String(app.state.currentUser && app.state.currentUser.id)

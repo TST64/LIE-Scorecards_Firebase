@@ -159,6 +159,8 @@ async function run(profile, port)
         await require('./score-auto-sync-emulator.cjs').run({evaluate,waitFor,reload:()=>command('Page.reload',{},sessionId),command:(method,params)=>command(method,params,sessionId),newProfile});
         stage='S06 authoritative normal round creation and HCP';
         await require('./hcp-s06-emulator.cjs').run({evaluate,waitFor});
+        stage='S05 chronological normal UI round closures and next starts';
+        await require('./round-close-s05-emulator.cjs').run({evaluate,waitFor,newProfile});
         stage = 'network assertions';
         if (forbidden.length) console.error('Unexpected request origins (no paths/data): ' + JSON.stringify([...new Set(forbidden)]));
         assert.equal(forbidden.length, 0, 'all normal app traffic must remain loopback');

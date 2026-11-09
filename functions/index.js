@@ -55,6 +55,12 @@ exports.readOwnFlightScoresV2 = onCall(async function(request)
 });
 
 const initializeRoundStart = require('./round-start').createRoundStart(db,FieldValue);
+const roundClosure = require('./round-close').createRoundClosure(db);
+exports.roundClosureV1 = onCall(async request=>{
+    requireAuth(request);
+    try { return await roundClosure(request.auth,request.data); }
+    catch(error) { throw new HttpsError('failed-precondition','Rundenschluss nicht bestätigt ('+(['round-incomplete','stale-server-basis','flight-releases-missing','flight-review-required','competing-closure','closure-window-mismatch','invalid-actor','privileged-role-required'].includes(error.code)?error.code:'Prüfung fehlgeschlagen')+'). Serverstand erneut laden; lokale Änderungen erhalten.'); }
+});
 exports.createRoundStart = onCall(async request=>
 {
     requireAuth(request);
@@ -197,33 +203,21 @@ exports.getLoginPlayers = onCall(async (request) =>
 
     const snap = await db.collection("spieler").get();
     const players = [];
-    const batch = db.batch();
-
     snap.forEach((doc) =>
     {
         const data = doc.data();
 
         if (data.istGeloescht === true)
         {
-            batch.delete(db.collection("spieler_public").doc(doc.id));
             return;
         }
 
         players.push(publicPlayerData(doc.id, data));
 
-        batch.set(
-            db.collection("spieler_public").doc(doc.id),
-            publicPlayerData(doc.id, data),
-            { merge: true }
-        );
     });
 
-    // Beim ersten Aufruf wird die öffentliche Spielerliste automatisch
-    // aus den bestehenden Spielerdokumenten aufgebaut.
-    if (players.length)
-    {
-        await batch.commit();
-    }
+    // Read only: login discovery must never overwrite a concurrently closed
+    // round's public HCP with a pre-commit private snapshot.
 
     players.sort((a, b) =>
         String(a.nickname || a.name).localeCompare(

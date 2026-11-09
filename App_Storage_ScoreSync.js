@@ -418,6 +418,20 @@ app.createScoreSyncStore = function(databaseName)
         return transact(stores, 'readonly', function(tx, done, abort) { load(tx, c, done, abort); });
     }
 
+    // Closure must see every local partition for this owner/round, including
+    // selectedFlight work and partitions whose separate view context is absent.
+    async function inspectOwnerRound(ownerUid,spieltagId)
+    {
+        if(typeof ownerUid!=='string'||!ownerUid||typeof spieltagId!=='string'||!spieltagId)throw new Error('Missing closure storage scope');
+        return transact(stores,'readonly',function(tx,done){
+            const data={};let remaining=stores.length;
+            for(const name of stores){const request=tx.objectStore(name).getAll();request.onsuccess=function(){
+                data[name]=request.result.filter(r=>r.ownerUid===ownerUid&&r.spieltagId===spieltagId);
+                if(--remaining===0)done(freeze(data));
+            };}
+        });
+    }
+
     async function readScorecard(input)
     {
         const c = documentContext(input);
@@ -859,7 +873,7 @@ app.createScoreSyncStore = function(databaseName)
     {
         databaseName: name, open: open, close: close, appendChanges: appendChanges,
         putServerSnapshot: putServerSnapshot, replaceServerGeneration: replaceServerGeneration,
-        inspect: inspect, readScorecard: readScorecard,
+        inspect: inspect, inspectOwnerRound:inspectOwnerRound, readScorecard: readScorecard,
         createRequestSnapshot: createRequestSnapshot, getRequestSnapshot: getRequestSnapshot,
         prepareRequestRetry: prepareRequestRetry,
         acknowledgeRequest: acknowledgeRequest, markRequestOutcome: markRequestOutcome, resolveField: resolveField

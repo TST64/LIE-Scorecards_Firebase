@@ -154,6 +154,11 @@ document.getElementById('run').onclick = async function()
             'Bestätigung Benutzer A verändert Benutzer B nicht');
         check(await first.createRequestSnapshot(lifecycle) === null,
             'Leere Queue erzeugt keinen Request');
+        const scope=await first.inspectOwnerRound(lifecycle.ownerUid,lifecycle.spieltagId);
+        check(scope.pendingOperations.some(op=>op.flightId===otherFlight.flightId),
+            'S05: Freigabeprüfung erfasst andere Flightpartition ohne Ansichtskontext');
+        check(scope.pendingOperations.every(op=>op.ownerUid===lifecycle.ownerUid&&op.spieltagId===lifecycle.spieltagId),
+            'S05: Rundenscan bleibt auf eigenes Konto und Runde begrenzt');
         output.textContent += 'Alle Tests bestanden. Testdatenbank bleibt zur Inspektion erhalten.\n';
     }
     catch (error)

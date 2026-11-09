@@ -261,6 +261,7 @@
                        <div class="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 border-stone-100 pt-3 sm:pt-0">
                            <div class="flex items-center gap-2">
                                ${scoreShortcutBtnHtml}
+                               <button class="border rounded p-2" onclick="event.stopPropagation();app.logic.openRoundClose('${st.id}')">Abschluss / Serverergebnis</button>
                                ${deleteBtnHtml}
                                <div class="w-8 h-8 rounded-full bg-stone-50 text-stone-400 flex items-center justify-center hidden sm:flex" title="Leaderboard / Details">
                                    <i class="fas fa-chevron-right text-xs"></i>

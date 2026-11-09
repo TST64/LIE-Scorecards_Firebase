@@ -7,6 +7,12 @@ const vm = require('node:vm');
 const crypto = require('node:crypto');
 const { memoryDatabase, fieldValue } = require('./memory-score-database');
 const pin = () => String(crypto.randomInt(100000, 1000000));
+test('S05 login discovery never stages writes to public HCP projections',async()=>{
+    const f=await fixture(),original=f.db.collection.bind(f.db);
+    f.db.collection=name=>({...original(name),get:async()=>({forEach:fn=>[{id:'A',data:()=>({nickname:'Synthetic',hcpLIE:26})}].forEach(fn)})});
+    f.db.batch=()=>{throw new Error('Login discovery must not write');};
+    const result=await f.exports.getLoginPlayers({data:{}});assert.equal(result.success,true);assert.equal(result.spieler.length,1);
+});
 function hash(value) { const salt = crypto.randomBytes(16).toString('hex'); return ['scrypt',salt,crypto.scryptSync(value,salt,32).toString('hex')].join('$'); }
 function matches(encoded, value) { const [format,salt,key] = encoded.split('$'); return format === 'scrypt' && crypto.timingSafeEqual(Buffer.from(key,'hex'),crypto.scryptSync(value,salt,32)); }
 async function fixture()
@@ -37,6 +43,7 @@ async function fixture()
         if(name==='firebase-admin')return {initializeApp(){},firestore:()=>db,auth:()=>auth};
         if(name==='firebase-admin/firestore')return {FieldValue:{...fieldValue,serverTimestamp:()=>({synthetic:true})},Timestamp:{fromMillis:n=>({toMillis:()=>n})}};
         if(name==='./round-start')return require('../round-start');
+        if(name==='./round-close')return require('../round-close');
         if(name.startsWith('./score-'))return require('../'+name.slice(2));
         throw new Error('unexpected dependency');
     } };
