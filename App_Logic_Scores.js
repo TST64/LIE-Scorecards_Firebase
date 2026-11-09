@@ -456,119 +456,19 @@ app.logic.initScoreAutoSync = function(spieltagId)
 
 app.logic.calculateHoleVorgabe = function(spieler, spieltag, holeNr)
 {
-    if (!spieler || !spieltag)
-    {
-        return 0;
-    }
-
-    const kursId = spieltag.kursId;
-    const hcp = parseFloat(spieler.hcpLIE);
-
-    if (isNaN(hcp))
-    {
-        return 0;
-    }
-
-    // Spielvorgabe für den Kurs ermitteln
-    const hcpsForKurs = (app.state.handicaps || []).filter(function(h)
-    {
-        return String(h.kursId).trim() === String(kursId).trim();
-    });
-
-    const vorgabeMatch = hcpsForKurs.find(function(h)
-    {
-        return parseFloat(h.vorgabe) === hcp;
-    });
-
-    let spielvorgabeTotal = vorgabeMatch
-        ? parseInt(vorgabeMatch.spielvorgabe)
-        : Math.round(hcp);
-
-    // Alle Bahnen des ausgewählten Kurses
-    let gespielteBahnen = (app.state.bahnen || []).filter(function(b)
-    {
-        return String(b.kursId).trim() === String(kursId).trim();
-    });
-
-    const is9Loch = (
-        spieltag.bahnAnzahl === 9 ||
-        String(spieltag.rundenTyp || '').startsWith('9')
-    );
-
-    // Bei Front-/Back-Nine nur die tatsächlich gespielten Bahnen verwenden
-    if (spieltag.rundenTyp === '9-Front')
-    {
-        gespielteBahnen = gespielteBahnen.filter(function(b)
-        {
-            return parseInt(b.nr) <= 9;
-        });
-    }
-    else if (spieltag.rundenTyp === '9-Back')
-    {
-        gespielteBahnen = gespielteBahnen.filter(function(b)
-        {
-            return parseInt(b.nr) >= 10;
-        });
-    }
-
-    // Bei einer 9-Loch-Runde wird die Spielvorgabe halbiert
-    if (is9Loch)
-    {
-        spielvorgabeTotal = Math.round(spielvorgabeTotal / 2);
-    }
-
-    if (gespielteBahnen.length === 0)
-    {
-        return 0;
-    }
-
-    // Die tatsächlich gespielten Bahnen nach SI sortieren.
-    // Damit entsteht für eine 9-Loch-Runde automatisch die Rangfolge 1..9.
-    gespielteBahnen.sort(function(a, b)
-    {
-        return parseInt(a.si) - parseInt(b.si);
-    });
-
-    const bahnIndex = gespielteBahnen.findIndex(function(b)
-    {
-        return parseInt(b.nr) === parseInt(holeNr);
-    });
-
-    if (bahnIndex < 0)
-    {
-        return 0;
-    }
-
-    const anzahlBahnen = gespielteBahnen.length;
-
-    const basisSchlaege = Math.floor(spielvorgabeTotal / anzahlBahnen);
-    const restSchlaege = spielvorgabeTotal % anzahlBahnen;
-
-    let holeVorgabe = basisSchlaege;
-
-    // Die schwierigsten Bahnen erhalten die verbleibenden Schläge.
-    // Durch die SI-Sortierung entsprechen die ersten Einträge
-    // den niedrigsten Stroke-Index-Werten.
-    if (bahnIndex < restSchlaege)
-    {
-        holeVorgabe += 1;
-    }
-
-    return holeVorgabe;
+    if (!spieler || !spieltag) throw new Error('Explizite HCP-Basis fehlt.');
+    const given=spieltag.holeAllowances?.[String(spieler.id)]?.[String(holeNr)];
+    if(Number.isSafeInteger(given)&&given>=0)return given;
+    const holes=spieltag.hcpHoleData || (app.state.bahnen || []).filter(h=>String(h.kursId)===String(spieltag.kursId));
+    const rows=spieltag.hcpCourseTable || (app.state.handicaps || []).filter(h=>String(h.kursId)===String(spieltag.kursId));
+    const snap=LieHcpRules.snapshot(spieltag,holes,spieler.hcpLIE,rows);
+    if(!Object.hasOwn(snap.holeAllowances,String(holeNr)))throw new Error('Bahn außerhalb der Runde.');
+    return snap.holeAllowances[String(holeNr)];
 };
-
-app.logic.calculateNettoStableford = function(strokes, par, holeVorgabe)
+app.logic.calculateNettoStableford = function(strokes,par,holeVorgabe,strich)
 {
-    if (!strokes || strokes <= 0) 
-    {
-        return 0;
-    }
-    
-    let persoenlichesPar = parseInt(par) + parseInt(holeVorgabe);
-    let differenz = persoenlichesPar - parseInt(strokes);
-    
-    let punkte = 2 + differenz;
-    return punkte < 0 ? 0 : punkte;
+    if(strokes===undefined || strokes===null || strokes==='')return strich===true?0:null;
+    return LieHcpRules.points(strokes,par,holeVorgabe,strich===true);
 };
 
 app.logic.adjustScore = function(spieltagId, spielerId, holeNr, delta, par, spielvorgabe)

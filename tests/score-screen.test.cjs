@@ -10,7 +10,7 @@ async function fixture(type)
     const data = scoreEntryFixtureData(type);
     const app = {};
     vm.runInNewContext(fs.readFileSync('App_Logic_ScoreEntryV2.js', 'utf8'),
-        { app: app, structuredClone: structuredClone });
+        { app: app, LieHcpRules:require("../functions/hcp-rules"), structuredClone: structuredClone });
     const cache = new Map();
     const operations = [];
     const batches = [];
@@ -236,7 +236,7 @@ test('late commit after user switch stays in original partition, no stale projec
 
 test('maximum distribution equals unchanged legacy calculation across handicap and round variants', async function()
 {
-    const sandbox = { app: { logic: {}, state: {} } };
+    const sandbox = { LieHcpRules:require('../functions/hcp-rules'), app: { logic: {}, state: {} } };
     vm.runInNewContext(fs.readFileSync('App_Logic_Scores.js', 'utf8'), sandbox);
     const f = await fixture();
     for (const type of ['18', '9', '9-Front', '9-Back'])
@@ -255,6 +255,8 @@ test('maximum distribution equals unchanged legacy calculation across handicap a
         for (const hcp of [0,2,18,20,36,54])
         {
             data.players[0].hcpLIE = hcp;
+            data.round.hcpStart.A = hcp;
+            data.round.holeData=data.calculationHoles.filter(h=>data.round.holes.includes(h.nr));
             for (const hole of data.round.holes)
             {
                 assert.equal(f.app.calculateScoreEntryAllowanceV2('A', hole, data),
@@ -330,7 +332,7 @@ test('renderer has no V1 or V2 send calls and emitted handlers compile', async f
 test('global legacy maxscore handler contract remains untouched', function()
 {
     const app = { logic: {}, state: { liveScores: {}, scoreCards: [] } };
-    vm.runInNewContext(fs.readFileSync('App_Logic_Scores.js', 'utf8'), { app: app, document: { getElementById: function()
+    vm.runInNewContext(fs.readFileSync('App_Logic_Scores.js', 'utf8'), { app: app, LieHcpRules:require('../functions/hcp-rules'), document: { getElementById: function()
     {
         return null;
     } } });

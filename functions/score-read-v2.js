@@ -3,6 +3,7 @@
 const { createHash } = require("node:crypto");
 const { readDocumentState, allowedHoles } = require("./score-operations-v2");
 const FIELDS = ["strokes", "puts", "lady", "maxscore"];
+const HcpRules = require('./hcp-rules');
 
 function identifier(value)
 {
@@ -73,6 +74,7 @@ function createScoreReadV2(db)
             });
             requireValid(members.length > 0 && members.every(identifier)
                 && new Set(members).size === members.length, "invalid-flight-members");
+            HcpRules.validateRoundSnapshot(round,members);
             const flightSeq = parseInt(flightData.seq || flightData.flightSeq || flight.id.split("-").pop());
             requireValid(Number.isSafeInteger(flightSeq) && flightSeq > 0, "invalid-flight-sequence");
             const players = [];
@@ -86,7 +88,7 @@ function createScoreReadV2(db)
             {
                 return range.first + index;
             });
-            const courseHoles = await tx.get(db.collection("bahnen").where("kursId", "==", round.kursId));
+            const courseHoles = {docs:round.hcpHoleData.map(h=>({data:()=>h}))};
             const holeData = holes.map(function(nr)
             {
                 const matches = courseHoles.docs.filter(function(doc)
@@ -139,7 +141,7 @@ function createScoreReadV2(db)
             }
             return { ownerUid: auth.uid, playerId: auth.token.playerId, actorRole: actor.data().role || "Spieler", spieltagId: request.spieltagId,
                 flightId: flight.id, flightSeq: flightSeq, members: members, players: players,
-                round: Object.assign(pick(round, ["kursId", "rundenTyp", "bahnAnzahl", "status", "hcpStart", "holeAllowances"]), { holes: holes, holeData: holeData }),
+                round: Object.assign(pick(round, ["kursId", "rundenTyp", "bahnAnzahl", "status", "hcpStart", "holeAllowances", "hcpSnapshotVersion", "hcpHoleData", "hcpCourseTable"]), { holes: holes, holeData: holeData }),
                 cards: cards, handicaps: handicaps,
                 calculationHoles: courseHoles.docs.map(function(doc)
                 {

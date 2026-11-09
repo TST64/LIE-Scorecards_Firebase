@@ -36,6 +36,7 @@ async function fixture()
         if(name==='firebase-functions/v2')return {setGlobalOptions(){}};
         if(name==='firebase-admin')return {initializeApp(){},firestore:()=>db,auth:()=>auth};
         if(name==='firebase-admin/firestore')return {FieldValue:{...fieldValue,serverTimestamp:()=>({synthetic:true})},Timestamp:{fromMillis:n=>({toMillis:()=>n})}};
+        if(name==='./round-start')return require('../round-start');
         if(name.startsWith('./score-'))return require('../'+name.slice(2));
         throw new Error('unexpected dependency');
     } };

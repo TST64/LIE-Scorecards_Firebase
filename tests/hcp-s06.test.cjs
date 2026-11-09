@@ -3,6 +3,19 @@ const {test}=require('node:test');const assert=require('node:assert/strict');con
 const course=Array.from({length:18},(_,i)=>({nr:i+1,par:4,si:i+1,kursId:'K'}));
 function legacy(){const app={logic:{},state:{bahnen:course,handicaps:[]}};const c={app};for(const f of ['Hcp_Rules.js','App_Logic_Scores.js','App_Logic_History.js'])if(fs.existsSync(f))vm.runInNewContext(fs.readFileSync(f,'utf8'),c);return app;}
 function rules(){const file='functions/hcp-rules.js';assert.ok(fs.existsSync(file),'one pure group HCP reference implementation is required');return require('../'+file);}
+
+test('browser HCP asset is byte-identical to the canonical server module',()=>{
+    assert.deepEqual(fs.readFileSync('Hcp_Rules.js'),fs.readFileSync('functions/hcp-rules.js'));
+});
+
+test('incomplete history blocks subsequent progression without changing raw scores',()=>{
+    const h=rules(),rounds=[{id:'F',date:'2026-01-03',rundenTyp:'9-Front',bahnAnzahl:9,teilnehmerCsv:'A'},{id:'B',date:'2026-01-10',rundenTyp:'9-Back',bahnAnzahl:9,teilnehmerCsv:'A'}];
+    const cards=[{spieltagId:'F',spielerId:'A',hole:1,strokes:4}],before=JSON.stringify(cards);
+    const plan=h.plan(rounds,cards,{A:0},()=>course,()=>[]);
+    assert.deepEqual(plan.blockedPlayers,['A']);assert.equal(plan.currentHcp.A,0);
+    assert.equal(plan.entries[0].endHcp,null);assert.equal(plan.entries[1].blocked,true);
+    assert.equal(plan.entries[1].endHcp,null);assert.equal(JSON.stringify(cards),before);
+});
 test('baseline generic nine distributes exactly thirteen allowances on played front nine',()=>{
     const app=legacy(),round={id:'R',kursId:'K',rundenTyp:'9',bahnAnzahl:9};const total=course.slice(0,9).reduce((n,h)=>n+app.logic.calculateHoleVorgabe({hcpLIE:26},round,h.nr),0);assert.equal(total,13);
 });

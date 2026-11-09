@@ -54,6 +54,14 @@ exports.readOwnFlightScoresV2 = onCall(async function(request)
     }
 });
 
+const initializeRoundStart = require('./round-start').createRoundStart(db,FieldValue);
+exports.createRoundStart = onCall(async request=>
+{
+    requireAuth(request);
+    try { return await initializeRoundStart(request.auth,request.data); }
+    catch (_) { throw new HttpsError('failed-precondition','Rundenstart nicht freigegeben: Autorisierung, Saisonbasis, Vorgeschichte, Kurs oder Zuordnung prüfen. Keine bestehenden Daten wurden ersetzt.'); }
+});
+
 // External delivery is deliberately unavailable in Phase 2A.
 
 function requireAuth(request)

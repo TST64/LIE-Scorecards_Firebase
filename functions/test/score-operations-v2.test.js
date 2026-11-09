@@ -6,6 +6,7 @@ const { randomUUID } = require("node:crypto");
 const { createScoreOperationsV2 } = require("../score-operations-v2");
 
 const { memoryDatabase, fieldValue: memoryFieldValue } = require("./memory-score-database");
+const {metadata}=require("./hcp-fixture");
 const { readDocumentState } = require("../score-operations-v2");
 
 let db;
@@ -41,7 +42,7 @@ async function fixture()
     const flight = "F-" + suffix;
     const documentId = "SC-" + round + "-" + actor + "-1";
     await db.collection("spieler").doc(actor).set({ role: "Spieler" });
-    await db.collection("spieltage").doc(round).set({ status: "Aktiv", rundenTyp: "18", bahnAnzahl: 18, hcpStart:{[actor]:20},holeAllowances:{[actor]:Object.fromEntries(Array.from({length:18},(_,i)=>[i+1,1]))} });
+    await db.collection("spieltage").doc(round).set({ status: "Aktiv", rundenTyp: "18", bahnAnzahl: 18, ...metadata({rundenTyp:"18",bahnAnzahl:18},{[actor]:20},[{vorgabe:20,spielvorgabe:18}]) });
     await db.collection("flights").doc(flight).set({ spieltagId: round, spielerIdsCsv: actor });
     const ref = db.collection("scorecards").doc(documentId);
     const initial = { id: documentId, spieltagId: round, spielerId: actor, hole: 1,
@@ -291,7 +292,7 @@ test("explicit 9-hole legacy/front/back configurations have exact server-side ra
     ])
     {
         const f = await fixture();
-        await db.collection("spieltage").doc(f.round).set({ status: "Aktiv", rundenTyp: config.type, bahnAnzahl: 9, hcpStart:{[f.actor]:20},holeAllowances:{[f.actor]:Object.fromEntries(Array.from({length:18},(_,i)=>[i+1,1]))} });
+        await db.collection("spieltage").doc(f.round).set({ status: "Aktiv", rundenTyp: config.type, bahnAnzahl: 9, ...metadata({rundenTyp:config.type,bahnAnzahl:9},{[f.actor]:20},[{vorgabe:20,spielvorgabe:18}]) });
         const allowedId = f.initial.id.replace(/-1$/, "-" + config.first);
         const allowed = f.request([{ hole: config.first, documentId: allowedId,
             baseDocumentGeneration: config.first === 1 ? readDocumentState(await f.ref.get()).generation : "absent" }]);

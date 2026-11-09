@@ -1,5 +1,7 @@
 # Mission Samstag — Zwölf-Spieler-Testmatrix
 
+**S06-Korrektur, 09.11.2026 / Issue #18:** Die bisherige Ganzzahlrundung des Orakels war falsch. Die folgende Referenz verwendet eine Nachkommastelle; unabhängige Konstanten: `tests/fixtures/hcp-s06-golden.json`. Rechner und reine Korrekturplanung sind geprüft, ebenso drei separate normale Rundenanlagen mit je zwölf synthetischen Spielern und anschließender V2-Eingabe im Emulator. Die chronologische Generalprobe mit Rundenschluss und historischen Schreibkorrekturen bleibt gesperrt und wurde nicht ausgeführt. Details: [S06-Prüfbericht](MISSION_SAMSTAG_S06_HCP_REPORT.md). Die Angaben zum ursprünglichen S0-Auftrag unten beschreiben dessen damaligen Stand.
+
 Stand 08.11.2026, Europe/Berlin. Issue #10. Bezug: [Release-Readiness und Reparaturpakete](MISSION_SAMSTAG_RELEASE_READINESS.md). **Testplan, nicht bereits absolvierte Zwölf-Spieler-Abnahme.** Basis `c2be311`; Dokumentationsbranch `codex/mission-samstag-audit`. In diesem Auftrag keine Anwendungs-/Testcodeänderung, keine Cloud-/GAS-/Produktionszugriffe, kein Deploy oder Merge.
 
 ## Sichere Durchführung und Ebenen
@@ -31,16 +33,18 @@ Der vorhandene `tools/local/seed.cjs` des Stacks ist **kein Zwölf-Spieler-Seed*
 
 ## Unabhängiges fachliches Orakel
 
-Vom Nutzer bestätigte Zahlenregel: Saisonstart 26; Soll 18/36 Netto-Stablefordpunkte; Verbesserung 0,5 und Verschlechterung 0,1 pro Punkt, gerundet und begrenzt 0–54. Für die Referenz bedeutet Rundung das bisherige `Math.round`/bei diesen positiven Werten `floor(x+0.5)`. Nicht erneut „Kopie derselben Appfunktion“ als unabhängiges Orakel verwenden.
+Verbindliche Gruppenregel: Saisonstart 26, sofern kein expliziter individueller Startwert vorliegt; Soll 18/36 Netto-Stablefordpunkte; Verbesserung 0,5 und Verschlechterung 0,1 pro Punkt, auf eine Nachkommastelle gerundet und begrenzt 0–54. Positive Halbwerte werden aufgerundet (`26.05 → 26.1`); HCP 0 ist gültig. Kein WHS-Verfahren. Nicht erneut „Kopie derselben Appfunktion“ als unabhängiges Orakel verwenden.
 
 ```text
 H = 9 oder 18, Löcher explizit aus Front/Back/18 wählen
-V = startHCP                  # nur für diese synthetische Identitätstabelle
+V = roundHalfUp(startHCP)     # ganzzahlige 18-Loch-Spielvorgabe der synthetischen Referenz
 falls H=9: V = round(V/2)
 Lochvorgabe = floor(V/H) + (SI-Rang innerhalb gespielter H < V mod H ? 1 : 0)
 Netto je Loch = max(0, 2 + Par + Lochvorgabe - Schläge)
-endHCP = clamp(round(startHCP - 0.5*(Netto-Soll)), 0, 54), falls Netto>Soll
-endHCP = clamp(round(startHCP + 0.1*(Soll-Netto)), 0, 54), sonst
+endHCP = clamp(round1(startHCP - 0.5*(Netto-Soll)), 0, 54), falls Netto>Soll
+endHCP = clamp(round1(startHCP + 0.1*(Soll-Netto)), 0, 54), sonst
+round1(x) = floor(x*10 + 0.5)/10
+Fortschreibung nur vollständig und gültig; expliziter Strich = gespielt, Netto 0.
 ```
 
 Rohscores für ein gewünschtes Netto `N` reproduzierbar erzeugen: Lochindex `j=0..H-1`, `punkte[j]=min(4,max(0,N-4*j))`; `schläge[j]=4+vorgabe[j]+2-punkte[j]`, Putts=2, Lady=false, Maxscore=false. Alle Schläge positiv; Netto 0 ist hier eine vollständig gespielte schlechte Runde, **kein fehlendes Loch**. Bei späterer Neuberechnung bleiben diese Rohschläge unverändert; nur Vorgaben/Netto/HCP werden neu berechnet. R9B wird mit Ende aus R9F erzeugt, R18 mit Ende aus R9B.
@@ -49,14 +53,14 @@ Rohscores für ein gewünschtes Netto `N` reproduzierbar erzeugen: Lochindex `j=
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | MS01 | 18 | 26 | 18 | 26 | 36 | 26 |
 | MS02 | 20 | 25 | 18 | 25 | 38 | 24 |
-| MS03 | 16 | 26 | 18 | 26 | 34 | 26 |
-| MS04 | 13 | 27 | 18 | 27 | 31 | 28 |
-| MS05 | 19 | 26 | 18 | 26 | 37 | 26 |
-| MS06 | 17 | 26 | 18 | 26 | 35 | 26 |
-| MS07 | 0 | 28 | 18 | 28 | 0 | 32 |
+| MS03 | 16 | 26.2 | 18 | 26.2 | 34 | 26.4 |
+| MS04 | 13 | 26.5 | 18 | 26.5 | 31 | 27.0 |
+| MS05 | 19 | 25.5 | 18 | 25.5 | 37 | 25.0 |
+| MS06 | 17 | 26.1 | 18 | 26.1 | 35 | 26.2 |
+| MS07 | 0 | 27.8 | 18 | 27.8 | 0 | 31.4 |
 | MS08 | 18 | 26 | 18 | 26 | 36 | 26 |
 | MS09 | 22 | 24 | 18 | 24 | 40 | 22 |
-| MS10 | 14 | 26 | 18 | 26 | 32 | 26 |
+| MS10 | 14 | 26.4 | 18 | 26.4 | 32 | 26.8 |
 | MS11 | 18 | 26 | 18 | 26 | 36 | 26 |
 | MS12 | 18 | 26 | 18 | 26 | 36 | 26 |
 
@@ -64,13 +68,13 @@ Alle Card-HCP-Starts entsprechen ihrer jeweiligen Rundenmap, private/öffentlich
 
 ### Rückwirkende Korrektur mit festen Folge-Rohscores
 
-Nur MS02/R9F/Loch 6 von **7 auf 3 Schläge** ändern: R9F-Netto steigt von 20 auf 24, Ende wird 23. Die späteren Rohscores bleiben fest. R9B hatte Vorgabe 13 bei Start 25, bekommt nun 12 bei Start 23: Netto **17**, Ende **23**. R18 hatte Vorgabe 25 und Netto 38, bekommt Vorgabe 23: Netto **36**, Ende **23**. Somit finale MS02-HCP **23**, nicht einfach Folge-Netto 18/38 beibehalten. Alle anderen Spieler bleiben unverändert. Zweite identische Neuberechnung darf nichts fachlich verändern.
+Nur MS02/R9F/Loch 6 von **7 auf 3 Schläge** ändern: R9F-Netto steigt von 20 auf 24, Ende wird 23.0. Die späteren Rohscores bleiben fest. R9B hatte Vorgabe 13 bei Start 25, bekommt nun 12 bei Start 23: Netto **17**, Ende **23.1**. R18 hatte Vorgabe 25 und Netto 38, bekommt Vorgabe 23: Netto **36**, Ende **23.1**. Somit finale MS02-HCP **23.1**; der alte Orakelwert 23 war falsch. Alle anderen Spieler bleiben unverändert. Zweite identische reine Planung darf nichts fachlich verändern. S07-Schreibkorrekturen bleiben gesperrt.
 
 ### Separate Kantenfixtures (frische Kopie, nicht Goldenlauf verändern)
 
 HCP 0/1/9/18/26/36/54; HCP 0 + Netto 20 Front-Nine muss Ende 0 bleiben. HCP 26 auf 18-Loch-Kurs: gespielte Front-Nine erhält insgesamt 13 Vorgaben. Generisch `9` muss exakt auf definierte neun Löcher normalisiert oder klar abgewiesen werden, niemals stillschweigend auf 18 Loch verteilen. `9-Back` verwendet SI-Ränge seiner neun Löcher, nicht rohe SI-Grenzen eines anderen Teils.
 
-Strich: aktuelle Implementierung setzt Maxscore, positive Maximalschläge und Putts=3 als Platzhalter; ausschalten löscht strokes/puts und macht die Karte wieder offen. Sicheres Referenzminimum Netto=0 und keine Gleichsetzung mit fehlendem Loch. Bruttowertung/Putts und DNF-/unvollständige Runde bleiben vor fachlichem GO ausdrücklich zu bestätigen. Bis dahin keine automatische HCP-Fortschreibung eines unvollständigen Spielers und kein stiller Rundenschluss.
+Strich: explizites Maxscore=true zählt als gespieltes Loch mit Netto 0; UI-Platzhalterschläge und Putts=3 begründen keine Brutto-/Puttswertung. Ausschalten ohne gültige Schläge macht das Loch wieder offen. Fehlende oder ungültige Löcher erlauben keine HCP-Fortschreibung. Brutto-/Putts-Veröffentlichung und Rundenschluss bleiben gesperrt.
 
 ## Konkrete Generalprobe in Reihenfolge
 
@@ -152,10 +156,10 @@ Jede Zeile ist eine automationsfähige Given/When/Then-Vorgabe. „Geplant“ be
 | HC02 P0 U/E | Front/Back/generisch 9 auf 18-Loch-Kurs, HCP26 | Gesamtvorgabe13 auf genau neun gespielten Löchern oder explizite Ablehnung des ungeklärten Legacytyps |
 | HC03 P0 U/E | HCP0, Front9, Netto20; HCP54 und sehr schlechtes Ergebnis | Ende0 bzw. höchstens54; kein 0→53-Fallback |
 | HC04 P0 U/E | Ein Loch fehlt/NaN/0; alle 9/18 Karten schlecht aber positiv; Duplikatkarte | Fehlend/ungültig/dupliziert nicht als vollständige gute Referenz; vollständig Netto0 darf dagegen HCP erhöhen |
-| HC05 P0 U/E | Netto Soll±1/±4/±5, halbe Rundungsgrenzen, explizite Overrides | Bestätigte Formel/Rundung/Grenzen; Beispiel26 bei Netto19/9 bleibt26, bei Netto13/9 wird27 |
+| HC05 P0 U/E | Netto Soll±1/±4/±5, halbe Rundungsgrenzen, explizite Overrides | Eine Nachkommastelle; Beispiel26 bei Netto19/9 wird25.5, bei Netto13/9 wird26.5 |
 | HC06 P1 U/E | Heutiges Spieler-HCP nach Runde verändern | Historische Anzeige nutzt gespeicherten Start; fehlender Snapshot sichtbar ungeprüft statt still heutiges HCP |
 | HC07 P0 U/E | Strich toggeln und unvollständige Karte mit Restore | Netto0 fachlich eindeutig; Strich-/Putts-/Brutto-/DNF-Entscheidung explizit, nicht aus UI-Defaults abgeleitet |
-| HC08 P0 E | MS02/R9F/Loch6 7→3 korrigieren, Saison neu rechnen | Folge-Netto17/36, HCP23/23 wie Referenz; spätere Rohscores bleiben unverändert, andere elf unverändert |
+| HC08 P0 U/E | MS02/R9F/Loch6 7→3 korrigieren, Saison rein planen; Schreibtest erst S07 | Folge-Netto17/36, HCP23.1/23.1 wie korrigierte Referenz; spätere Rohscores und andere elf unverändert |
 | HC09 P0 U/E | 432 Scorecards + drei Runden +24 Spielerwrites, zweiten Batch scheitern lassen | Kein gültig dargestellter halber Saisonstand; Runstatus/Resume und fehlende Erfolgsmeldung; aktueller Code demonstriert das Risiko mit 400+59 Writes |
 | HC10 P0 E | Identische Korrektur/Neuberechnung doppelt; Reload während Run | Wiederholung idempotent, keine doppelte HCP-Korrektur, veröffentlichte Version nachvollziehbar |
 | HC11 P1 U/E | Runde löschen/abbrechen, Reihenfolge/Datum ändern, gleicher Tag zwei IDs | Nur freigegebene abgeschlossene Runden in definierter Sortierung; Kette deterministisch, keine unerwarteten Null-/26-Resets |

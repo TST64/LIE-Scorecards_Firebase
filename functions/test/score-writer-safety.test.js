@@ -1,11 +1,12 @@
 'use strict';
+const {metadata:roundMetadata}=require('./hcp-fixture');
 const {test}=require('node:test');const assert=require('node:assert/strict');const {randomUUID}=require('node:crypto');
 const {memoryDatabase,fieldValue}=require('./memory-score-database');const {createScoreOperationsV2,readDocumentState}=require('../score-operations-v2');
 async function fixture(metadata=true)
 {
     const db=memoryDatabase(),auth={uid:'A',token:{playerId:'A',mustChangePin:false}},ctx={ownerUid:'A',playerId:'A',spieltagId:'ST',flightId:'F'};
     await db.collection('spieler').doc('A').set({role:'Spieler',hcpLIE:54});await db.collection('spieler').doc('ADMIN').set({role:'Admin'});
-    await db.collection('spieltage').doc('ST').set({status:'Aktiv',rundenTyp:'18',bahnAnzahl:18,...(metadata?{hcpStart:{A:0},holeAllowances:{A:{1:0}}}:{})});
+    await db.collection('spieltage').doc('ST').set({status:'Aktiv',rundenTyp:'18',bahnAnzahl:18,...(metadata?{...roundMetadata({rundenTyp:"18",bahnAnzahl:18},{A:0})}:{})});
     await db.collection('flights').doc('F').set({spieltagId:'ST',spielerIdsCsv:'A'});
     const ref=db.collection('scorecards').doc('SC-ST-A-1'),run=createScoreOperationsV2(db,fieldValue);
     const request=(field='strokes',value=5,revision=0,generation='absent',actor=ctx)=>({...actor,requestId:randomUUID(),mode:actor.playerId==='ADMIN'?'selectedFlight':'ownFlight',operations:[{...actor,spielerId:'A',hole:1,documentId:'SC-ST-A-1',changeId:randomUUID(),field,operation:'set',value,baseFieldRevision:revision,baseDocumentGeneration:generation}]});

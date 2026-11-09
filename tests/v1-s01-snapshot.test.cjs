@@ -25,7 +25,7 @@ function fixture(options = {})
     const local = options.local || storage(), session = options.session || storage();
     const sent = [], messages = [], timers = [], status = { className: '', innerHTML: '' };
     const card = { id: 'SC-ST-A-1', spieltagId: 'ST', spielerId: 'A', hole: 1, flightSeq: 1, strokes: 5, puts: 3, lady: true, hcpStart: 26, strokesGiven: 2 };
-    const c = { crypto, structuredClone, console: { log() {}, warn() {}, error() {} }, navigator: { onLine: true, locks: options.locks || locks() },
+    const c = { LieHcpRules:require("../functions/hcp-rules"), crypto, structuredClone, console: { log() {}, warn() {}, error() {} }, navigator: { onLine: true, locks: options.locks || locks() },
         localStorage: local, sessionStorage: session, document: { getElementById: id => id === 'score-sync-status' ? status : null },
         window: { addEventListener() {} }, setTimeout: f => { timers.push(f); return timers.length; }, clearTimeout() {}, setInterval: () => 1,
         app: { environment: { assertReady() {} }, logic: {}, state: { currentUser: { id: 'A', role: 'Spieler' },

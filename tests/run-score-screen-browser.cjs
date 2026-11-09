@@ -14,7 +14,7 @@ try
 {
     const repo = path.join(__dirname, '..');
     const css = fs.readFileSync(path.join(repo, 'Style.css'), 'utf8').replace(/@import[^;]+;/g, '');
-    const sources = ['App_Storage_ScoreSync.js', 'App_Storage_ScoreEntryContext.js', 'App_Logic_ScoreEntryV2.js',
+    const sources = ['Hcp_Rules.js', 'App_Storage_ScoreSync.js', 'App_Storage_ScoreEntryContext.js', 'App_Logic_ScoreEntryV2.js',
         'Views_ScoreEingabe.js', 'App_Router.js', 'tests/score-entry-fixture.cjs', 'tests/score-screen-browser.test.js'].map(function(file)
     {
         return fs.readFileSync(path.join(repo, file), 'utf8');

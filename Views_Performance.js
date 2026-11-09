@@ -149,6 +149,7 @@ app.logic.selectPerformancePlayer = function(playerId)
 
 app.views.performance = function()
 {
+    return '<div role="alert">Legacy-Performance/Brutto/Putts bleiben bis zur fachlichen S05/S07-Abnahme gesperrt. Die Netto-/HCP-Vorschau verwendet den gemeinsamen Rechner.</div>';
     const user = app.state.currentUser;
 
     if (!user)
