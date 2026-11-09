@@ -9,7 +9,9 @@ const localGuard = require("./local-guard");
 const localOptions = localGuard.validate(process.env);
 require("./network-guard");
 const crypto = require("crypto");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall: firebaseOnCall, HttpsError } = require("firebase-functions/v2/https");
+const localMaintenance = require('./local-maintenance');
+const onCall = handler => firebaseOnCall(request=>localMaintenance.withRequest(db,'callable',()=>handler(request)));
 const { setGlobalOptions } = require("firebase-functions/v2");
 const admin = require("firebase-admin");
 

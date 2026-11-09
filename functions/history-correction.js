@@ -59,6 +59,7 @@ async function planCorrection(tx,db,auth,change,mutationOwner=auth.uid){
     return {basisHash,plan,changes,op,sourceTarget:target.data(),controlRevision:control.revision||0};
 }
 function createHistoryCorrection(db){return async function(auth,input){
+    return require('./local-maintenance').withRequest(db,'history:'+input?.action,async()=>{
     const r=structuredClone(input||{});check(['preview','prepare','status','stage','publish','cancel'].includes(r.action)&&Object.keys(r).every(k=>['action','change','runId','expectedBasis'].includes(k)),'invalid-request');if(r.action!=='preview')check(id(r.runId),'invalid-run-id');
     const runRef=r.runId?db.collection('historyCorrectionRuns').doc(r.runId):null,controlRef=db.collection('historyPublication').doc('current');
     if(r.action==='stage'){
@@ -97,6 +98,7 @@ function createHistoryCorrection(db){return async function(auth,input){
         const result={runId:r.runId,phase:'published',publishedBy:auth.uid,publishedAt:Date.now(),revision:run.revision,planHash:run.planHash,writeCount:run.plan.length,rounds:run.plan.filter(w=>w.path.startsWith('spieltage/')).map(w=>({id:w.data.id,hcpStart:w.data.hcpStart,hcpEnd:w.data.hcpEnd,revision:w.data._roundClose.revision,scoreDigest:w.data._roundClose.scoreDigest}))};
         tx.set(receiptRef,{fingerprint:hash(run.op),requestId:'history-'+r.runId,appliedRevision:run.change.baseFieldRevision+1,generation:run.change.baseDocumentGeneration,historyCorrection:r.runId});
         tx.set(runRef,{...run,phase:'published',result});tx.set(controlRef,{revision:run.revision,activeRun:null,lastRunId:r.runId});return result;
+    });
     });
 };}
 module.exports={createHistoryCorrection};
