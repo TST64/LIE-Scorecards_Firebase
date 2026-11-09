@@ -1260,5 +1260,27 @@ window.scoreSyncV2Tests = (async function()
         }
     });
 
+    await test('S02: external creation can bind cached absence only without pending work', async function()
+    {
+        const store=app.createScoreSyncStore('s02_absent_'+crypto.randomUUID());
+        const c={ownerUid:'A',playerId:'A',spieltagId:'ST',flightId:'F',spielerId:'A',hole:1,documentId:'SC-ST-A-1'};
+        const revisions={strokes:0,puts:0,lady:0,maxscore:0};
+        try {await store.putServerSnapshot(c,{},revisions,{generation:'absent'});
+            await store.replaceServerGeneration(c,{strokes:5},{...revisions,strokes:1},{generation:'gen:external',replacesGeneration:'absent'});
+            check((await store.readScorecard(c)).confirmed.strokes===5,'authoritative external creation bound');
+        } finally {await store.close();}
+    });
+    await test('S02: atomic absence transition cannot race past a new local operation', async function()
+    {
+        const store=app.createScoreSyncStore('s02_absent_pending_'+crypto.randomUUID());
+        const c={ownerUid:'A',playerId:'A',spieltagId:'ST',flightId:'F',spielerId:'A',hole:1,documentId:'SC-ST-A-1'};
+        const revisions={strokes:0,puts:0,lady:0,maxscore:0};
+        try {await store.putServerSnapshot(c,{},revisions,{generation:'absent'});await store.appendChanges(c,[{field:'strokes',operation:'set',value:6}]);
+            const before=await store.inspect(c);
+            await rejects(()=>store.replaceServerGeneration(c,{strokes:5},{...revisions,strokes:1},{generation:'gen:external',replacesGeneration:'absent'}),'pending-generation-transition');
+            equal(await store.inspect(c),before,'pending data and old generation preserved atomically');
+        } finally {await store.close();}
+    });
+
     return summary;
 })();

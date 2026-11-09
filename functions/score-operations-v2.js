@@ -145,8 +145,9 @@ function createScoreOperationsV2(db, FieldValue)
             const roundRef = db.collection("spieltage").doc(request.spieltagId);
             const flightRef = db.collection("flights").doc(request.flightId);
             const requestRef = db.collection("scoreSyncV2Requests").doc(hash([auth.uid, request.requestId]));
-            const [actor, round, flight, priorRequest] = await Promise.all([
-                tx.get(actorRef), tx.get(roundRef), tx.get(flightRef), tx.get(requestRef)
+            const [actor, round, flight, priorRequest, roundFlights] = await Promise.all([
+                tx.get(actorRef), tx.get(roundRef), tx.get(flightRef), tx.get(requestRef),
+                tx.get(db.collection("flights").where("spieltagId","==",request.spieltagId))
             ]);
             const fingerprint = hash(canonical(request));
             if (priorRequest.exists && priorRequest.data().fingerprint !== fingerprint)
@@ -163,7 +164,7 @@ function createScoreOperationsV2(db, FieldValue)
                 tx.set(requestRef, { fingerprint: fingerprint, terminalResults: terminal.length ? terminal : reply.results });
                 return reply;
             }
-            if (!actor.exists || actor.data().istGeloescht === true || actor.data().mustChangePin === true)
+            if (!actor.exists || actor.data().istGeloescht === true || actor.data().mustChangePin === true || actor.data().pinChangePending)
             {
                 return deny("invalid-actor");
             }
@@ -188,6 +189,8 @@ function createScoreOperationsV2(db, FieldValue)
                 return id.trim();
             }).filter(Boolean) : [];
             if (!flight.exists || flight.data().spieltagId !== request.spieltagId
+                || !members.length || new Set(members).size !== members.length
+                || members.some(id=>!identifier(id) || roundFlights.docs.filter(doc=>String(doc.data().spielerIdsCsv || '').split(',').map(x=>x.trim()).includes(id)).length!==1)
                 || (request.mode === "ownFlight" && !members.includes(auth.token.playerId))
                 || (request.mode === "selectedFlight" && !privileged))
             {
@@ -251,6 +254,7 @@ function createScoreOperationsV2(db, FieldValue)
                         }
                     }
                     documents.set(op.documentId, { ref: ref, data: snap.exists ? snap.data() : {},
+                        creation: { hcpStart:round.data().hcpStart?.[op.spielerId], strokesGiven:round.data().holeAllowances?.[op.spielerId]?.[String(op.hole)] },
                         exists: snap.exists, targetValid: target.exists && target.data().istGeloescht !== true,
                         observedGeneration: state?.generation,
                         generation: generation, generationRef: generationRef,
@@ -279,6 +283,9 @@ function createScoreOperationsV2(db, FieldValue)
                 {
                     return result(op, "rejected", null, doc.metadataError);
                 }
+                if (!doc.exists && (!Number.isFinite(doc.creation.hcpStart) || doc.creation.hcpStart<0 || doc.creation.hcpStart>54
+                    || !Number.isSafeInteger(doc.creation.strokesGiven) || doc.creation.strokesGiven<0))
+                    return result(op,"rejected",null,"missing-authoritative-round-score-metadata");
                 const revision = doc.metadata[op.field]?.revision ?? doc.revisions[op.field];
                 const mutation = receipts.get(op.changeId);
                 const mutationHash = hash(canonical(op));
@@ -321,7 +328,7 @@ function createScoreOperationsV2(db, FieldValue)
                 if (!doc.exists)
                 {
                     Object.assign(doc.patch, { id: op.documentId, spieltagId: request.spieltagId,
-                        spielerId: op.spielerId, hole: op.hole });
+                        spielerId: op.spielerId, hole: op.hole, ...doc.creation });
                 }
                 receiptWrites.push({ ref: mutation.ref, data: { fingerprint: mutationHash,
                     requestId: request.requestId, appliedRevision: revision + 1, generation: doc.generation } });

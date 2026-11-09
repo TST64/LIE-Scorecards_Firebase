@@ -41,7 +41,7 @@ async function fixture()
     const flight = "F-" + suffix;
     const documentId = "SC-" + round + "-" + actor + "-1";
     await db.collection("spieler").doc(actor).set({ role: "Spieler" });
-    await db.collection("spieltage").doc(round).set({ status: "Aktiv", rundenTyp: "18", bahnAnzahl: 18 });
+    await db.collection("spieltage").doc(round).set({ status: "Aktiv", rundenTyp: "18", bahnAnzahl: 18, hcpStart:{[actor]:20},holeAllowances:{[actor]:Object.fromEntries(Array.from({length:18},(_,i)=>[i+1,1]))} });
     await db.collection("flights").doc(flight).set({ spieltagId: round, spielerIdsCsv: actor });
     const ref = db.collection("scorecards").doc(documentId);
     const initial = { id: documentId, spieltagId: round, spielerId: actor, hole: 1,
@@ -232,8 +232,9 @@ test("new document initializes identity but no unrelated or calculated fields", 
     const request = f.request([{ hole: 2, documentId: documentId, baseDocumentGeneration: "absent" }]);
     assert.equal((await f.run(f.auth, request)).results[0].status, "acknowledged");
     const actual = (await db.collection("scorecards").doc(documentId).get()).data();
-    assert.deepEqual(Object.keys(actual).sort(), ["_sync", "hole", "id", "puts", "spielerId", "spieltagId"].sort());
+    assert.deepEqual(Object.keys(actual).sort(), ["_sync", "hole", "id", "puts", "spielerId", "spieltagId", "hcpStart", "strokesGiven"].sort());
     assert.equal(actual.puts, 1);
+    assert.equal(actual.hcpStart,20);assert.equal(actual.strokesGiven,1);
 });
 
 test("closed rounds and invalid hole ranges are denied using server context", async function()
@@ -290,7 +291,7 @@ test("explicit 9-hole legacy/front/back configurations have exact server-side ra
     ])
     {
         const f = await fixture();
-        await db.collection("spieltage").doc(f.round).set({ status: "Aktiv", rundenTyp: config.type, bahnAnzahl: 9 });
+        await db.collection("spieltage").doc(f.round).set({ status: "Aktiv", rundenTyp: config.type, bahnAnzahl: 9, hcpStart:{[f.actor]:20},holeAllowances:{[f.actor]:Object.fromEntries(Array.from({length:18},(_,i)=>[i+1,1]))} });
         const allowedId = f.initial.id.replace(/-1$/, "-" + config.first);
         const allowed = f.request([{ hole: config.first, documentId: allowedId,
             baseDocumentGeneration: config.first === 1 ? readDocumentState(await f.ref.get()).generation : "absent" }]);

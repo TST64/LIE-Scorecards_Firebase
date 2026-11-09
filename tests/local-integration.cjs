@@ -79,6 +79,8 @@ async function run(profile, port)
         await command('Page.navigate', { url }, sessionId);
         await waitFor("Boolean(window.app && app.environment && app.state.currentView === 'login' && app.state.spieler.length)");
         assert.equal(await evaluate('firebase.app().options.projectId'), profile.projectId);
+        if(process.env.LIE_SYNC_FOCUS!=='1')
+        {
         stage = 'anonymous Rules and wrong PIN';
         // Rules client tests use the actual browser SDK, not Admin SDK.
         assert.equal(await evaluate("app.db.collection('scorecards').get().then(()=>false, e=>e.code==='permission-denied')"), true);
@@ -92,52 +94,36 @@ async function run(profile, port)
         assert.equal(await evaluate("app.db.collection('scoreSyncV2Requests').get().then(()=>false,e=>e.code==='permission-denied')"), true);
         assert.equal(await evaluate("app.db.collection('spieler').doc('local-player-b').get().then(()=>false,e=>e.code==='permission-denied')"), true);
         assert.equal(await evaluate("app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true}).then(()=>false,e=>e.code==='permission-denied')"), true);
-        assert.equal(await evaluate("app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').set({puts:3},{merge:true}).then(()=>true)"), true);
-        stage = 'S01 real V1 delayed ACK 5/6 and independent server read';
+        assert.equal(await evaluate("app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').set({puts:3},{merge:true}).then(()=>false,e=>e.code==='permission-denied')"), true);
+        stage = 'S01 preserved journal with V1 runtime writes disabled';
         assert.equal(await evaluate(`(async()=>{
-            await app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').update({lady:true});
-            await app.logic.refreshGlobalAppData(); app.router.navigate('score_schnellerfassung',{id:'local-round',flightSeq:1}); app.logic.initScoreAutoSync('local-round');
-            window.s01Api=app.logic.apiRequest;
-            app.logic.apiRequest=async(action,payload)=>{const response=await s01Api(action,payload);window.s01Committed=response.success;return new Promise(resolve=>{window.s01Release=()=>resolve(response);});};
-            app.state.liveScores['local-round_local-player-a_1']=5;
-            if(!app.logic.markScorePending('local-round','local-round_local-player-a_1'))return false;
-            window.s01Running=app.logic.syncScoresWithServer('local-round',1,true);return true;
-        })()`), true);
-        await waitFor('Boolean(window.s01Committed && window.s01Release)');
-        assert.equal(await evaluate(`(async()=>{
-            app.state.liveScores['local-round_local-player-a_1']=6;app.logic.markScorePending('local-round','local-round_local-player-a_1');
-            s01Release();await s01Running;
-            const old=(await app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').get({source:'server'})).data();
-            if(old.strokes!==5||!app.state.pendingScoreKeys['local-round_local-player-a_1'])return false;
-            app.logic.apiRequest=s01Api;await app.logic.syncScoresWithServer('local-round',1,true);
+            await app.logic.refreshGlobalAppData();app.logic.initScoreAutoSync('local-round');
+            app.state.liveScores['local-round_local-player-a_1']=5;app.logic.markScorePending('local-round','local-round_local-player-a_1');
+            const original=app.logic.apiRequest;let release;
+            app.logic.apiRequest=async(a,p)=>{const r=await original(a,p);return new Promise(resolve=>{release=()=>resolve(r);});};
+            const running=app.logic.syncScoresWithServer('local-round',1,true);while(!release)await new Promise(r=>setTimeout(r,10));
+            app.state.liveScores['local-round_local-player-a_1']=6;app.logic.markScorePending('local-round','local-round_local-player-a_1');release();await running;app.logic.apiRequest=original;
             const saved=(await app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').get({source:'server'})).data();
-            return saved.strokes===6&&saved.puts===3&&saved.lady===true&&!app.state.pendingScoreKeys['local-round_local-player-a_1']&&document.getElementById('score-sync-status').textContent.includes('Serverbestätigt');
-        })()`), true);
-        stage = 'S01 real V1 clear, zero and false';
+            return saved.strokes===5&&!!app.state.pendingScoreKeys['local-round_local-player-a_1'];
+        })()`),true);
+        stage='S01 clear/zero/false survive rejected runtime write';
         assert.equal(await evaluate(`(async()=>{
-            const key='local-round_local-player-a_1_puts';delete app.state.liveScores[key];app.logic.markScorePending('local-round',key);
+            for(const [field,value] of [['puts',undefined],['puts',0],['lady',false]]){
+                const key='local-round_local-player-a_1_'+field;if(value===undefined)delete app.state.liveScores[key];else app.state.liveScores[key]=value;app.logic.markScorePending('local-round',key);
+            }
             await app.logic.syncScoresWithServer('local-round',1,true);
-            const ref=app.db.collection('scorecards').doc('SC-local-round-local-player-a-1');
-            if('puts' in (await ref.get({source:'server'})).data())return false;
-            app.state.liveScores[key]=0;app.logic.markScorePending('local-round',key);
-            app.state.liveScores['local-round_local-player-a_1_lady']=false;app.logic.markScorePending('local-round','local-round_local-player-a_1_lady');
-            await app.logic.syncScoresWithServer('local-round',1,true);const saved=(await ref.get({source:'server'})).data();return saved.puts===0&&saved.lady===false;
-        })()`), true);
-        stage = 'S01 real V1 commit then lost ACK blocks replay after real reload';
+            const saved=(await app.db.collection('scorecards').doc('SC-local-round-local-player-a-1').get({source:'server'})).data();
+            return saved.puts===2&&!!app.state.pendingScoreKeys['local-round_local-player-a_1_puts']&&!!app.state.pendingScoreKeys['local-round_local-player-a_1_lady'];
+        })()`),true);
+        stage='S01 unknown outcome remains blocked after reload';
         assert.equal(await evaluate(`(async()=>{
-            app.logic.apiRequest=async(a,p)=>{await s01Api(a,p);throw new Error('synthetic ACK lost');};
+            const original=app.logic.apiRequest;app.logic.apiRequest=async()=>{throw new Error('synthetic lost reply');};
             app.state.liveScores['local-round_local-player-a_2']=8;app.logic.markScorePending('local-round','local-round_local-player-a_2');
-            await app.logic.syncScoresWithServer('local-round',1,true);
-            const saved=(await app.db.collection('scorecards').doc('SC-local-round-local-player-a-2').get({source:'server'})).data();
-            return saved.strokes===8&&!!app.state.pendingScoreKeys['local-round_local-player-a_2']&&document.getElementById('score-sync-status').textContent.includes('gesperrt');
-        })()`), true);
-        await command('Page.reload', {}, sessionId);
-        await waitFor("Boolean(window.app && app.state && app.state.currentUser && app.state.currentUser.id==='local-player-a')");
-        assert.equal(await evaluate(`(async()=>{
-            app.logic.initScoreAutoSync('local-round');let calls=0;const original=app.logic.apiRequest;
-            app.logic.apiRequest=async(...args)=>{calls++;return original(...args);};await app.logic.syncScoresWithServer('local-round',1,true);app.logic.apiRequest=original;
-            const key='local-round_local-player-a_2';return calls===0&&app.state.liveScores[key]===8&&!!app.state.pendingScoreKeys[key]&&app.state.v1JournalState.blocked.has(key);
-        })()`), true);
+            await app.logic.syncScoresWithServer('local-round',1,true);app.logic.apiRequest=original;return !!app.state.pendingScoreKeys['local-round_local-player-a_2'];
+        })()`),true);
+        await command('Page.reload',{},sessionId);
+        await waitFor("Boolean(window.app&&app.state&&app.state.currentUser&&app.state.currentUser.id==='local-player-a')");
+        assert.equal(await evaluate(`(async()=>{app.logic.initScoreAutoSync('local-round');const original=app.logic.apiRequest;let calls=0;app.logic.apiRequest=async(...a)=>{calls++;return original(...a);};await app.logic.syncScoresWithServer('local-round',1,true);app.logic.apiRequest=original;return calls===0&&!!app.state.pendingScoreKeys['local-round_local-player-a_2'];})()`),true);
         // Production V2 read/write adapters, real Callable transport, real transactions.
         stage = 'V2 read';
         assert.equal(await evaluate("(async()=>{const r=await app.scoreSyncV2ReadCallableTransport({ownerUid:'local-player-a',playerId:'local-player-a',spieltagId:'local-round'});return r.flightId==='local-flight';})()"), true);
@@ -153,10 +139,24 @@ async function run(profile, port)
         await waitFor("Boolean(window.app && app.state && app.state.currentView==='login' && app.state.spieler.length)");
         stage = 'manager and admin Rules';
         assert.equal(await evaluate("(async()=>{const r=await app.logic.callFunction('verifyPlayerPin',{spielerId:'local-manager',pin:'1234'});await firebase.auth().signInWithCustomToken(r.customToken);await app.db.collection('spieltage').doc('local-manager-test').set({status:'Aktiv'});return app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true}).then(()=>false,e=>e.code==='permission-denied');})()"), true);
-        assert.equal(await evaluate("(async()=>{await firebase.auth().signOut();const r=await app.logic.callFunction('verifyPlayerPin',{spielerId:'local-admin',pin:'1234'});await firebase.auth().signInWithCustomToken(r.customToken);await app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true});return (await app.db.collection('spieler').doc('local-player-a').get()).exists;})()"), true);
+        assert.equal(await evaluate("(async()=>{await firebase.auth().signOut();const r=await app.logic.callFunction('verifyPlayerPin',{spielerId:'local-admin',pin:'1234'});await firebase.auth().signInWithCustomToken(r.customToken);const denied=await app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true}).then(()=>false,e=>e.code==='permission-denied');return denied&&(await app.db.collection('spieler').doc('local-player-a').get()).exists;})()"), true);
         await evaluate('firebase.auth().signOut().then(()=>true)');
         stage = 'S04 PIN Auth/Claims/Rules/recovery';
         await require('./pin-s04-emulator.cjs').run({ evaluate, waitFor, reload: () => command('Page.reload', {}, sessionId) });
+        }
+        stage='S02/S03 normal UI, twelve players and independent profiles';
+        async function newProfile()
+        {
+            const context=await command('Target.createBrowserContext');
+            const target=await command('Target.createTarget',{url:'about:blank',browserContextId:context.browserContextId});
+            const attached=await command('Target.attachToTarget',{targetId:target.targetId,flatten:true});const id=attached.sessionId;
+            await command('Network.enable',{},id);
+            async function evaluate(expression){const r=await command('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true},id);if(r.exceptionDetails)throw new Error('Secondary browser evaluation failed');return r.result.value;}
+            async function waitFor(expression){for(let i=0;i<200;i++){try{if(await evaluate(expression))return;}catch(_){}await sleep(100);}throw new Error('Secondary profile timeout');}
+            await command('Page.navigate',{url},id);await waitFor("Boolean(window.app&&app.state&&app.state.currentView==='login'&&app.state.spieler.length)");
+            return {evaluate,waitFor,reload:()=>command('Page.reload',{},id),command:(method,params)=>command(method,params,id),close:()=>command('Target.disposeBrowserContext',{browserContextId:context.browserContextId})};
+        }
+        await require('./score-auto-sync-emulator.cjs').run({evaluate,waitFor,reload:()=>command('Page.reload',{},sessionId),command:(method,params)=>command(method,params,sessionId),newProfile});
         stage = 'network assertions';
         if (forbidden.length) console.error('Unexpected request origins (no paths/data): ' + JSON.stringify([...new Set(forbidden)]));
         assert.equal(forbidden.length, 0, 'all normal app traffic must remain loopback');
@@ -172,7 +172,7 @@ async function run(profile, port)
             projectId: profile.projectId, normalForbiddenOrigins: 0, allowedPorts: [...allowed],
             observedLocalRequests: requests.filter(r => r.host === '127.0.0.1').length,
             cspNegativeControl: negative, rulesRoles: ['anonymous', 'Spieler', 'Spielleiter', 'Admin'] }, null, 2));
-        console.log('PASS local real-app S01 V1 5/6, field patches, clear/zero/false, ACK loss/reload/no-replay with independent server reads; network/Auth/Functions/Firestore/Rules/V2/mail/logout; CSP blocked.');
+        console.log('PASS local real-app preserved S01 journal and blocked V1 writes; network/Auth/Functions/Firestore/Rules/V2/mail/logout; CSP blocked.');
         await command('Browser.close');
     }
     catch (error)

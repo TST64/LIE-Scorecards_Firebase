@@ -162,6 +162,8 @@ app.logic.showConfirm = function(title, message, mode, onConfirm, onCancel, opti
 
 app.logic.triggerMasterReset = function()
 {
+    app.logic.showToast('Master-Reset ist im geschützten V2-Kandidaten gesperrt.', 'error');
+    return false;
     app.logic.showConfirm(
         "!!! GEFAHRENZONE !!!", 
         "Möchtest du wirklich alle gespielten Runden, Flights und abgegebenen Scorekarten unwiderruflich löschen?", 

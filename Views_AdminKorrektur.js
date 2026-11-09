@@ -114,6 +114,8 @@ app.logic.renderAdminRoundCorrection = function()
 
 app.logic.saveAdminRoundCorrection = async function(recalculate, confirmed)
 {
+    app.logic.showToast('Direkte Admin-Korrektur gesperrt: Revisionen müssen über V2 geprüft werden. Historische Korrektur folgt in S07.', 'error');
+    return false;
     if (!app.state.currentUser || app.state.currentUser.role !== 'Admin') return;
 
     const roundId = document.getElementById('admin-correction-round').value;

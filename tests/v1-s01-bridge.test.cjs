@@ -31,7 +31,7 @@ function fixture()
     const wire = { protocol: 'v1-s01', requestId: randomUUID(), owner: 'A', environment: 'local:demo-lie-scorecards-local', spieltagId: 'ST', flightId: 'FL-ST-1', flightSeq: 1,
         payload: [{ id: 'SC-ST-A-1', spieltagId: 'ST', spielerId: 'A', hole: 1, flightSeq: 1, creation: { hcpStart: 26, strokesGiven: 2 },
             changes: [{ changeId: randomUUID(), field: 'strokes', operation: 'set', value: 6 }] }] };
-    return { c, db, writes, wire, send: () => c.app.logic.apiRequest('saveLiveScores', wire) };
+    return { c, db, writes, wire, send: () => c.app.logic.saveV1ScoreSnapshot(wire) };
 }
 test('real Bridge patches strokes only and preserves server puts/lady/HCP=0', async () => {
     const f = fixture(), r = await f.send(); assert.equal(r.success, true);

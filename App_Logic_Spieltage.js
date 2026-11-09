@@ -488,6 +488,9 @@ app.logic.cancelActiveSpieltag = function(spieltagId)
 
 app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
 {
+    const pending = Object.values(app.state.scoreEntryV2?.entries || {}).reduce((n,e)=>n+(e.pendingOperations?.length || 0),0);
+    app.logic.showToast('Rundenschluss gesperrt (S05): '+pending+' lokal ausstehende Feldänderungen; Konflikte und weitere Geräte müssen abgeglichen werden.', 'error');
+    return false;
     const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
     if (!spieltag)
     {

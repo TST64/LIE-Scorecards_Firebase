@@ -42,6 +42,7 @@ app.logic.submitPin = async function(event)
         localStorage.setItem('lie_scorecard_user_id', player.id);
         pinInput.value = '';
         if (app.logic.updateHeaderRoleIcon) app.logic.updateHeaderRoleIcon();
+        if (!status.mustChangePin && app.logic.resumeScoreAutoSyncV2)app.logic.resumeScoreAutoSyncV2().catch(()=>{});
         app.router.navigate(status.mustChangePin ? 'pin_aendern' : 'dashboard');
     }
     catch (_)
@@ -89,6 +90,7 @@ app.logic.changePin = async function()
         if (!sameOwner() || status.playerId !== playerId || status.mustChangePin !== false) throw new Error('claims');
         app.state.currentUser.mustChangePin = false;
         app.state.currentUser.role = status.role;
+        if(app.logic.resumeScoreAutoSyncV2)app.logic.resumeScoreAutoSyncV2().catch(()=>{});
         p1.value = ''; p2.value = '';
         app.logic.showToast('PIN dauerhaft gespeichert!', 'success');
         app.router.navigate('dashboard');
@@ -229,6 +231,7 @@ app.logic.logout = function()
         {
             try
             {
+                if(app.logic.stopScoreAutoSyncV2)app.logic.stopScoreAutoSyncV2();
                 // Keep durable buffers; stop timers and remove only in-memory ownership.
                 Object.values(app.state.scoreAutoSyncTimers || {}).forEach(clearTimeout);
                 clearInterval(app.state.scorePeriodicSyncId);

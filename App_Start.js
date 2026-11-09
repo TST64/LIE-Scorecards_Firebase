@@ -154,6 +154,7 @@ app.initStart = async function()
                     app.logic.updateHeaderRoleIcon();
                 }
 
+                if(!claims.mustChangePin && app.logic.resumeScoreAutoSyncV2)app.logic.resumeScoreAutoSyncV2().catch(()=>{});
                 if (claims.mustChangePin)
                 {
                     app.router.navigate('pin_aendern');

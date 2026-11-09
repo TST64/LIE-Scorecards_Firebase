@@ -22,7 +22,8 @@ async function seed()
         }
         batch.set(db.collection('spieltage').doc('local-round'), { id: 'local-round', date: '2026-01-01', status: 'Aktiv',
             kursId: 'local-course', rundenTyp: '9-Front', bahnAnzahl: 9, teilnehmerCsv: 'local-player-a,local-player-b',
-            hcpStart: { 'local-player-a': 26, 'local-player-b': 26 } });
+            hcpStart: { 'local-player-a': 26, 'local-player-b': 26 },
+            holeAllowances: Object.fromEntries(['local-player-a','local-player-b'].map(id=>[id,Object.fromEntries(Array.from({length:9},(_,i)=>[i+1,2]))])) });
         batch.set(db.collection('flights').doc('local-flight'), { id: 'local-flight', spieltagId: 'local-round', seq: 1,
             spielerIdsCsv: 'local-player-a,local-player-b' });
         batch.set(db.collection('kurse').doc('local-course'), { id: 'local-course', name: 'Synthetic course' });

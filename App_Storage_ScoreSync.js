@@ -359,6 +359,8 @@ app.createScoreSyncStore = function(databaseName)
                 }
                 if (replaceGeneration)
                 {
+                    if(metadata.replacesGeneration==='absent' && data.pendingOperations.some(op=>op.documentId===c.documentId))
+                        throw scoreError('pending-generation-transition','New local work prevents binding external creation.');
                     if (cached?.generation !== metadata.replacesGeneration || metadata.generation === cached.generation)
                     {
                         throw scoreError('stale-generation-transition', 'The expected lifecycle no longer matches the cache.');
