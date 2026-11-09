@@ -95,7 +95,9 @@ service cloud.firestore
     match /spieltage/{docId}
     {
       allow read: if signedIn();
-      allow write: if isSpielleiter();
+      allow create, delete: if false;
+      allow update: if isSpielleiter()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpStart','holeAllowances','hcpHoleData','hcpCourseTable','hcpSnapshotVersion','_roundStart','kursId','rundenTyp','bahnAnzahl','teilnehmerCsv','date','status']);
     }
 
     // Scores dürfen angemeldete Mitglieder während einer laufenden Runde erfassen.
@@ -118,7 +120,7 @@ service cloud.firestore
     match /flights/{docId}
     {
       allow read: if signedIn();
-      allow write: if isSpielleiter();
+      allow write: if false;
     }
 
     // Stammdaten Golfplätze/Kurse nur Admin.

@@ -955,3 +955,29 @@ app.logic.showPlayerDetailModal = function(spieltagId, spielerId)
 };
 
 
+
+// S06 publication uses only the canonical group calculator and frozen round data.
+app.views.leaderboardLegacyReference = app.views.leaderboard;
+app.views.leaderboard = function(input,tab)
+{
+    const id=typeof input==='object'?(input.id||input.spieltagId):input;
+    const mode=typeof input==='object'?(input.mode||tab):tab;
+    const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    if(mode==='brutto')return '<div role="alert">Brutto-Sieger- und Putts-Veröffentlichung bleiben bis zur fachlichen Strich-/S05-Abnahme gesperrt. Netto steht separat bereit.</div>';
+    const round=(app.state.spieltage||[]).find(r=>String(r.id)===String(id));
+    if(!round)return '<div role="alert">Runde nicht gefunden.</div>';
+    try
+    {
+        const ids=app.logic.getRoundParticipantIds(round);LieHcpRules.validateRoundSnapshot(round,ids);
+        const rows=ids.map(playerId=>({id:playerId,result:app.logic.calculateRoundForPlayer(round,playerId,round.hcpStart[playerId],app.state.scoreCards)}));
+        const all=rows.every(x=>x.result.complete);rows.sort((a,b)=>b.result.totalNetto-a.result.totalNetto);
+        let rank=0,last=null;
+        return '<section><h2>Netto und Gruppen-HCP – Vorschau</h2><p>Zuletzt geladene Server-Rohwerte. Keine Siegerfreigabe und keine HCP-Schreibfortschreibung; S05/S07 bleiben gesperrt.</p><table><thead><tr><th>Rang</th><th>Spieler</th><th>Bahnen</th><th>Netto</th><th>HCP Start → Vorschau</th></tr></thead><tbody>'+rows.map((row,i)=>{
+            if(row.result.totalNetto!==last){rank=i+1;last=row.result.totalNetto;}
+            const player=(app.state.spieler||[]).find(p=>String(p.id)===row.id),r=row.result;
+            return '<tr><td>'+(all?rank:'—')+'</td><td>'+esc(player?.nickname||row.id)+'</td><td>'+r.playedHoles+'/'+r.requiredHoles+' '+(r.complete?'vollständig':r.valid?'unvollständig':'ungültig')+'</td><td>'+r.totalNetto+'</td><td>'+r.startHcp.toFixed(1)+' → '+(r.complete?r.endHcp.toFixed(1):'keine Fortschreibung')+'</td></tr>';
+        }).join('')+'</tbody></table></section>';
+    }
+    catch(_){return '<div role="alert">HCP-/Netto-Veröffentlichung gesperrt: autoritative Start-Snapshots oder gültige Rohdaten fehlen. Keine Ableitung aus heutigem Spieler-HCP.</div>';}
+};
+app.logic.showPlayerDetailModal = function(){app.logic.showToast('Legacy-Brutto-/Putts-Detailveröffentlichung bleibt bis zur fachlichen Abnahme gesperrt.','error');};

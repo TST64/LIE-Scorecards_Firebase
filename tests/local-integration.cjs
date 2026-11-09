@@ -138,7 +138,7 @@ async function run(profile, port)
         await command('Page.reload', {}, sessionId);
         await waitFor("Boolean(window.app && app.state && app.state.currentView==='login' && app.state.spieler.length)");
         stage = 'manager and admin Rules';
-        assert.equal(await evaluate("(async()=>{const r=await app.logic.callFunction('verifyPlayerPin',{spielerId:'local-manager',pin:'1234'});await firebase.auth().signInWithCustomToken(r.customToken);await app.db.collection('spieltage').doc('local-manager-test').set({status:'Aktiv'});return app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true}).then(()=>false,e=>e.code==='permission-denied');})()"), true);
+        assert.equal(await evaluate("(async()=>{const r=await app.logic.callFunction('verifyPlayerPin',{spielerId:'local-manager',pin:'1234'});await firebase.auth().signInWithCustomToken(r.customToken);const roundDenied=await app.db.collection('spieltage').doc('local-manager-test').set({status:'Aktiv'}).then(()=>false,e=>e.code==='permission-denied');if(!roundDenied)return false;return app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true}).then(()=>false,e=>e.code==='permission-denied');})()"), true);
         assert.equal(await evaluate("(async()=>{await firebase.auth().signOut();const r=await app.logic.callFunction('verifyPlayerPin',{spielerId:'local-admin',pin:'1234'});await firebase.auth().signInWithCustomToken(r.customToken);const denied=await app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true}).then(()=>false,e=>e.code==='permission-denied');return denied&&(await app.db.collection('spieler').doc('local-player-a').get()).exists;})()"), true);
         await evaluate('firebase.auth().signOut().then(()=>true)');
         stage = 'S04 PIN Auth/Claims/Rules/recovery';
@@ -157,6 +157,8 @@ async function run(profile, port)
             return {evaluate,waitFor,reload:()=>command('Page.reload',{},id),command:(method,params)=>command(method,params,id),close:()=>command('Target.disposeBrowserContext',{browserContextId:context.browserContextId})};
         }
         await require('./score-auto-sync-emulator.cjs').run({evaluate,waitFor,reload:()=>command('Page.reload',{},sessionId),command:(method,params)=>command(method,params,sessionId),newProfile});
+        stage='S06 authoritative normal round creation and HCP';
+        await require('./hcp-s06-emulator.cjs').run({evaluate,waitFor});
         stage = 'network assertions';
         if (forbidden.length) console.error('Unexpected request origins (no paths/data): ' + JSON.stringify([...new Set(forbidden)]));
         assert.equal(forbidden.length, 0, 'all normal app traffic must remain loopback');

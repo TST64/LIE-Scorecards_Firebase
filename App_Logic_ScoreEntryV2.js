@@ -349,50 +349,13 @@ app.createScoreEntryV2Controller = function(options)
 
 
 // Same distribution as calculateHoleVorgabe, using only authoritative context inputs.
-app.calculateScoreEntryAllowanceV2 = function(spielerId, hole, response)
+app.calculateScoreEntryAllowanceV2 = function(playerId,hole,response)
 {
-    const player = response.players.find(function(item)
-    {
-        return item.id === spielerId;
-    });
-    const hcp = parseFloat(player && player.hcpLIE);
-    if (Number.isNaN(hcp))
-    {
-        return 0;
-    }
-    const match = (response.handicaps || []).find(function(item)
-    {
-        return parseFloat(item.vorgabe) === hcp;
-    });
-    let total = match ? parseInt(match.spielvorgabe) : Math.round(hcp);
-    if (response.round.bahnAnzahl === 9 || response.round.rundenTyp.startsWith('9'))
-    {
-        total = Math.round(total / 2);
-    }
-    let holes = (response.calculationHoles || response.round.holeData).slice();
-    if (response.round.rundenTyp === '9-Front')
-    {
-        holes = holes.filter(function(item)
-        {
-            return parseInt(item.nr) <= 9;
-        });
-    }
-    else if (response.round.rundenTyp === '9-Back')
-    {
-        holes = holes.filter(function(item)
-        {
-            return parseInt(item.nr) >= 10;
-        });
-    }
-    holes.sort(function(a, b)
-    {
-        return parseInt(a.si) - parseInt(b.si);
-    });
-    const index = holes.findIndex(function(item)
-    {
-        return item.nr === hole;
-    });
-    return index < 0 ? 0 : Math.floor(total / holes.length) + (index < total % holes.length ? 1 : 0);
+    const given=response.round.holeAllowances?.[playerId]?.[String(hole)];
+    if(Number.isSafeInteger(given)&&given>=0)return given;
+    const start=response.round.hcpStart?.[playerId];
+    if(typeof start!=='number')throw new Error('Autoritativer Rundenstart fehlt.');
+    return LieHcpRules.snapshot(response.round,response.round.holeData,start,response.handicaps || []).holeAllowances[String(hole)];
 };
 
 app.createFirebaseScoreEntryV2Controller = function()

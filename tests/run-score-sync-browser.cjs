@@ -39,7 +39,7 @@ async function main()
     const testDb = memoryDatabase();
     const writeV2 = createScoreOperationsV2(testDb, fieldValue);
     const testAuth = { uid: 'A', token: { playerId: 'A', role: 'Spieler' } };
-    const allowed = new Set(['/App_Storage_ScoreSync.js', '/App_Logic_ScoreSyncV2.js', '/App_Logic_ScoreEntryV2.js',
+    const allowed = new Set(['/Hcp_Rules.js','/App_Storage_ScoreSync.js', '/App_Logic_ScoreSyncV2.js', '/App_Logic_ScoreEntryV2.js',
         '/tests/score-entry-v2.html', '/tests/score-entry-v2.test.js',
         '/tests/score-sync-v2.html', '/tests/score-sync-v2.test.js', '/tests/score-sync-storage.html']);
     const server = http.createServer(async function(request, response)
@@ -69,7 +69,7 @@ async function main()
                         flightId: 'F-' + suffix, spielerId: 'A', hole: 1, mode: 'ownFlight' };
                     c.documentId = 'SC-' + c.spieltagId + '-A-1';
                     await testDb.collection('spieler').doc('A').set({ role: 'Spieler' });
-                    await testDb.collection('spieltage').doc(c.spieltagId).set({ status: 'Aktiv', rundenTyp: '18', bahnAnzahl: 18, hcpStart:{A:26},holeAllowances:{A:{1:2}} });
+                    await testDb.collection('spieltage').doc(c.spieltagId).set({ status: 'Aktiv', rundenTyp: '18', bahnAnzahl: 18, ...require('../functions/test/hcp-fixture').metadata({rundenTyp:'18',bahnAnzahl:18},{A:26},[{vorgabe:26,spielvorgabe:20}]) });
                     await testDb.collection('flights').doc(c.flightId).set({ spieltagId: c.spieltagId, spielerIdsCsv: 'A' });
                     await testDb.collection('scorecards').doc(c.documentId).set({ id: c.documentId,
                         spieltagId: c.spieltagId, spielerId: 'A', hole: 1, strokes: 4, puts: 2,

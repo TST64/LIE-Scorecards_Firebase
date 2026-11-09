@@ -1,4 +1,5 @@
 "use strict";
+const {metadata}=require("./hcp-fixture");
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { createScoreReadV2 } = require("../score-read-v2");
@@ -10,7 +11,7 @@ async function fixture()
     const db = memoryDatabase();
     await db.collection("spieler").doc("A").set({ role: "Spieler", nickname: "Anna", email: "private" });
     await db.collection("spieler").doc("B").set({ role: "Spieler" });
-    await db.collection("spieltage").doc("ST").set({ status: "Aktiv", rundenTyp: "9-Back", bahnAnzahl: 9, kursId: "K", hcpStart:{A:26,B:26},holeAllowances:{A:Object.fromEntries(Array.from({length:18},(_,i)=>[i+1,1]))} });
+    await db.collection("spieltage").doc("ST").set({ status: "Aktiv", rundenTyp: "9-Back", bahnAnzahl: 9, kursId: "K", ...metadata({rundenTyp:"9-Back",bahnAnzahl:9},{A:26,B:26}) });
     await db.collection("flights").doc("F-1").set({ spieltagId: "ST", spielerIdsCsv: "B,A" });
     for (let hole = 10; hole <= 18; hole++)
     {
@@ -88,7 +89,8 @@ for (const scenario of ["unauthenticated", "uid", "pin-token", "pin-record", "in
         }
         if (scenario === "hole")
         {
-            await f.db.collection("bahnen").doc("10").delete();
+            const snap=(await f.db.collection("spieltage").doc("ST").get()).data();
+            await f.db.collection("spieltage").doc("ST").set({hcpHoleData:snap.hcpHoleData.slice(1)},{merge:true});
         }
         if (scenario === "foreign-round")
         {

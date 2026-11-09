@@ -296,13 +296,26 @@ app.views.scoreEingabe = app.views.score_eingabe = function(id, hole, seq)
     };
 
 
+    let hcpPreview='<div class="lie-hcp-preview" role="status">';
+    try
+    {
+        if(typeof LieHcpRules==='undefined')throw new Error('rules');
+        hcpPreview+=c.players.map(playerId=>{
+            const rows=c.round.holes.map(hole=>({hole,...app.state.scoreEntryV2.entries[playerId+'_'+hole].confirmed}));
+            const local=c.round.holes.some(hole=>{const e=app.state.scoreEntryV2.entries[playerId+'_'+hole];return e.pendingOperations?.length||e.syncIssues?.length;});
+            const r=LieHcpRules.evaluate(c.round,c.round.holeData,c.round.hcpStart[playerId],rows,c.round.holeAllowances[playerId]);
+            return '<p>'+esc(playerId)+': '+r.playedHoles+'/'+r.requiredHoles+' bestätigt · '+(r.complete&&!local?'HCP-Vorschau '+r.startHcp.toFixed(1)+' → '+r.endHcp.toFixed(1):'unvollständig/ausstehend – keine HCP-Fortschreibung')+'</p>';
+        }).join('');
+    }
+    catch(_){hcpPreview+='HCP-Vorschau gesperrt: Start-Snapshot oder gültige Rohdaten fehlen.';}
+    hcpPreview+='</div>';
     return '<div class="lie-score-screen"><div class="lie-score-heading"><button class="lie-back" aria-label="Score-Eingabe verlassen" onclick="app.router.navigate(\'dashboard\')"><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button><h1>Mein Flight</h1><span class="lie-course-context">'
         + esc(c.course ? c.course.name : 'Scorekarte') + ' · Flight ' + c.seq + '</span></div>'
         + '<div class="lie-hole-sticky"><nav class="lie-progress" aria-label="Lochfortschritt">' + progress + '</nav>'
         + '<div class="lie-hole-context"><div class="lie-hole-title"><button aria-label="Vorheriges Loch" ' + (c.hole === c.first ? 'disabled' : 'onclick="' + navigate(c.hole - 1) + '"') + '><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button><h2>Loch ' + c.hole + ' von ' + c.last + '</h2><button aria-label="Nächstes Loch" ' + (c.hole === c.last ? 'disabled' : 'onclick="' + navigate(c.hole + 1) + '"') + '><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button></div><p>Par ' + esc(c.current.par) + ' · SI ' + esc(c.current.si) + '</p></div></div>'
         + '<div id="score-v2-sync-status" role="status" aria-live="polite">' + esc(app.logic.scoreAutoSyncStatusTextV2 ? app.logic.scoreAutoSyncStatusTextV2(app.state.scoreEntryV2.syncStatus) : 'Lokal gespeichert · Synchronisierung ausstehend') + '</div>'
         + '<button class="lie-button" onclick="app.logic.scoreScreenRefreshSyncV2()">Serverstand zum Vergleich laden</button>'
-        + '<div class="lie-players">' + cards + '</div>'
+        + '<div class="lie-players">' + cards + '</div>'+hcpPreview
         + (c.leader ? '<details class="lie-management"><summary>Spielleitung</summary>' + c.flights.map(function(flight)
         {
             const n = flight.seq;

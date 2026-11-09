@@ -458,22 +458,7 @@ app.logic.apiRequest = async function(action, payload = {})
         }
         else if (action === 'createNewSpieltag')
         {
-            const stObj = payload.spieltagObj;
-            const flights = payload.flightsPayload || [];
-
-            await app.db.collection('spieltage').doc(String(stObj.id)).set(stObj);
-
-            const batch = app.db.batch();
-            flights.forEach(
-                function(f)
-                {
-                    const fRef = app.db.collection('flights').doc(String(f.id));
-                    batch.set(fRef, f);
-                }
-            );
-            await batch.commit();
-
-            return ({ success: true });
+            return await app.logic.callFunction('createRoundStart',{spieltagObj:payload.spieltagObj,flightsPayload:payload.flightsPayload});
         }
         else if (action === 'closeSpieltagServer')
         {

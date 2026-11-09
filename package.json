@@ -6,6 +6,7 @@
   },
   "scripts": {
     "local": "node tools/local/start.cjs",
+    "build:hcp": "node tools/build-hcp-browser.cjs",
     "test:local": "node --test tests/local-environment.test.cjs",
     "test:integration": "node tools/local/start.cjs --test"
   },

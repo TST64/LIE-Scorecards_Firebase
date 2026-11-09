@@ -2,6 +2,7 @@
 
 const { createHash, randomUUID } = require("node:crypto");
 const FIELDS = ["strokes", "puts", "lady", "maxscore"];
+const HcpRules = require('./hcp-rules');
 
 function identifier(value)
 {
@@ -196,6 +197,8 @@ function createScoreOperationsV2(db, FieldValue)
             {
                 return deny("flight-not-authorized");
             }
+            try { HcpRules.validateRoundSnapshot(round.data(),members); }
+            catch (_) { return deny('round-start-snapshots-missing-or-invalid'); }
 
             const valid = operations.map(function(op)
             {

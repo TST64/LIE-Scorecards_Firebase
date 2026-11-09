@@ -13,103 +13,31 @@ app.logic.getRoundParticipantIds = function(spieltag)
         .filter(Boolean);
 };
 
-app.logic.getRoundHoles = function(spieltag)
+app.logic.getRoundHoles = function(round)
 {
-    if (!spieltag) return [];
-
-    let holes = (app.state.bahnen || []).filter(function(b)
-    {
-        return String(b.kursId).trim() === String(spieltag.kursId).trim();
-    });
-
-    if (spieltag.rundenTyp === '9-Front')
-    {
-        holes = holes.filter(function(b) { return parseInt(b.nr) <= 9; });
-    }
-    else if (spieltag.rundenTyp === '9-Back')
-    {
-        holes = holes.filter(function(b) { return parseInt(b.nr) >= 10; });
-    }
-
-    return holes.sort(function(a, b) { return parseInt(a.nr) - parseInt(b.nr); });
+    return LieHcpRules.played(round,round.hcpHoleData || (app.state.bahnen || []).filter(h=>String(h.kursId)===String(round.kursId)));
 };
-
-app.logic.calculateHoleVorgabeForHcp = function(hcpValue, spieltag, holeNr)
+app.logic.calculateHoleVorgabeForHcp = function(hcp,round,hole)
 {
-    return app.logic.calculateHoleVorgabe({ hcpLIE: hcpValue }, spieltag, holeNr);
+    const rows=round.hcpCourseTable || (app.state.handicaps || []).filter(h=>String(h.kursId)===String(round.kursId));
+    const snap=LieHcpRules.snapshot(round,app.logic.getRoundHoles(round),hcp,rows);
+    if(!Object.hasOwn(snap.holeAllowances,String(hole)))throw new Error('Bahn außerhalb der Runde.');
+    return snap.holeAllowances[String(hole)];
 };
-
-app.logic.getHistoricalHcp = function(spieler, spieltag, scorecard)
+app.logic.getHistoricalHcp = function(player,round,card)
 {
-    if (scorecard && Number.isFinite(parseFloat(scorecard.hcpStart)))
-    {
-        return parseFloat(scorecard.hcpStart);
-    }
-
-    if (spieltag && spieltag.hcpStart && Number.isFinite(parseFloat(spieltag.hcpStart[String(spieler.id)])))
-    {
-        return parseFloat(spieltag.hcpStart[String(spieler.id)]);
-    }
-
-    return parseFloat(spieler && spieler.hcpLIE);
+    const value=round?.hcpStart?.[String(player?.id)];
+    if(typeof value==='number'&&Number.isFinite(value))return LieHcpRules.normalizeHcp(value);
+    if(typeof card?.hcpStart==='number'&&Number.isFinite(card.hcpStart))return LieHcpRules.normalizeHcp(card.hcpStart);
+    return null;
 };
-
-app.logic.calculateRoundForPlayer = function(spieltag, spielerId, startHcp, scorecards)
+app.logic.calculateRoundForPlayer = function(round,playerId,start,cards)
 {
-    const holes = app.logic.getRoundHoles(spieltag);
-    const playerScores = (scorecards || app.state.scoreCards || []).filter(function(sc)
-    {
-        return String(sc.spieltagId).trim() === String(spieltag.id).trim()
-            && String(sc.spielerId).trim() === String(spielerId).trim();
-    });
-
-    let totalNetto = 0;
-    let totalStrokes = 0;
-    let playedHoles = 0;
-    const scoreUpdates = [];
-
-    holes.forEach(function(hole)
-    {
-        const holeNr = parseInt(hole.nr);
-        const sc = playerScores.find(function(item) { return parseInt(item.hole) === holeNr; });
-        if (!sc || parseInt(sc.strokes) <= 0) return;
-
-        const strokesGiven = app.logic.calculateHoleVorgabeForHcp(startHcp, spieltag, holeNr);
-        const netto = app.logic.calculateNettoStableford(parseInt(sc.strokes), parseInt(hole.par), strokesGiven);
-
-        playedHoles++;
-        totalStrokes += parseInt(sc.strokes);
-        totalNetto += netto;
-        scoreUpdates.push({ scorecard: sc, strokesGiven: strokesGiven, hcpStart: startHcp });
-    });
-
-    const is9 = (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9'));
-    const requiredHoles = is9 ? 9 : (parseInt(spieltag.bahnAnzahl) || 18);
-    const stablefordSoll = is9 ? 18 : 36;
-    let endHcp = parseInt(startHcp);
-
-    if (playedHoles >= requiredHoles)
-    {
-        if (totalNetto > stablefordSoll)
-        {
-            endHcp = Math.max(0, Math.round(parseInt(startHcp) - ((totalNetto - stablefordSoll) * 0.5)));
-        }
-        else if (totalNetto < stablefordSoll)
-        {
-            endHcp = Math.min(54, Math.round(parseInt(startHcp) + ((stablefordSoll - totalNetto) * 0.1)));
-        }
-    }
-
-    return {
-        startHcp: parseInt(startHcp),
-        endHcp: endHcp,
-        totalNetto: totalNetto,
-        totalStrokes: totalStrokes,
-        playedHoles: playedHoles,
-        requiredHoles: requiredHoles,
-        complete: playedHoles >= requiredHoles,
-        scoreUpdates: scoreUpdates
-    };
+    const holes=app.logic.getRoundHoles(round),rows=round.hcpCourseTable || (app.state.handicaps || []).filter(h=>String(h.kursId)===String(round.kursId));
+    const snap=LieHcpRules.snapshot(round,holes,start,rows);
+    const given=round.hcpStart?.[String(playerId)]===snap.startHcp&&round.holeAllowances?.[String(playerId)]?round.holeAllowances[String(playerId)]:snap.holeAllowances;
+    const raw=(cards || app.state.scoreCards || []).filter(c=>String(c.spieltagId)===String(round.id)&&String(c.spielerId)===String(playerId));
+    return {...LieHcpRules.evaluate(round,holes,start,raw,given),scoreUpdates:[]};
 };
 
 app.logic.recalculateSeasonFromStart = async function()

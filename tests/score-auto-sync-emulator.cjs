@@ -29,7 +29,7 @@ async function run(primary)
         }
         batch.set(db.collection('spieltage').doc(round),{id:round,kursId:'sync-course',status:'Aktiv',rundenTyp:'9-Front',bahnAnzahl:9,
             teilnehmerCsv:players.join(','),hcpStart:Object.fromEntries(players.map((id,i)=>[id,i===0?0:26])),
-            holeAllowances:Object.fromEntries(players.map(id=>[id,Object.fromEntries(Array.from({length:9},(_,i)=>[i+1,2]))]))});
+            ...require('../functions/test/hcp-fixture').metadata({rundenTyp:'9-Front',bahnAnzahl:9},Object.fromEntries(players.map((id,i)=>[id,i===0?0:26])))});
         batch.set(db.collection('kurse').doc('sync-course'),{name:'Synthetic sync course'});
         for(let h=1;h<=9;h++)batch.set(db.collection('bahnen').doc('sync-hole-'+h),{kursId:'sync-course',nr:h,par:4,si:h});
         for(let i=0;i<3;i++)batch.set(db.collection('flights').doc('sync-flight-'+(i+1)),{spieltagId:round,seq:i+1,spielerIdsCsv:players.slice(i*4,i*4+4).join(',')});
@@ -40,7 +40,7 @@ async function run(primary)
             stage='normal-ui-'+id;
             await login(primary,id);await normalClick(primary,id);
             await until(async()=>{const d=await ref(id).get();return d.exists&&d.data().strokes===5;});await settled(primary);
-            const d=(await ref(id).get()).data();assert.equal(d.hcpStart,id===players[0]?0:26);assert.equal(d.strokesGiven,2);assert.equal(d.puts,2);
+            const d=(await ref(id).get()).data();assert.equal(d.hcpStart,id===players[0]?0:26);assert.equal(d.strokesGiven,id===players[0]?0:2);assert.equal(d.puts,2);
         }
         console.log('PASS S02: twelve synthetic normal UI senders, three four-player flights, independent server reads.');
         stage='secondary-profiles';second=await primary.newProfile();manager=await primary.newProfile();

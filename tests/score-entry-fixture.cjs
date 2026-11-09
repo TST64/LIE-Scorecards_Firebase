@@ -12,7 +12,7 @@ function scoreEntryFixtureData(type = '18')
             { id: 'C', nickname: 'Chris', hcpLIE: 18 },
             { id: 'D', nickname: 'Dora', hcpLIE: 18 }],
         course: { name: 'Testkurs' }, handicaps: [],
-        round: { kursId: 'K', status: 'Aktiv', rundenTyp: type, bahnAnzahl: holes.length, holes: holes,
+        round: { hcpStart:{A:18,B:18,C:18,D:18}, kursId: 'K', status: 'Aktiv', rundenTyp: type, bahnAnzahl: holes.length, holes: holes,
             holeData: holes.map(function(nr)
             {
                 return { nr: nr, par: 4, si: nr };
