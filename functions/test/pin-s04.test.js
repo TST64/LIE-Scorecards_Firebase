@@ -13,22 +13,24 @@ async function fixture()
 {
     const db = memoryDatabase(), oldPin = pin(), newPin = pin(), users = new Map(), calls = [], logs = [];
     for (const [id,role] of [['A','Spieler'],['B','Spieler'],['ADMIN','Admin'],['MANAGER','Spielleiter']]) {
-        await db.collection('spieler').doc(id).set({ id, role, pinHash: hash(oldPin), mustChangePin: id === 'A', failedPinAttempts: 2 });
+        await db.collection('spieler').doc(id).set({ id, role, email:id+'@example.invalid', pinHash: hash(oldPin), mustChangePin: id === 'A', failedPinAttempts: 2 });
         users.set(id,{ uid:id,customClaims:{ playerId:id,role,mustChangePin:id==='A',unrelated:true } });
     }
+    const collection = db.collection.bind(db);
+    db.collection = name => { const c = collection(name), doc = c.doc; c.doc = id => ({ ...doc(id), id }); return c; };
     class HttpsError extends Error { constructor(code,message,details) { super(message);this.code=code;this.details=details; } }
     const f = { db, oldPin, newPin, users, calls, logs, txCount:0 };
     const run = db.runTransaction.bind(db);
-    db.runTransaction = async work => { const n=++f.txCount; if(f.failTx===n) throw new Error('synthetic DB rejection'); const r=await run(work); if(f.failAfterTx===n) throw new Error('synthetic lost DB acknowledgement');return r; };
+    db.runTransaction = async work => { const n=++f.txCount; if(f.beforeTx){const hook=f.beforeTx;f.beforeTx=null;await hook();} if(f.failTx===n) throw new Error('synthetic DB rejection'); const r=await run(work); if(f.failAfterTx===n) throw new Error('synthetic lost DB acknowledgement');return r; };
     const auth = {
         async getUser(uid) { if(!users.has(uid)) throw Object.assign(new Error('synthetic missing user'),{code:'auth/user-not-found'});return structuredClone(users.get(uid)); },
         async createUser({uid}) { users.set(uid,{uid,customClaims:{}});return users.get(uid); },
         async setCustomUserClaims(uid,claims) { calls.push({uid,claims});if(f.failClaims)throw new Error('synthetic claims failure');users.set(uid,{uid,customClaims:structuredClone(claims)});if(f.failAfterClaims)throw new Error('synthetic claims acknowledgement lost'); },
         async createCustomToken(uid,claims) { if(f.failToken)throw new Error('synthetic token failure');f.minted={uid,claims};return 'synthetic-opaque-session'; }
     };
-    const context = { exports:{}, process:{env:{}}, console:{error:(...args)=>logs.push(args),log:(...args)=>logs.push(args)}, require(name) {
+    const context = { Buffer, exports:{}, process:{env:{}}, console:{error:(...args)=>logs.push(args),log:(...args)=>logs.push(args)}, require(name) {
         if(name==='crypto')return crypto;
-        if(name==='./local-guard')return {validate:()=>({}),credential:()=>({}),disabledMail:async()=>{throw new Error('mail must not run');}};
+        if(name==='./local-guard')return {validate:()=>({}),credential:()=>({}),disabledMail:async()=>{f.mailCalls=(f.mailCalls||0)+1;if(f.mail)return f.mail();throw new Error('mail must not run');}};
         if(name==='./network-guard')return {};
         if(name==='firebase-functions/v2/https')return {onCall:f=>f,HttpsError};
         if(name==='firebase-functions/v2')return {setGlobalOptions(){}};
@@ -37,7 +39,10 @@ async function fixture()
         if(name.startsWith('./score-'))return require('../'+name.slice(2));
         throw new Error('unexpected dependency');
     } };
-    vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../index.js'),'utf8'),context,{filename:'actual-functions-index.js'});
+    const source=process.env.PIN_S04_BASELINE==='1'
+        ?require('node:child_process').execFileSync('git',['show','f862cf0c8f73ef610cdc711218e2a1dd84b8a839:functions/index.js'],{cwd:path.join(__dirname,'../..'),encoding:'utf8'})
+        :fs.readFileSync(path.join(__dirname,'../index.js'),'utf8');
+    vm.runInNewContext(source,context,{filename:'actual-functions-index.js'});
     f.exports=context.exports; f.request={auth:{uid:'A',token:{playerId:'A',role:'Spieler',mustChangePin:true}},data:{spielerId:'A',newPin}};
     f.update=()=>f.exports.updatePlayerPin(f.request); f.read=async id=>(await db.collection('spieler').doc(id||'A').get()).data();
     f.login=value=>f.exports.verifyPlayerPin({data:{spielerId:'A',pin:value}});
@@ -62,7 +67,8 @@ for(const kind of ['unauthenticated','foreign','uid-mismatch','forged-admin','ma
     if(kind==='deleted')await f.db.collection('spieler').doc('A').set({istGeloescht:true},{merge:true});
     if(kind==='invalid-pin')f.request.data.newPin='invalid';
     if(kind==='invalid-id')f.request.data.spielerId='invalid/path';
-    await assert.rejects(f.update());assert.ok((await f.read()).pinHash===before.pinHash,'original credential retained');assert.equal(f.calls.length,0);
+    const expected = kind==='unauthenticated'?'unauthenticated':kind.startsWith('invalid-')?'invalid-argument':'permission-denied';
+    await assert.rejects(f.update(),e=>e.code===expected);assert.ok((await f.read()).pinHash===before.pinHash,'original credential retained');assert.equal(f.calls.length,0);
 });
 test('AU03 authorized Admin changes target claims only and gets no target session',async()=>{
     const f=await fixture();f.request.auth={uid:'ADMIN',token:{playerId:'ADMIN',role:'Admin',mustChangePin:false}};f.request.data.spielerId='B';
@@ -89,4 +95,40 @@ test('login with new credential repairs pending claims failure, old credential c
 test('different credential cannot overwrite a pending operation',async()=>{
     const f=await fixture();f.failClaims=true;await assert.rejects(f.update());f.failClaims=false;f.request.data.newPin=pin();
     await assert.rejects(f.update(),e=>e.code==='failed-precondition');assert.ok(matches((await f.read()).pinHash,f.newPin));
+});
+test('disabled Auth actor cannot change even own credential',async()=>{
+    const f=await fixture(),before=await f.read();f.users.get('A').disabled=true;
+    await assert.rejects(f.update(),e=>e.code==='permission-denied');assert.ok((await f.read()).pinHash===before.pinHash);assert.equal(f.calls.length,0);
+});
+test('Admin cannot change a deleted target',async()=>{
+    const f=await fixture();f.request.auth={uid:'ADMIN',token:{playerId:'ADMIN',role:'Admin',mustChangePin:false}};f.request.data.spielerId='B';
+    await f.db.collection('spieler').doc('B').set({istGeloescht:true},{merge:true});await assert.rejects(f.update(),e=>e.code==='not-found');assert.equal(f.calls.length,0);
+});
+for(const kind of ['claims','token'])test('login '+kind+' failure returns no session and remains retryable',async()=>{
+    const f=await fixture();await f.update();if(kind==='claims')f.failClaims=true;else f.failToken=true;
+    await assert.rejects(f.login(f.newPin),e=>e.code==='unavailable');f.failClaims=false;f.failToken=false;
+    assert.equal((await f.login(f.newPin)).mustChangePin,false);assert.equal(f.logs.length,0);
+});
+test('session status checks DB pending despite ready claim and exposes no credentials',async()=>{
+    const f=await fixture();f.request.auth.token.mustChangePin=false;
+    await f.db.collection('spieler').doc('A').set({mustChangePin:false,pinChangePending:'synthetic-operation'},{merge:true});
+    const result=await f.exports.getPlayerSessionState({auth:f.request.auth});assert.equal(result.mustChangePin,true);
+    assert.deepEqual(Object.keys(result).sort(),['success','playerId','role','mustChangePin'].sort());
+    await assert.rejects(f.exports.getPlayerSessionState({auth:{uid:'B',token:{playerId:'A'}}}),e=>e.code==='permission-denied');
+});
+test('temporary reset never overwrites a pending personal change',async()=>{
+    const f=await fixture();f.failClaims=true;await assert.rejects(f.update());const before=await f.read();
+    assert.equal((await f.exports.requestTempPin({data:{spielerId:'A'}})).success,true);assert.ok((await f.read()).pinHash===before.pinHash);assert.ok(!f.mailCalls);
+});
+test('temporary reset CAS does not overwrite a personal change begun after initial read',async()=>{
+    const f=await fixture();f.beforeTx=()=>f.update();
+    assert.equal((await f.exports.requestTempPin({data:{spielerId:'A'}})).success,true);assert.ok(matches((await f.read()).pinHash,f.newPin));assert.ok(!f.mailCalls);
+});
+test('temporary delivery rollback cannot undo a newer completed personal change',async()=>{
+    const f=await fixture();f.mail=async()=>{await f.update();throw new Error('synthetic delivery failure');};
+    await assert.rejects(f.exports.requestTempPin({data:{spielerId:'A'}}),e=>e.code==='internal');
+    const data=await f.read();assert.ok(matches(data.pinHash,f.newPin));assert.equal(data.mustChangePin,false);assert.equal(f.users.get('A').customClaims.mustChangePin,false);
+});
+test('concurrent same-credential requests converge without resetting completed state',async()=>{
+    const f=await fixture();const results=await Promise.all([f.update(),f.update()]);assert.ok(results.every(r=>r.success));assert.equal((await f.read()).mustChangePin,false);
 });

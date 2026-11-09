@@ -125,15 +125,15 @@ app.initStart = async function()
 
         if (authUser)
         {
-            const tokenResult = await authUser.getIdTokenResult();
-            claims = tokenResult.claims || {};
+            claims = await app.logic.readPlayerSessionState(authUser);
         }
 
         // Nach einem Seitenwechsel bleibt die Firebase-Session erhalten.
         // Nur wenn bereits ein gültiger Spieler-Claim vorhanden ist, wird die App direkt geöffnet.
         if (claims.playerId)
         {
-            await app.logic.apiRequest('getInitialAppData');
+            if (claims.mustChangePin) await app.logic.loadLoginPlayers();
+            else await app.logic.apiRequest('getInitialAppData');
 
             const savedUserId = String(claims.playerId);
             const matchedUser = (app.state.spieler || []).find(function(s)
@@ -145,6 +145,7 @@ app.initStart = async function()
             {
                 app.state.currentUser = matchedUser;
                 app.state.currentUser.mustChangePin = !!claims.mustChangePin;
+                app.state.currentUser.role = claims.role;
 
                 localStorage.setItem('lie_scorecard_user_id', savedUserId);
 

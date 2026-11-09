@@ -155,6 +155,8 @@ async function run(profile, port)
         assert.equal(await evaluate("(async()=>{const r=await app.logic.callFunction('verifyPlayerPin',{spielerId:'local-manager',pin:'1234'});await firebase.auth().signInWithCustomToken(r.customToken);await app.db.collection('spieltage').doc('local-manager-test').set({status:'Aktiv'});return app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true}).then(()=>false,e=>e.code==='permission-denied');})()"), true);
         assert.equal(await evaluate("(async()=>{await firebase.auth().signOut();const r=await app.logic.callFunction('verifyPlayerPin',{spielerId:'local-admin',pin:'1234'});await firebase.auth().signInWithCustomToken(r.customToken);await app.db.collection('scorecards').doc('local-closed-score').set({puts:1},{merge:true});return (await app.db.collection('spieler').doc('local-player-a').get()).exists;})()"), true);
         await evaluate('firebase.auth().signOut().then(()=>true)');
+        stage = 'S04 PIN Auth/Claims/Rules/recovery';
+        await require('./pin-s04-emulator.cjs').run({ evaluate, waitFor, reload: () => command('Page.reload', {}, sessionId) });
         stage = 'network assertions';
         if (forbidden.length) console.error('Unexpected request origins (no paths/data): ' + JSON.stringify([...new Set(forbidden)]));
         assert.equal(forbidden.length, 0, 'all normal app traffic must remain loopback');
