@@ -47,7 +47,7 @@ function createScoreReadV2(db)
         {
             const actor = await tx.get(db.collection("spieler").doc(auth.token.playerId));
             requireValid(actor.exists && actor.data().istGeloescht !== true
-                && actor.data().mustChangePin !== true
+                && actor.data().mustChangePin !== true && !actor.data().pinChangePending
                 && ["Spieler", "Spielleiter", "Admin"].includes(actor.data().role || "Spieler"), "invalid-actor");
             const roundSnap = await tx.get(db.collection("spieltage").doc(request.spieltagId));
             requireValid(roundSnap.exists, "invalid-round");
@@ -139,7 +139,7 @@ function createScoreReadV2(db)
             }
             return { ownerUid: auth.uid, playerId: auth.token.playerId, actorRole: actor.data().role || "Spieler", spieltagId: request.spieltagId,
                 flightId: flight.id, flightSeq: flightSeq, members: members, players: players,
-                round: Object.assign(pick(round, ["kursId", "rundenTyp", "bahnAnzahl", "status", "hcpStart"]), { holes: holes, holeData: holeData }),
+                round: Object.assign(pick(round, ["kursId", "rundenTyp", "bahnAnzahl", "status", "hcpStart", "holeAllowances"]), { holes: holes, holeData: holeData }),
                 cards: cards, handicaps: handicaps,
                 calculationHoles: courseHoles.docs.map(function(doc)
                 {

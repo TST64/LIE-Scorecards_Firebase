@@ -162,16 +162,24 @@ app.createScoreEntryV2Controller = function(options)
         await guard(ticket, c);
         validateResponse(response, c);
         requireValid(JSON.stringify(ownContext(auth, c.spieltagId)) === JSON.stringify(c), 'Flight changed during read.');
-        // Validate every generation before beginning cache writes. No lifecycle replacement on refresh.
+        // A previously absent card may have been created by another golfer.
+        // Bind it only with no local work; never replace a known prior lifecycle.
+        const createdElsewhere=new Set();
         for (const card of response.cards)
         {
             const local = await store.readScorecard(Object.assign({}, c, card));
-            requireValid(!local.generation || local.generation === card.generation, 'Read generation mismatch.');
+            if(local.generation && local.generation!==card.generation)
+            {
+                requireValid(local.generation==='absent' && card.exists && !local.pendingOperations.length, 'Read generation mismatch; lokale Daten bleiben erhalten.');
+                createdElsewhere.add(card.documentId);
+            }
         }
         for (const card of response.cards)
         {
             await guard(ticket, c);
-            await store.putServerSnapshot(Object.assign({}, c, card), card.values, card.fieldRevisions,
+            if(createdElsewhere.has(card.documentId))
+                await store.replaceServerGeneration(Object.assign({},c,card),card.values,card.fieldRevisions,{generation:card.generation,replacesGeneration:'absent'});
+            else await store.putServerSnapshot(Object.assign({}, c, card), card.values, card.fieldRevisions,
                 { generation: card.generation });
         }
         await guard(ticket, c);
@@ -317,6 +325,7 @@ app.createScoreEntryV2Controller = function(options)
             // A committed operation remains in its original partition even after a view/user change.
             try
             {
+                if (options.onAccepted) options.onAccepted(Object.freeze({...selected.context}));
                 await guard(selected.ticket, selected.context);
                 return await readEntry(spielerId, hole);
             }
@@ -418,7 +427,13 @@ app.createFirebaseScoreEntryV2Controller = function()
                 mustChangePin: token.claims.mustChangePin };
         },
         readTransport: app.scoreSyncV2ReadCallableTransport,
-        calculateAllowance: app.calculateScoreEntryAllowanceV2
+        onAccepted: c => { if(app.scoreAutoSyncV2)app.scoreAutoSyncV2.notify(c); },
+        calculateAllowance: function(playerId,hole,response)
+        {
+            const given=response.round.holeAllowances?.[playerId]?.[String(hole)];
+            if(!Number.isSafeInteger(given) || given<0)throw new Error('Autoritative Rundenstart-Lochvorgabe fehlt (S06).');
+            return given;
+        }
     });
 };
 

@@ -114,6 +114,7 @@ app.logic.calculateRoundForPlayer = function(spieltag, spielerId, startHcp, scor
 
 app.logic.recalculateSeasonFromStart = async function()
 {
+    throw new Error('Historische Neuberechnung ist bis zur sicheren S07-Integration gesperrt.');
     const user = app.state.currentUser;
     if (!user || user.role !== 'Admin')
     {

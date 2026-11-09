@@ -36,7 +36,7 @@ test('owner change or stop prevents old-context transport',async()=>{
     f.scheduler.stop();f.owner({ownerUid:'A',playerId:'A'});await f.scheduler.flush(f.c);assert.equal(f.sent.length,0);
 });
 test('new local input during a held ACK is drained by the same scheduler',async()=>{
-    const f=fixture();let release,n=0;f.adapter.sync=async()=>{n++;if(n===1){await new Promise(r=>{release=r;});f.data.pendingOperations=[{changeId:'new'}];}else f.data.pendingOperations=[];return {results:[]};};
+    const f=fixture();let release,n=0;f.adapter.sync=async()=>{n++;if(n===1){await new Promise(r=>{release=r;});f.data.pendingOperations=[{changeId:'new'}];}else f.data.pendingOperations=[];return {results:[{status:'acknowledged'}]};};
     f.scheduler.activate(f.c);const running=f.scheduler.flush(f.c);await new Promise(setImmediate);f.scheduler.notify(f.c);release();await running;assert.equal(n,2);assert.equal(f.notifications.at(-1).status,'confirmed');
 });
 test('V1 API and round close reject before any DB side effect',async()=>{
@@ -44,4 +44,29 @@ test('V1 API and round close reject before any DB side effect',async()=>{
     vm.runInNewContext(fs.readFileSync('App_Logic_Bridge.js','utf8'),{app,console});
     const v1=await app.logic.apiRequest('saveLiveScores',{requestId:'old'});assert.equal(v1.success,false);assert.equal(v1.definitelyNotApplied,true);
     const close=await app.logic.apiRequest('closeSpieltagServer',{spieltagId:'ST'});assert.equal(close.success,false);assert.equal(writes,0);
+});
+test('unsafe Admin/history/close/reset entrypoints stop before even reading mutable forms or DB',async()=>{
+    let accesses=0;const app={views:{},logic:{showToast(){}},state:{currentUser:{id:'A',role:'Admin'}}};
+    const document={getElementById(){accesses++;throw new Error('unsafe partial work');},querySelectorAll(){accesses++;throw new Error('unsafe partial work');}};
+    const context={app,document,console};
+    for(const file of ['Views_AdminKorrektur.js','App_Logic_History.js','App_Logic_Spieltage.js','App_Logic_UI.js'])vm.runInNewContext(fs.readFileSync(file,'utf8'),context);
+    app.logic.showToast=()=>{};
+    assert.equal(await app.logic.saveAdminRoundCorrection(false,true),false);
+    await assert.rejects(app.logic.recalculateSeasonFromStart(),/gesperrt/);
+    assert.equal(app.logic.closeActiveSpieltag('ST'),false);assert.equal(app.logic.triggerMasterReset(),false);assert.equal(accesses,0);
+});
+test('transport error cannot become confirmation; same original retry remains scheduled',async()=>{
+    const f=fixture();f.adapter.sync=async()=>{throw new Error('synthetic offline response');};
+    f.scheduler.activate(f.c);await f.scheduler.flush(f.c);assert.equal(f.notifications.at(-1).status,'error');assert.equal(f.data.pendingOperations.length,1);assert.ok(f.timers.some(t=>t.ms>=1500));
+});
+test('authoritative refresh may bind an externally created card only when cached absence has no local work',async()=>{
+    const app={};vm.runInNewContext(fs.readFileSync('App_Logic_ScoreEntryV2.js','utf8'),{app,structuredClone,console});
+    const holes=Array.from({length:9},(_,i)=>i+1),cache=new Map();let created=false,replacements=0;
+    const response=()=>({ownerUid:'A',playerId:'A',spieltagId:'ST',flightId:'F',flightSeq:1,members:['A'],players:[{id:'A'}],
+        round:{status:'Aktiv',rundenTyp:'9-Front',bahnAnzahl:9,kursId:'K',holes,holeData:holes.map(n=>({nr:n,par:4,si:n}))},
+        cards:holes.map(hole=>({documentId:'SC-ST-A-'+hole,spielerId:'A',hole,exists:created&&hole===1,values:created&&hole===1?{strokes:5}:{},
+            fieldRevisions:{strokes:created&&hole===1?1:0,puts:0,lady:0,maxscore:0},generation:created&&hole===1?'gen:external':'absent'}))});
+    const store={async readScorecard(c){return {generation:cache.get(c.documentId),pendingOperations:[],confirmed:{}};},async putServerSnapshot(c,v,r,i){cache.set(c.documentId,i.generation);},async replaceServerGeneration(c,v,r,i){assert.equal(i.replacesGeneration,'absent');cache.set(c.documentId,i.generation);replacements++;}};
+    const ctrl=app.createScoreEntryV2Controller({store,getIdentity:async()=>({ownerUid:'A',playerId:'A'}),getState:()=>({currentUser:{id:'A'},flights:[{id:'F',spieltagId:'ST',spielerIdsCsv:'A'}]}),readTransport:async()=>response()});
+    await ctrl.open({spieltagId:'ST'});created=true;await ctrl.refresh();assert.equal(replacements,1);assert.equal(cache.get('SC-ST-A-1'),'gen:external');
 });

@@ -104,35 +104,14 @@ service cloud.firestore
     {
       allow read: if signedIn();
 
-      allow create: if signedIn()
-        && (
-          isAdmin()
-          || get(/databases/$(database)/documents/spieltage/$(request.resource.data.spieltagId)).data.status != 'Beendet'
-        );
-
-      allow update, delete: if signedIn()
-        && (
-          isAdmin()
-          || get(/databases/$(database)/documents/spieltage/$(resource.data.spieltagId)).data.status != 'Beendet'
-        );
+      // Only the revisioned Callable may mutate score values, including Admins.
+      allow write: if false;
     }
 
-    // Legacy/zusätzliche Score-Daten: gleiche Schutzlogik wie scorecards.
     match /scores/{docId}
     {
       allow read: if signedIn();
-
-      allow create: if signedIn()
-        && (
-          isAdmin()
-          || get(/databases/$(database)/documents/spieltage/$(request.resource.data.spieltagId)).data.status != 'Beendet'
-        );
-
-      allow update, delete: if signedIn()
-        && (
-          isAdmin()
-          || get(/databases/$(database)/documents/spieltage/$(resource.data.spieltagId)).data.status != 'Beendet'
-        );
+      allow write: if false;
     }
 
     // Flight-Einteilung ist Aufgabe der Spielleitung.

@@ -62,6 +62,7 @@ app.logic.scoreScreenLoadV2 = function(id)
     {
         try
         {
+            if(app.logic.resumeScoreAutoSyncV2)await app.logic.resumeScoreAutoSyncV2(String(id));
             try
             {
                 state.response = await app.scoreEntryV2Controller.open(
@@ -80,6 +81,7 @@ app.logic.scoreScreenLoadV2 = function(id)
             }
             state.entries = await app.scoreEntryV2Controller.readAll();
             state.status = 'ready';
+            if(app.logic.activateScoreAutoSyncV2)app.logic.activateScoreAutoSyncV2(state);
         }
         catch (error)
         {
@@ -141,6 +143,8 @@ app.logic.scoreScreenInput = function(playerId, action, delta)
                 return;
             }
             state.entries[playerId + '_' + c.hole] = raw;
+            const pending=Object.values(state.entries).reduce((n,e)=>n+(e.pendingOperations?.length || 0),0);
+            if(pending)state.syncStatus={status:Object.values(state.entries).some(e=>e.syncIssues?.length)?'conflict':'pending',pending};
             if (version !== state.actionVersion || app.state.currentView !== 'score_eingabe' || app.state.scoreScreenSelection !== selection)
             {
                 return;
@@ -203,11 +207,13 @@ app.views.scoreEingabe = app.views.score_eingabe = function(id, hole, seq)
         return 'app.router.navigate(\'score_eingabe\', {id:' + arg(c.id) + ',hole:' + nr + ',flightSeq:' + (flight || c.seq) + '})';
     };
     let progress = '';
-    const labels = { complete: 'vollständig', incomplete: 'verlassen, unvollständig', open: 'offen' };
+    const labels = { complete: 'vollständig', incomplete: 'verlassen, unvollständig', open: 'offen', pending:'lokal vollständig, ausstehend' };
     for (let nr = 1; nr <= 18; nr++)
     {
         const outside = nr < c.first || nr > c.last;
-        const state = outside ? 'outside' : app.logic.scoreScreenHoleState(c, nr);
+        const domainState = outside ? 'outside' : app.logic.scoreScreenHoleState(c, nr);
+        const serverComplete = !outside && c.players.every(id => { const raw=app.state.scoreEntryV2.entries[id+'_'+nr];return raw && !raw.pendingOperations?.length && !raw.syncIssues?.length && Number.isSafeInteger(raw.confirmed?.strokes) && raw.confirmed.strokes>0; });
+        const state = domainState==='complete' && !serverComplete ? 'pending' : domainState;
         progress += '<button class="lie-hole lie-hole--' + state + (nr === c.hole ? ' lie-hole--current' : '')
             + '" ' + (outside ? 'disabled' : 'onclick="' + navigate(nr) + '"')
             + (nr === c.hole ? ' aria-current="step"' : '') + ' aria-label="Loch ' + nr + ', '
@@ -242,6 +248,10 @@ app.views.scoreEingabe = app.views.score_eingabe = function(id, hole, seq)
             return '';
         }
         const entry = app.logic.scoreScreenEntry(c, playerId, c.hole);
+        const raw=app.state.scoreEntryV2.entries[playerId+'_'+c.hole];
+        const serverConfirmed=entry.confirmed && !raw.pendingOperations?.length && !raw.syncIssues?.length && Number.isSafeInteger(raw.confirmed?.strokes);
+        const localStatus=raw.syncIssues?.length?'Konflikt / abgewiesen':raw.pendingOperations?.length?'Lokal gespeichert · ausstehend':serverConfirmed?'Serverbestätigt':'Noch offen';
+        const conflicts=(raw.syncIssues || []).map(issue=>'<p role="alert">'+esc(issue.field)+': lokal '+esc(raw.displayed[issue.field] ?? 'leer')+' · Server '+esc(issue.currentServerDeleted?'leer':issue.currentServerValue ?? 'noch nicht geladen')+'</p><button class="lie-button" onclick="app.logic.scoreScreenDiscardSyncFieldV2('+arg(playerId)+','+arg(issue.field)+')">Lokales Feld ausdrücklich verwerfen</button>').join('');
         const name = player.nickname || player.name || playerId;
         const initials = String(name).trim().slice(0, 2).toUpperCase();
         const avatarUrl = player.avatarUrl || player.photoURL || '';
@@ -258,14 +268,14 @@ app.views.scoreEingabe = app.views.score_eingabe = function(id, hole, seq)
                 + '</strong></div><button id="lie-' + field + '-plus-' + esc(playerId) + '" aria-label="' + label + ' erhöhen für ' + esc(name)
                 + '" onclick="' + input(field, 1) + '">+</button></div></div>';
         };
-        return '<section class="lie-player' + (!entry.confirmed ? ' lie-player--open' : '') + '" aria-label="Spielerposition ' + (playerIndex + 1) + ': ' + esc(name) + '"><div class="lie-player-heading">'
+        return '<section class="lie-player' + (!entry.confirmed ? ' lie-player--open' : !serverConfirmed ? ' lie-player--pending' : '') + '" aria-label="Spielerposition ' + (playerIndex + 1) + ': ' + esc(name) + '"><div class="lie-player-heading">'
             + '<span class="lie-player-position" aria-hidden="true">' + (playerIndex + 1) + '</span>'
             + '<button id="lie-avatar-' + esc(playerId) + '" class="lie-avatar" onclick="' + input('confirm') + '" '
             + (entry.confirmed ? 'disabled ' : '') + 'aria-label="Vorgabe Par und 2 Putts für ' + esc(name) + ' übernehmen"><span>' + esc(initials) + '</span>' + avatar + '</button>'
-            + '<div class="lie-player-identity"><h3>' + esc(name) + '</h3><span class="lie-player-status"><span class="lie-status-icon" aria-hidden="true">' + (entry.confirmed ? '✓' : '●') + '</span>' + (entry.confirmed ? 'Eingegeben' : 'Noch offen') + '</span></div></div>'
+            + '<div class="lie-player-identity"><h3>' + esc(name) + '</h3><span class="lie-player-status"><span class="lie-status-icon" aria-hidden="true">' + (serverConfirmed ? '✓' : '●') + '</span>' + esc(localStatus) + '</span></div></div>'
             + '<div class="lie-score-controls">' + control('strokes', 'Schläge', entry.strokes) + control('puts', 'Putts', entry.puts) + '</div>'
             + '<div class="lie-checkboxes"><label><input id="lie-lady-' + esc(playerId) + '" type="checkbox" ' + (entry.lady ? 'checked ' : '') + 'onchange="' + input('lady') + '"> Lady</label>'
-            + '<label><input id="lie-strich-' + esc(playerId) + '" type="checkbox" ' + (entry.maxscore ? 'checked ' : '') + 'onchange="' + input('strich') + '"> Strich</label></div></section>';
+            + '<label><input id="lie-strich-' + esc(playerId) + '" type="checkbox" ' + (entry.maxscore ? 'checked ' : '') + 'onchange="' + input('strich') + '"> Strich</label></div>'+conflicts+'</section>';
     }).join('');
     app.logic.openLeaderboardOverlay = function(stId) 
     {
@@ -290,6 +300,8 @@ app.views.scoreEingabe = app.views.score_eingabe = function(id, hole, seq)
         + esc(c.course ? c.course.name : 'Scorekarte') + ' · Flight ' + c.seq + '</span></div>'
         + '<div class="lie-hole-sticky"><nav class="lie-progress" aria-label="Lochfortschritt">' + progress + '</nav>'
         + '<div class="lie-hole-context"><div class="lie-hole-title"><button aria-label="Vorheriges Loch" ' + (c.hole === c.first ? 'disabled' : 'onclick="' + navigate(c.hole - 1) + '"') + '><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button><h2>Loch ' + c.hole + ' von ' + c.last + '</h2><button aria-label="Nächstes Loch" ' + (c.hole === c.last ? 'disabled' : 'onclick="' + navigate(c.hole + 1) + '"') + '><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button></div><p>Par ' + esc(c.current.par) + ' · SI ' + esc(c.current.si) + '</p></div></div>'
+        + '<div id="score-v2-sync-status" role="status" aria-live="polite">' + esc(app.logic.scoreAutoSyncStatusTextV2 ? app.logic.scoreAutoSyncStatusTextV2(app.state.scoreEntryV2.syncStatus) : 'Lokal gespeichert · Synchronisierung ausstehend') + '</div>'
+        + '<button class="lie-button" onclick="app.logic.scoreScreenRefreshSyncV2()">Serverstand zum Vergleich laden</button>'
         + '<div class="lie-players">' + cards + '</div>'
         + (c.leader ? '<details class="lie-management"><summary>Spielleitung</summary>' + c.flights.map(function(flight)
         {

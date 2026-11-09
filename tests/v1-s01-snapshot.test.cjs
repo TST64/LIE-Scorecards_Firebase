@@ -247,10 +247,15 @@ test('failed diagnostic checkpoint does not reject a successfully persisted oper
 test('real rapid renderer shows status, preserves tombstone and uses explicit flight seq', () => {
     const f = fixture(); f.edit('ST_A_1', undefined); f.c.app.views = {};
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'Views_ScoreSchnellerfassung.js'), 'utf8'), f.c);
-    const html = f.c.app.views.score_schnellerfassung({ id: 'ST', flightSeq: 1 });
+    const html = f.c.app.views.scoreSchnellerfassungLegacyReference({ id: 'ST', flightSeq: 1 });
     assert.match(html, /id="score-sync-status"/); assert.match(html, /'strokes', this.value, this/);
     assert.match(html, /type="tel"[^>]*'ST', 'A', 1, 'strokes'[^>]*value=""/s);
     f.c.app.state.flights.push({ id: 'explicit-second-flight', seq: 2, spieltagId: 'ST', spielerIdsCsv: 'B' });
-    const selected = f.c.app.views.score_schnellerfassung({ id: 'ST', flightSeq: 2 });
+    const selected = f.c.app.views.scoreSchnellerfassungLegacyReference({ id: 'ST', flightSeq: 2 });
     assert.doesNotMatch(selected, /'ST', 'A', 1, 'strokes'/); assert.match(selected, /'ST', 'B', 1, 'strokes'/);
+});
+
+test('active rapid route is explicitly disabled and cannot accept or flush legacy input',()=>{
+    const f=fixture();f.c.app.views={};vm.runInContext(fs.readFileSync(path.join(__dirname,'..','Views_ScoreSchnellerfassung.js'),'utf8'),f.c);
+    const html=f.c.app.views.score_schnellerfassung({id:'ST',flightSeq:1});assert.match(html,/gesperrt/);assert.doesNotMatch(html,/oninput|Alles sichern/);assert.equal(f.sent.length,0);
 });

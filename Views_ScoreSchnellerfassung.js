@@ -8,6 +8,14 @@ app.views = app.views || {};
 
 app.views.scoreSchnellerfassung = app.views.score_schnellerfassung = function(params)
 {
+    return '<div role="alert">V1-Schnellerfassung ist zum Schutz bestätigter Scores gesperrt. Bitte die normale Score-Eingabe verwenden. Vorhandene lokale V1-Puffer bleiben erhalten.</div>';
+};
+
+// Historical renderer retained for S01 regression coverage; the normal route above
+// is disabled and Firestore Rules deny every direct score write.
+app.views.scoreSchnellerfassungLegacyReference = function(params)
+{
+
     let spieltagId = params;
     let targetFlightSeq = 1;
 

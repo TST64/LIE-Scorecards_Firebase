@@ -94,6 +94,7 @@ window.scoreEntryV2Tests = (async function()
         };
         await rejects(function() { return controller.open({ spieltagId: 'ST' }); }, 'invalid response rejected before caching');
     }
+    await store.replaceServerGeneration(cardContext,{strokes:4},{strokes:0,puts:0,lady:0,maxscore:0},{generation:'legacy:0:0',replacesGeneration:'absent'});
     transport = async function()
     {
         const reply = response();
@@ -103,7 +104,8 @@ window.scoreEntryV2Tests = (async function()
         return reply;
     };
     await rejects(function() { return controller.open({ spieltagId: 'ST' }); }, 'different cached generation not replaced');
-    check((await store.readScorecard(cardContext)).generation === 'absent', 'absence generation retained');
+    check((await store.readScorecard(cardContext)).generation === 'legacy:0:0', 'known prior lifecycle retained');
+    await store.replaceServerGeneration(cardContext,{},{strokes:0,puts:0,lady:0,maxscore:0},{generation:'absent',replacesGeneration:'legacy:0:0'});
 
     const unknown = Object.assign({}, cardContext, { spielerId: 'B', documentId: 'SC-ST-B-1', spieltagId: 'NEW' });
     unknown.documentId = 'SC-NEW-B-1';

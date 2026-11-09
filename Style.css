@@ -747,3 +747,6 @@ body:has(.lie-score-screen) #bottom-nav
     border-radius: 14px;
     background: #fff;
 }
+/* Local completion never uses the green server-confirmed marker. */
+.lie-hole--pending { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+.lie-player--pending .lie-player-status, .lie-player--pending .lie-status-icon { color: #92400e; }

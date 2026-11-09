@@ -19,7 +19,7 @@ setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
 const db = admin.firestore();
 const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 
-// Isolated v2 endpoint. No client or v1 saveLiveScores call site uses it yet.
+// Authoritative revisioned score endpoint. Direct/V1 score writes are disabled.
 const { createScoreOperationsV2 } = require("./score-operations-v2");
 const saveScoreOperationsV2 = createScoreOperationsV2(db, FieldValue);
 

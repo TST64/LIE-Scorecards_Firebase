@@ -429,7 +429,9 @@ app.logic.saveV1ScoreSnapshot = async function(wire)
 };
 app.logic.apiRequest = async function(action, payload = {})
 {
-    if (action === 'saveLiveScores') return app.logic.saveV1ScoreSnapshot(payload);
+    if (action === 'saveLiveScores' || action === 'closeSpieltagServer')
+        return { success:false, requestId:payload.requestId, definitelyNotApplied:true, retryable:false,
+            error:'Dieser unversionierte Schreibpfad ist gesperrt. V2-Normaleingabe verwenden; Rundenschluss folgt in S05.' };
     await app.environment.checkOnline();
     // Payload absichtlich nicht protokollieren:
     // API-Aufrufe können PINs oder andere sensible Daten enthalten.

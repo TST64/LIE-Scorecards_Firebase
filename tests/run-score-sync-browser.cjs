@@ -69,7 +69,7 @@ async function main()
                         flightId: 'F-' + suffix, spielerId: 'A', hole: 1, mode: 'ownFlight' };
                     c.documentId = 'SC-' + c.spieltagId + '-A-1';
                     await testDb.collection('spieler').doc('A').set({ role: 'Spieler' });
-                    await testDb.collection('spieltage').doc(c.spieltagId).set({ status: 'Aktiv', rundenTyp: '18', bahnAnzahl: 18 });
+                    await testDb.collection('spieltage').doc(c.spieltagId).set({ status: 'Aktiv', rundenTyp: '18', bahnAnzahl: 18, hcpStart:{A:26},holeAllowances:{A:{1:2}} });
                     await testDb.collection('flights').doc(c.flightId).set({ spieltagId: c.spieltagId, spielerIdsCsv: 'A' });
                     await testDb.collection('scorecards').doc(c.documentId).set({ id: c.documentId,
                         spieltagId: c.spieltagId, spielerId: 'A', hole: 1, strokes: 4, puts: 2,
