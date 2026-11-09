@@ -121,6 +121,10 @@ app.router.navigate = function(viewName, params)
             html = app.views.pin_aendern ? app.views.pin_aendern() : "";
             break;
 
+        case 'round_close':
+            html = app.views.round_close ? app.views.round_close() : 'Abschlussansicht nicht verfügbar.';
+            break;
+
         case 'dashboard':
             html = app.views.dashboard ? app.views.dashboard() : "";
             break;
