@@ -60,7 +60,7 @@ service cloud.firestore
 
       // HCP and closure provenance are server-authoritative, including for Admin.
       // Players may still change their own general profile.
-      allow update: if isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpLIE','hcpClosure'])
+      allow update: if isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpLIE','hcpClosure','historyPublication'])
         || (
           signedIn() && isOwnPlayer(spielerId)
           && request.resource.data.diff(resource.data).affectedKeys()
@@ -78,7 +78,7 @@ service cloud.firestore
           || !get(/databases/$(database)/documents/spieler/$(spielerId)).data.keys().hasAny(['hcpClosure']));
       allow delete: if isAdmin() && !resource.data.keys().hasAny(['hcpClosure']);
 
-      allow update: if isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpLIE','hcpClosure'])
+      allow update: if isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpLIE','hcpClosure','historyPublication'])
         || (
           signedIn() && isOwnPlayer(spielerId)
           && request.resource.data.diff(resource.data).affectedKeys()
@@ -92,7 +92,7 @@ service cloud.firestore
       allow read: if signedIn();
       allow create, delete: if false;
       allow update: if isSpielleiter()
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id','istGeloescht','hcpStart','holeAllowances','hcpHoleData','hcpCourseTable','hcpSnapshotVersion','_roundStart','kursId','rundenTyp','bahnAnzahl','teilnehmerCsv','date','status','closure','scoreRevision','_roundClose','hcpEnd','nettoSieger','bruttoSieger']);
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id','istGeloescht','hcpStart','holeAllowances','hcpHoleData','hcpCourseTable','hcpSnapshotVersion','hcpSnapshotRevision','historyPublication','_roundStart','kursId','rundenTyp','bahnAnzahl','teilnehmerCsv','date','status','closure','scoreRevision','_roundClose','hcpEnd','nettoSieger','bruttoSieger']);
     }
 
     // Scores dürfen angemeldete Mitglieder während einer laufenden Runde erfassen.
@@ -176,6 +176,12 @@ service cloud.firestore
     }
 
     // Alles, was wir nicht ausdrücklich freigegeben haben, bleibt gesperrt.
+    // Correction runs/stages remain private. Only the sanitized barrier is public.
+    match /historyPublication/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if false;
+    }
     match /{document=**}
     {
       allow read, write: if false;

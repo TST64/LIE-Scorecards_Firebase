@@ -136,12 +136,12 @@ function createScoreReadV2(db)
                     }), "invalid-score-value");
                     cards.push({ documentId: documentId, spielerId: spielerId, hole: hole, exists: snap.exists,
                         values: values, fieldRevisions: state.revisions, generation: state.generation,
-                        metadata: pick(data, ["hcpStart", "strokesGiven", "flightSeq"]) });
+                        metadata: pick(data, ["hcpStart", "strokesGiven", "flightSeq", "hcpSnapshotRevision", "historyPublication"]) });
                 }
             }
             return { ownerUid: auth.uid, playerId: auth.token.playerId, actorRole: actor.data().role || "Spieler", spieltagId: request.spieltagId,
                 flightId: flight.id, flightSeq: flightSeq, members: members, players: players,
-                round: Object.assign(pick(round, ["kursId", "rundenTyp", "bahnAnzahl", "status", "hcpStart", "holeAllowances", "hcpSnapshotVersion", "hcpHoleData", "hcpCourseTable", "closure"]), { holes: holes, holeData: holeData }),
+                round: Object.assign(pick(round, ["kursId", "rundenTyp", "bahnAnzahl", "status", "hcpStart", "holeAllowances", "hcpSnapshotVersion", "hcpSnapshotRevision", "historyPublication", "hcpHoleData", "hcpCourseTable", "closure"]), { holes: holes, holeData: holeData }),
                 cards: cards, handicaps: handicaps,
                 calculationHoles: courseHoles.docs.map(function(doc)
                 {

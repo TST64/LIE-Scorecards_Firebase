@@ -161,6 +161,8 @@ async function run(profile, port)
         await require('./hcp-s06-emulator.cjs').run({evaluate,waitFor});
         stage='S05 chronological normal UI round closures and next starts';
         await require('./round-close-s05-emulator.cjs').run({evaluate,waitFor,newProfile});
+        stage='S07 revisioned history correction and recovery';
+        await require('./history-s07-emulator.cjs').run({evaluate,waitFor,newProfile,reload:()=>command('Page.reload',{},sessionId)});
         stage = 'network assertions';
         if (forbidden.length) console.error('Unexpected request origins (no paths/data): ' + JSON.stringify([...new Set(forbidden)]));
         assert.equal(forbidden.length, 0, 'all normal app traffic must remain loopback');
