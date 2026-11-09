@@ -43,7 +43,7 @@ app.logic.refreshGlobalAppData = async function()
             return;
         }
 
-        const [
+        let [
             spielerSnap,
             spieltageSnap,
             scorecardsSnap,
@@ -124,6 +124,13 @@ app.logic.refreshGlobalAppData = async function()
             )
         ]);
 
+        const published=await app.logic.callFunction('readPublishedSeasonV1',{});
+        const publicationSnapshot=rows=>({forEach:fn=>rows.forEach(row=>fn({id:row.id,data:()=>row}))});
+        spielerSnap=publicationSnapshot(published.spieler);
+        spieltageSnap=publicationSnapshot(published.spieltage);
+        scorecardsSnap=publicationSnapshot(published.scorecards);
+        flightsSnap=publicationSnapshot(published.flights);
+        scoresSnap=publicationSnapshot([]); // unversioned legacy rows never override a publication
         const spielerData = [];
         spielerSnap.forEach(
             function(doc)
@@ -155,7 +162,8 @@ app.logic.refreshGlobalAppData = async function()
             fullSpielerSnap.forEach(
                 function(doc)
                 {
-                    fullSpielerData.push(Object.assign({ id: doc.id }, doc.data()));
+                    const publicHcp=spielerData.find(p=>p.id===doc.id);
+                    fullSpielerData.push(Object.assign({ id: doc.id }, doc.data(),publicHcp?{hcpLIE:publicHcp.hcpLIE,hcpClosure:publicHcp.hcpClosure,historyPublication:publicHcp.historyPublication}:{}));
                 }
             );
             app.state.spieler = fullSpielerData;
@@ -265,6 +273,7 @@ app.logic.refreshGlobalAppData = async function()
             }
         );
 
+        app.state.historyPublication=published.publication;
         if (app.state.currentUser)
         {
             const freshUserMatch = app.state.spieler.find(

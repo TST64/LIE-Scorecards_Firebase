@@ -124,6 +124,9 @@ app.router.navigate = function(viewName, params)
         case 'round_close':
             html = app.views.round_close ? app.views.round_close() : 'Abschlussansicht nicht verfügbar.';
             break;
+        case 'history_correction':
+            html = app.views.history_correction ? app.views.history_correction() : 'Historische Prüfung nicht verfügbar.';
+            break;
 
         case 'dashboard':
             html = app.views.dashboard ? app.views.dashboard() : "";

@@ -142,6 +142,7 @@ function createScoreOperationsV2(db, FieldValue)
 
         return db.runTransaction(async function(tx)
         {
+            if((await require('./history-lock').historyState(tx,db)).activeRun)return rejectAll('history-correction-barrier');
             const actorRef = db.collection("spieler").doc(auth.token.playerId);
             const roundRef = db.collection("spieltage").doc(request.spieltagId);
             const flightRef = db.collection("flights").doc(request.flightId);
@@ -258,7 +259,7 @@ function createScoreOperationsV2(db, FieldValue)
                         }
                     }
                     documents.set(op.documentId, { ref: ref, data: snap.exists ? snap.data() : {},
-                        creation: { hcpStart:round.data().hcpStart?.[op.spielerId], strokesGiven:round.data().holeAllowances?.[op.spielerId]?.[String(op.hole)] },
+                        creation: { hcpStart:round.data().hcpStart?.[op.spielerId], strokesGiven:round.data().holeAllowances?.[op.spielerId]?.[String(op.hole)],...(round.data().historyPublication?{historyPublication:round.data().historyPublication}:{}),...(round.data().hcpSnapshotRevision?{hcpSnapshotRevision:round.data().hcpSnapshotRevision}:{}) },
                         exists: snap.exists, targetValid: target.exists && target.data().istGeloescht !== true,
                         observedGeneration: state?.generation,
                         generation: generation, generationRef: generationRef,

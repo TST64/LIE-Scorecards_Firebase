@@ -24,6 +24,7 @@ function createRoundStart(db)
         const normalized={...raw,rundenTyp:r.type,bahnAnzahl:r.H,teilnehmerCsv:members.join(','),flights:normalizedFlights};
         const fingerprint=createHash('sha256').update(JSON.stringify(canonical(normalized))).digest('hex');
         return db.runTransaction(async tx=>{
+            const publication=await require('./history-lock').requireHistoryIdle(tx,db);
             const actor=await tx.get(db.collection('spieler').doc(auth.uid));
             requireValue(actor.exists&&!actor.data().istGeloescht&&!actor.data().mustChangePin&&!actor.data().pinChangePending
                 &&['Admin','Spielleiter'].includes(actor.data().role)&&auth.token.role===actor.data().role,'Round initialization not authorized');
@@ -57,7 +58,7 @@ function createRoundStart(db)
             const snapshots=Object.fromEntries(members.map(p=>[p,H.snapshot(raw,courseHoles,plan.currentHcp[p],table)]));
             const occupied=await tx.get(db.collection('scorecards').where('spieltagId','==',raw.id));requireValue(!occupied.docs.length,'Orphan scorecards prevent initialization');
             for(const f of normalizedFlights){const old=await tx.get(db.collection('flights').doc(f.id));requireValue(!old.exists,'Flight already exists');}
-            const spieltag={...raw,rundenTyp:r.type,bahnAnzahl:r.H,teilnehmerCsv:members.join(','),hcpSnapshotVersion:1,
+            const spieltag={...raw,rundenTyp:r.type,bahnAnzahl:r.H,teilnehmerCsv:members.join(','),hcpSnapshotVersion:1,hcpSnapshotRevision:1,historyPublication:{revision:publication.revision||0,runId:publication.lastRunId||null},
                 hcpStart:Object.fromEntries(members.map(p=>[p,snapshots[p].startHcp])),holeAllowances:Object.fromEntries(members.map(p=>[p,snapshots[p].holeAllowances])),
                 hcpHoleData:snapshots[members[0]].holeData,hcpCourseTable:table,_roundStart:{version:1,fingerprint,source:'season-baseline-plus-complete-history',seasonStart:season.saisonStartDatum}};
             tx.set(ref,spieltag);for(const f of normalizedFlights)tx.set(db.collection('flights').doc(f.id),f);

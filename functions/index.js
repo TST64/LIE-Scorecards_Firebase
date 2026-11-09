@@ -55,6 +55,18 @@ exports.readOwnFlightScoresV2 = onCall(async function(request)
 });
 
 const initializeRoundStart = require('./round-start').createRoundStart(db,FieldValue);
+const historyCorrection = require('./history-correction').createHistoryCorrection(db);
+exports.historyCorrectionV1 = onCall(async request=>{
+    requireAuth(request);
+    try{return await historyCorrection(request.auth,request.data);}
+    catch(error){const codes=['admin-required','stale-score-cas','stale-preview','competing-correction','active-following-round-blocks-correction','legacy-closure-blocked','historical-chain-invalid','publication-bound-exceeded','source-changed-repair-required','run-not-ready','stage-integrity-failed','run-not-locked'];throw new HttpsError('failed-precondition','Historische Korrektur nicht veröffentlicht ('+(codes.includes(error.code)?error.code:'Prüfung fehlgeschlagen')+'). Laufstatus prüfen; bisheriger veröffentlichter Stand bleibt maßgeblich.');}
+});
+const readPublication = require('./published-season').createPublishedSeasonRead(db);
+exports.readPublishedSeasonV1 = onCall(async request=>{
+    requireAuth(request);
+    try{return await readPublication(request.auth);}
+    catch(_){throw new HttpsError('failed-precondition','Veröffentlichter Saisonstand nicht konsistent lesbar. Keine Erfolgsmeldung.');}
+});
 const roundClosure = require('./round-close').createRoundClosure(db);
 exports.roundClosureV1 = onCall(async request=>{
     requireAuth(request);
