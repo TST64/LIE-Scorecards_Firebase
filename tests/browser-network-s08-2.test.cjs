@@ -1,0 +1,15 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const url='https://www.google.com/images/cleardot.gif';
+const request={event:'Network.requestWillBeSent',id:'session:1',url,type:'Image',method:'GET'};
+const audit={event:'Audits.issueAdded',url,directive:'img-src',reportOnly:false};
+const failed={event:'Network.loadingFailed',id:request.id,blockedReason:'csp'};
+const check=events=>require('./s08-network-boundary.cjs').classify(events);
+test('known connectivity image requires actual browser CSP block and no response',()=>assert.deepEqual(check([audit,request,failed]),{unexpectedOrigins:[],blockedConnectivityImages:1}));
+test('image request alone never proves CSP protection',()=>assert.deepEqual(check([request]),{unexpectedOrigins:['https://www.google.com'],blockedConnectivityImages:0}));
+test('DNS failure is not a CSP block',()=>assert.equal(check([request,audit,{...failed,blockedReason:undefined}]).unexpectedOrigins.length,1));
+test('report-only CSP never permits the request',()=>assert.equal(check([request,{...audit,reportOnly:true},failed]).unexpectedOrigins.length,1));
+test('any remote response fails even with a later CSP claim',()=>assert.equal(check([request,audit,failed,{event:'Network.responseReceived',id:request.id}]).unexpectedOrigins.length,1));
+test('other remote paths remain forbidden even when CSP blocked',()=>assert.equal(check([{...request,url:'https://www.google.com/other'}, {...audit,url:'https://www.google.com/other'},failed]).unexpectedOrigins.length,1));
+test('response proof and CSP failures are scoped to the exact request',()=>assert.equal(check([request,audit,{...failed,id:'session:2'}]).unexpectedOrigins.length,1));
+test('connectivity URL cannot be used for non-image or write requests',()=>{for(const patch of [{type:'Fetch'},{method:'POST'}])assert.equal(check([{...request,...patch},audit,failed]).unexpectedOrigins.length,1);});
