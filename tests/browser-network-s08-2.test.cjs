@@ -10,6 +10,7 @@ test('image request alone never proves CSP protection',()=>assert.deepEqual(chec
 test('DNS failure is not a CSP block',()=>assert.equal(check([request,audit,{...failed,blockedReason:undefined}]).unexpectedOrigins.length,1));
 test('report-only CSP never permits the request',()=>assert.equal(check([request,{...audit,reportOnly:true},failed]).unexpectedOrigins.length,1));
 test('any remote response fails even with a later CSP claim',()=>assert.equal(check([request,audit,failed,{event:'Network.responseReceived',id:request.id}]).unexpectedOrigins.length,1));
+test('redirect responses cannot hide behind a later CSP failure',()=>assert.equal(check([{...request,redirectResponse:true},audit,failed]).unexpectedOrigins.length,1));
 test('other remote paths remain forbidden even when CSP blocked',()=>assert.equal(check([{...request,url:'https://www.google.com/other'}, {...audit,url:'https://www.google.com/other'},failed]).unexpectedOrigins.length,1));
 test('response proof and CSP failures are scoped to the exact request',()=>assert.equal(check([request,audit,{...failed,id:'session:2'}]).unexpectedOrigins.length,1));
 test('connectivity URL cannot be used for non-image or write requests',()=>{for(const patch of [{type:'Fetch'},{method:'POST'}])assert.equal(check([{...request,...patch},audit,failed]).unexpectedOrigins.length,1);});

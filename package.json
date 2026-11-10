@@ -9,7 +9,8 @@
     "build:hcp": "node tools/build-hcp-browser.cjs",
     "test:local": "node --test tests/local-environment.test.cjs",
     "test:integration": "node tools/local/start.cjs --test",
-    "test:restore": "node tools/local/run-restore-suite.cjs"
+    "test:restore": "node tools/local/run-restore-suite.cjs",
+    "test:rehearsal": "node tools/local/run-rehearsal.cjs"
   },
   "devDependencies": {
     "@fortawesome/fontawesome-free": "6.4.0",
