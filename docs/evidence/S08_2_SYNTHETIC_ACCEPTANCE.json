@@ -1,0 +1,612 @@
+{
+  "schema": 1,
+  "scope": "local synthetic acceptance only",
+  "project": "demo-lie-scorecards-local",
+  "basis": "684c470b8c2411da82058b401df0b108fa0d4440",
+  "redCommit": "c8a87e8406365897c16f5d62ee835a3fe0b13c35",
+  "fixCommit": "ae3b10012cd0be6f5067af5270aa5c57816eb3ed",
+  "guardRedCommit": "c81f16db8c12f22c491b00683fa1f7a0591754a2",
+  "versions": {
+    "node": "22.21.0",
+    "chrome": "156.0.8078.80",
+    "firebaseTools": "15.33.0",
+    "firebaseWeb": "10.8.0",
+    "firebaseAdmin": "13.10.0",
+    "firebaseFunctions": "7.4.0",
+    "firestoreEmulator": "1.22.0",
+    "java": 21
+  },
+  "regressions": {
+    "node": {
+      "passed": 381,
+      "failed": 0,
+      "skipped": 0
+    },
+    "hotfix": {
+      "passed": 30,
+      "failed": 0
+    },
+    "browserCsp": {
+      "passed": true,
+      "guardUnitCases": 9
+    },
+    "syncBrowser": {
+      "passed": 27
+    },
+    "screenBrowser": {
+      "widths": [
+        320,
+        390,
+        1024
+      ],
+      "checksPerWidth": 75,
+      "writes": 0
+    },
+    "S01_S07Emulators": {
+      "exitCode": 0
+    }
+  },
+  "rehearsal": {
+    "run": ".local-runtime\\82\\rb46bda1c",
+    "profiles": 12,
+    "distinctPhysicalBrowserProcesses": true,
+    "normalUiScorecards": 432,
+    "finalProfileBlockedConnectivityImages": 1,
+    "syntheticFlightReviews": 9,
+    "physicalReview": false,
+    "realPhones": false,
+    "forbiddenOrigins": 0,
+    "executionExitCode": 0,
+    "localGo": false,
+    "matrix": [
+      {
+        "testId": "A01",
+        "profiles": [
+          "MS01",
+          "MS02",
+          "MS03",
+          "MS04",
+          "MS05",
+          "MS06",
+          "MS07",
+          "MS08",
+          "MS09",
+          "MS10",
+          "MS11",
+          "MS12"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "twelve normal PIN UI logins; mobile viewport and touch enabled",
+        "independentServerState": {
+          "uids": 12,
+          "profiles": 12,
+          "distinctPids": 12,
+          "roles": [
+            "Admin",
+            "Spielleiter",
+            "Spieler"
+          ]
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "A02",
+        "profiles": [
+          "MS06"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "reload stale false claim against mandatory DB PIN; normal PIN change",
+        "independentServerState": {
+          "dbAndClaimConsistent": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "A03",
+        "profiles": [
+          "MS10"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "authoritative role resists elevated stale claim; invalid DB role denied",
+        "independentServerState": {
+          "noAdminPrivilegeEscalation": true,
+          "invalidAuthoritativeRoleDenied": true,
+          "fixtureRestored": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "R0",
+        "profiles": [
+          "MS01",
+          "MS02",
+          "MS03",
+          "MS04",
+          "MS05",
+          "MS06",
+          "MS07",
+          "MS08",
+          "MS09",
+          "MS10",
+          "MS11",
+          "MS12"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "each owner enters every own hole using normal controls; first input actual touch",
+        "independentServerState": {
+          "cards": 108,
+          "independentOwnerReads": 12,
+          "roundType": "9-Front"
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "N01",
+        "profiles": [
+          "MS02"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "offline multiple holes, puts, lady true/false, Strich on/off clears; reconnect",
+        "independentServerState": {
+          "clearsAndFalsePersist": true,
+          "neverConfirmedOffline": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "N02",
+        "profiles": [
+          "MS03"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "real commit/lost response, offline reload, new input behind unknown request, receipt replay",
+        "independentServerState": {
+          "generationPreserved": true,
+          "strokeAppliedOnce": true,
+          "pendingRecovered": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "C01",
+        "profiles": [
+          "MS01",
+          "MS02"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "two devices edit same field; revisioned Admin UI and independent puts; explicit discard",
+        "independentServerState": {
+          "sameFieldConflict": true,
+          "independentFieldApplied": true,
+          "noSilentOverwrite": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "A04",
+        "profiles": [
+          "MS04",
+          "MS05"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "logout with pending, another owner logs in, original owner returns; same-owner re-login accepts new UI input",
+        "independentServerState": {
+          "foreignQueueNeverSent": true,
+          "originalQueueResumed": true,
+          "sameOwnerControllerReopened": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "N03",
+        "profiles": [
+          "MS08"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "late real ACK while another normal input is locally accepted",
+        "independentServerState": {
+          "bothOperationsPreserved": true,
+          "revisionsIncrementTwice": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "D01",
+        "profiles": [
+          "MS09"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "injected IndexedDB QuotaExceededError on real storage transaction; CPU throttling",
+        "independentServerState": {
+          "rejectedInputVisible": true,
+          "noServerChange": true,
+          "noFalseLocalAcceptance": true,
+          "slowUiUsable": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "N04",
+        "profiles": [
+          "MS10"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "separate Functions port unreachable with browser online; eventual retry",
+        "independentServerState": {
+          "pendingDurable": true,
+          "serverUnchangedDuringOutage": true,
+          "reconnectAppliedOnce": true,
+          "actualWorkerKilled": false
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "D02",
+        "profiles": [
+          "MS07"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "actual owned browser process killed with durable offline input; new process same isolated profile",
+        "independentServerState": {
+          "originalMutationIdRecovered": true,
+          "appliedExactlyOnce": true,
+          "authAndIndexedDbSurvive": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "H01",
+        "profiles": [
+          "MS12"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "intentionally omitted offline writer; complete server still permits collecting window",
+        "independentServerState": {
+          "serverCannotDiscoverOfflineQueue": true,
+          "noCommitAttempted": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "H02",
+        "profiles": [
+          "MS01",
+          "MS02",
+          "MS03",
+          "MS04",
+          "MS05",
+          "MS06",
+          "MS07",
+          "MS08",
+          "MS09",
+          "MS10",
+          "MS11",
+          "MS12"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "explicit review of all twelve devices plus duplicate writer; three normal flight checkbox releases follow",
+        "independentServerState": {
+          "allOnline": true,
+          "pending": 0,
+          "conflicts": 0,
+          "unknownRequests": 0,
+          "manualPhysicalReview": false,
+          "syntheticReview": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "R1",
+        "profiles": [
+          "MS01",
+          "MS02",
+          "MS03",
+          "MS04",
+          "MS05",
+          "MS06",
+          "MS07",
+          "MS08",
+          "MS09",
+          "MS10",
+          "MS11",
+          "MS12"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "each owner enters every own hole using normal controls; first input actual touch",
+        "independentServerState": {
+          "cards": 108,
+          "independentOwnerReads": 12,
+          "roundType": "9-Back"
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "H03",
+        "profiles": [
+          "MS01",
+          "MS02",
+          "MS03",
+          "MS04",
+          "MS05",
+          "MS06",
+          "MS07",
+          "MS08",
+          "MS09",
+          "MS10",
+          "MS11",
+          "MS12"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "explicit review of all twelve devices plus duplicate writer; three normal flight checkbox releases follow",
+        "independentServerState": {
+          "allOnline": true,
+          "pending": 0,
+          "conflicts": 0,
+          "unknownRequests": 0,
+          "manualPhysicalReview": false,
+          "syntheticReview": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "R2",
+        "profiles": [
+          "MS01",
+          "MS02",
+          "MS03",
+          "MS04",
+          "MS05",
+          "MS06",
+          "MS07",
+          "MS08",
+          "MS09",
+          "MS10",
+          "MS11",
+          "MS12"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "each owner enters every own hole using normal controls; first input actual touch",
+        "independentServerState": {
+          "cards": 216,
+          "independentOwnerReads": 12,
+          "roundType": "18"
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "H04",
+        "profiles": [
+          "MS01",
+          "MS02",
+          "MS03",
+          "MS04",
+          "MS05",
+          "MS06",
+          "MS07",
+          "MS08",
+          "MS09",
+          "MS10",
+          "MS11",
+          "MS12"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "explicit review of all twelve devices plus duplicate writer; three normal flight checkbox releases follow",
+        "independentServerState": {
+          "allOnline": true,
+          "pending": 0,
+          "conflicts": 0,
+          "unknownRequests": 0,
+          "manualPhysicalReview": false,
+          "syntheticReview": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "S07",
+        "profiles": [
+          "MS01"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "normal full three-round historical correction and following round",
+        "independentServerState": {
+          "cards": 432,
+          "unchangedRaw": 431,
+          "MS02": [
+            23,
+            23.1,
+            23.1
+          ],
+          "workerRecovery": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "G01",
+        "profiles": [
+          "MS02"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "old device sends after a genuine new Firestore birth",
+        "independentServerState": {
+          "newGenerationProtected": true,
+          "oldPendingRetained": true,
+          "oldGenerationNeverReused": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "G02",
+        "profiles": [
+          "MS02"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "explicit refresh/discard after birth replacement",
+        "independentServerState": {
+          "pending": 1,
+          "serverValueUnchanged": true
+        },
+        "status": "OFFEN"
+      },
+      {
+        "testId": "F01",
+        "profiles": [
+          "MS03"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "actual local fixture changes flight partition while old device offline",
+        "independentServerState": {
+          "oldFlightCannotWrite": true,
+          "noUnversionedAppWriterEnabled": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "F02",
+        "profiles": [
+          "MS03"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "explicit refresh/discard with no longer authorized old flight",
+        "independentServerState": {
+          "pending": 2,
+          "noServerCard": true
+        },
+        "status": "OFFEN"
+      },
+      {
+        "testId": "D03",
+        "profiles": [
+          "MS08"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "device loss simulated by new empty profile; original offline profile retained privately",
+        "independentServerState": {
+          "noAutoQueueAdoption": true,
+          "noFalseConfirmation": true,
+          "manualRecaptureRequired": true,
+          "actualDataDeletion": false
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "D04",
+        "profiles": [
+          "MS08"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "explicit manual re-entry after server comparison in the fresh owner profile",
+        "independentServerState": {
+          "confirmedOnce": true,
+          "oldQuarantineNotAdopted": true
+        },
+        "status": "PASS"
+      },
+      {
+        "testId": "P01",
+        "profiles": [
+          "MS01"
+        ],
+        "preconditions": "fresh demo emulators; synthetic identities; owner-bound storage",
+        "uiAction": "coherent published read after fault fixtures",
+        "independentServerState": {
+          "closedRounds": 3,
+          "closureRevisions": [
+            2,
+            2,
+            2
+          ],
+          "MS02": 23.1,
+          "publicationRevision": 1
+        },
+        "status": "PASS"
+      }
+    ]
+  },
+  "restore": {
+    "initialSourceRun": "run-1794343789120-e91fe345",
+    "finalTargetRun": "run-1794348170008-940952ee",
+    "sourceAuthUsers": 12,
+    "sourceCards": 433,
+    "executionExitCode": 0,
+    "targets": {
+      "closed": {
+        "sourceFallbackUnavailable": true,
+        "freshBrowserProfile": true,
+        "forbiddenOrigins": 0,
+        "birthPairs": 433,
+        "changedCreateTimes": 433,
+        "partialImportDenied": true,
+        "cohortPlayers": 12,
+        "restoredSourceCards": 433,
+        "sourceRunReplay": true,
+        "closureReplay": true,
+        "v2ReceiptReplay": true,
+        "oldQuarantineNotAdopted": true,
+        "normalUiCards": 108,
+        "nextStart": 23.1,
+        "releaseGo": false
+      },
+      "interrupted": {
+        "sourceFallbackUnavailable": true,
+        "freshBrowserProfile": true,
+        "forbiddenOrigins": 0,
+        "birthPairs": 432,
+        "changedCreateTimes": 432,
+        "partialImportDenied": false,
+        "cohortPlayers": 12,
+        "restoredSourceCards": 432,
+        "sourceRunReplay": true,
+        "closureReplay": true,
+        "v2ReceiptReplay": true,
+        "oldQuarantineNotAdopted": true,
+        "normalUiCards": 108,
+        "nextStart": 23.1,
+        "releaseGo": false
+      },
+      "authstate": {
+        "sourceFallbackUnavailable": true,
+        "freshBrowserProfile": true,
+        "forbiddenOrigins": 0,
+        "birthPairs": 433,
+        "changedCreateTimes": 433,
+        "partialImportDenied": false,
+        "pendingPinInitiallyBlocked": true,
+        "pinRecoveryConsistent": true,
+        "loginLockPreserved": true,
+        "disabledAccountPreserved": true,
+        "releaseGo": false
+      }
+    }
+  },
+  "unverified": [
+    "Actual suspend/resume of a local Functions process; tested port interruption is a different fault.",
+    "Real smartphones, physical participant reviews and OS/network/storage conditions (S08.3).",
+    "Production inventory, cloud restore, PreProd, migration, cutover/rollback and open scoring rules."
+  ],
+  "worktreeIntegrity": {
+    "originalHead": "cb4661f5194147fa0ef0f40fe44838ce3d0aa19e",
+    "sixDirtyFileHashesUnchanged": true,
+    "fullDiffUnchanged": true,
+    "untrackedInventoryUnchanged": true,
+    "previousHeadsAndStatusesUnchanged": true,
+    "completeIgnoredFileHashAudit": false
+  },
+  "releaseGo": false,
+  "localLogSha256": {
+    "s08-2-node-final.txt": "d8341d8b9f53db7fceef8bfcc61a33888398baf53b989a58614847d4a434baa3",
+    "s08-2-hotfix.txt": "617c8146ceb019c664d1d1a86ed937e2125d03e52226aed9f21f0b0d2a126cd1",
+    "s08-2-sync-browser.txt": "510006b63bbec66823815b98e089d1990b8e30e060b470b061405b1ba26a92d9",
+    "s08-2-screen-browser.txt": "8cabce925e7d68e067c5a7c1db097e3400ed98ea90960b7e95d0aa53ffcbabe7",
+    "s08-2-regression-emulator.txt": "ffe405e5bf1d1284554c5a074bfe9460c58f6c774acb6c0c7b6d40c69f1d20a9",
+    "s08-2-rehearsal.txt": "3b87116809c8dfdbc76291502b8d93c8d4afbd0d6adf8e065df2e774743f4f02",
+    "s08-2-restore.txt": "0ccaf2ceacd61e4a9fe2890b028b19705b02f14da749cbf0b5491f70d494c9e6",
+    "s08-2-network-green.txt": "af9d2bb2a16a8395909577d5e704da6b3bff20dc32490db9f6e2c5cf16e7c67d",
+    "s08-2-network-unit-green.txt": "b1b80e0e892b4c826b792ca3ca5269372dc6e86a26e9ab7abad8e1a0add1cff2",
+    "s08-2-restore-recheck.txt": "69db6056b0ab1ae1a65325b8fdbdf3a52841c95d470bacd64af03fd30e0b49cf",
+    "s08-2-integrity-final.txt": "9afd47408591cede7765f96dc33b7ae0287010c8de374719e057ab9e1a10ca86"
+  },
+  "privateProofSha256": {
+    "rehearsal": "ceb2dc8018bbcd439c1c8ee2237857d1ba0ca4f6b275f01338b951e6368ed010",
+    "restore": "faf529a5203f609cdfd2ea91cb84fc9d9765c3536aa929c2137a3ea4b0d66a35"
+  }
+}

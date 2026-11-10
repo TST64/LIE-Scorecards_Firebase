@@ -15,7 +15,8 @@ async function run(primary){
         const seed=db.batch();for(const id of players){const data={id,name:'Synthetic '+id,nickname:id,role:id==='MS01'?'Admin':id==='MS05'?'Spielleiter':'Spieler',hcpLIE:54};seed.set(db.collection('spieler').doc(id),{...data,pinHash:encoded,mustChangePin:false});seed.set(db.collection('spieler_public').doc(id),data);}
         seed.set(db.collection('kurse').doc('S05-K'),{id:'S05-K',name:'Synthetic S05 course',bahnAnzahl:18});for(let nr=1;nr<=18;nr++)seed.set(db.collection('bahnen').doc('S05-H'+nr),{id:'S05-H'+nr,kursId:'S05-K',nr,par:4,si:nr});
         seed.set(db.collection('config').doc('saison'),{saisonStartDatum:'2026-01-01',seasonStartHcpByPlayer:{}},{merge:true});await seed.commit();
-        clients.push(await primary.newProfile(),await primary.newProfile());shadow=await primary.newProfile();
+        if(primary.onRehearsalSeed)await primary.onRehearsalSeed({db,pin,players});
+        clients.push(...(primary.rehearsalActors?[primary.rehearsalActors[4],primary.rehearsalActors[8]]:[await primary.newProfile(),await primary.newProfile()]));shadow=await primary.newProfile();
         for(let i=0;i<3;i++)await login(clients[i],captains[i]);
         for(const [index,type] of ['9-Front','9-Back','18'].entries()){
             stage='normal-create-'+type;
@@ -35,6 +36,7 @@ async function run(primary){
                 await shadow.waitFor("app.state.scoreEntryV2.entries.MS02_1.pendingOperations.length>0");
                 assert.equal(await shadow.evaluate(`app.logic.assertRoundCloseLocalReady(${q(round.id)}).then(()=>false,()=>true)`),true);
             }
+            if(primary.onRehearsalRound)await primary.onRehearsalRound({round,index,holes,golden});
             stage='432-normal-ui-cards-'+type;
             // Actual visible controls and actual automatic sender, no direct score
             // writes and no adapter.sync/flush as a substitute for integration.
@@ -42,7 +44,7 @@ async function run(primary){
                 await Promise.all(clients.map(async(c,f)=>{
                     await open(c,round.id,hole);
                     const targets=golden.players.slice(f*4,f*4+4).map(p=>({id:p.id,strokes:4+Math.floor(p.rawAllowances[index]/holes.length)+(j<p.rawAllowances[index]%holes.length?1:0)+2-Math.min(4,Math.max(0,p.netto[index]-4*j))}));
-                    const holdLast=index===0&&j===holes.length-1&&f===2;
+                    const holdLast=!primary.rehearsalActors&&index===0&&j===holes.length-1&&f===2;
                     await c.evaluate(`(async()=>{for(const p of ${q(targets)}){if(${holdLast}&&p.id==='MS12')Object.defineProperty(navigator,'onLine',{get:()=>false,configurable:true});const value=()=>app.state.scoreEntryV2.entries[p.id+'_'+${hole}].displayed.strokes;for(let n=0;n<20;n++){const before=value();if(before===p.strokes)break;const button=before===undefined&&p.strokes===4?'lie-avatar-'+p.id:'lie-strokes-'+((before??4)<p.strokes?'plus':'minus')+'-'+p.id;document.getElementById(button).click();await app.scoreEntryV2Controller.settleActions();for(let wait=0;wait<200&&value()===before;wait++)await new Promise(r=>setTimeout(r,10));if(value()===before)throw new Error('Normal input not accepted');}if(value()!==p.strokes)throw new Error('Normal input mismatch');}return true;})()`);
                     if(holdLast){
                         assert.equal(await c.evaluate(`app.logic.assertRoundCloseLocalReady(${q(round.id)}).then(()=>false,()=>true)`),true);
@@ -65,6 +67,7 @@ async function run(primary){
                 await shadow.evaluate("app.logic.scoreScreenDiscardSyncFieldV2('MS02','strokes').then(()=>true)");
                 await settled(shadow);
             }
+            if(primary.onRehearsalReview)await primary.onRehearsalReview({round,index,clients,shadow});
             stage='stale-cache-and-freeze-'+type;
             const view=await observed(primary,'inspect',round.id);assert.equal(view.complete,true);
             const closeId='S05-'+type,wire={spieltagId:round.id,closeId,expectedRevision:view.scoreRevision,expectedDigest:view.scoreDigest};

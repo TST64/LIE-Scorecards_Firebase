@@ -144,6 +144,9 @@ app.logic.stopScoreAutoSyncV2 = function()
     if(app.scoreAutoSyncUnsubscribeV2)app.scoreAutoSyncUnsubscribeV2();
     app.scoreAutoSyncUnsubscribeV2=null;
     if(app.scoreEntryV2Controller)app.scoreEntryV2Controller.invalidate();
+    // A same-owner login can revisit this round. Reopen the authoritative
+    // controller rather than displaying a ready cache behind a stopped sender.
+    if(app.state?.scoreEntryV2)app.state.scoreEntryV2.needsReload=true;
 };
 app.logic.resumeScoreAutoSyncV2 = async function(roundId)
 {
