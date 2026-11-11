@@ -16,7 +16,8 @@ async function main() {
         server = createServer(p);
         await new Promise((resolve, reject) => {server.once('error', reject); server.listen(port, '127.0.0.1', resolve);});
         console.log('RC1 LOCAL http://127.0.0.1:' + port + ' | demo-lie-scorecards-local');
-        console.log('12 synthetic players MS01-MS12; local fixture PIN 1234. Writers: MS01 / MS05 / MS09.');
+        console.log('12 synthetic players MS01-MS12; local fixture PIN 1234. Start as MS01 (Admin).');
+        console.log('No round is pre-created. MS01: create the first Spieltag in the normal UI, then enter scores. One writer per flight.');
         console.log('Fresh browser profiles required. Synthetic session is volatile: no real scores, no production data.');
         if (process.argv.includes('--smoke')) {
             await require('../../tests/rc-smoke.cjs').run(p, port, instance.firestore(), data);

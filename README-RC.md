@@ -1,9 +1,9 @@
 # Mission Samstag – lokaler RC1
 
 Basis: Draft-PR #27, `3d55211fd82689fee761ce27d910a76a2f1a0ebb`. Stand: 11.11.2026.
-Ein Anwendungskern, zwölf synthetische Spieler, drei feste Viererflights. **Lokal benutzbar; keine Produktionsfreigabe.**
+Ein Anwendungskern, zwölf synthetische Spieler, bis zu drei Viererflights. **Lokal benutzbar; keine Produktionsfreigabe.**
 
-Im neuen Worktree `.codex-rc-worktree`, Node22 und Java21+ auf PATH:
+Im neuen Worktree `.codex-rc-round-start-worktree`, Node22 und Java21+ auf PATH:
 
 ```powershell
 npm ci --ignore-scripts --no-audit --no-fund
@@ -15,7 +15,7 @@ Falls Java21 nicht die Standardversion ist, vor dem Start für dieses Terminal `
 
 Danach `http://127.0.0.1:5501` in drei **neuen getrennten Browserprofilen** öffnen.
 
-| Schreiber | Flightmitglieder | Rolle |
+| Beispiel-Schreiber bei manueller Aufteilung | Flightmitglieder | Rolle |
 | --- | --- | --- |
 | MS01 | MS01–MS04 | Admin / Abschluss |
 | MS05 | MS05–MS08 | Spielleiter |
@@ -25,7 +25,7 @@ Alle zwölf sind synthetisch. Öffentlicher Fixture-PIN ausschließlich lokal: *
 Jeder der drei Schreiber erfasst über „Mein Flight“ die vier Spieler seines Flights.
 Die weiteren neun erfassen nicht parallel. **Drei Schreiber sind eine Betriebsvereinbarung, keine neue serverseitige Benutzerbegrenzung.**
 
-Die erste 9-Front-Runde und ihre Start-Snapshots werden mit dem bestehenden autoritativen Servermodul erzeugt. Es werden keine historischen Ergebnisse vorgetäuscht und keine Legacy-Scorecards mit fehlenden V2-Metadaten vorgeschrieben.
+Es wird keine aktive Runde vorab angelegt. Als MS01 anmelden, über die normale Oberfläche einen Spieltag anlegen (z. B. 9-Front, Synthetic RC course, zwölf Teilnehmer) und anschließend Scores eingeben. Der bestehende autoritative Server erzeugt dabei die Start-Snapshots. Bei zufälligen Flights je einen tatsächlich zugeordneten Spieler als Schreiber wählen; MS01/MS05/MS09 sind keine garantierte Flight-Aufteilung. Es werden keine historischen Ergebnisse oder Legacy-Scorecards vorgeschrieben.
 
 **Nur synthetisch:** Emulatoren starten leer. Der RC-Seed verweigert vorhandene Firestore-/Auth-Daten statt sie zu überschreiben. Die Sitzung ist flüchtig; nach Beenden/Neustart sind Eingaben dieser synthetischen Sitzung nicht als erhalten zugesichert. Keine echten Scores, PINs oder Bestandsdaten eingeben. Die Bestandserhaltung für den späteren Produktivstart wird separat im unten verlinkten Plan behandelt.
 
@@ -37,3 +37,5 @@ Konkrete Vorbereitung der noch nicht identifizierten Runde: [Lesediagnose und Ab
 Tatsächliche lokale Prüfungen: [RC-Validierung](docs/RC_VALIDATION.md).
 Gezielter Performance-Anzeige-Fix auf Diagnosestand9a8c71e: [Prüfrunden sichtbar, Rohscores unverändert, keine neue HCP-Fortschreibung](docs/RC_PERFORMANCE_FIX.md).
 Die alten Deployment-Anweisungen in `README-DEPLOYMENT.md` sind historische Notizen und für diesen RC **nicht ausführbar**.
+
+Rundenstart-Korrektur, genaue Ursache und gezielter UI-Nachweis: [RC-Rundenstart](docs/RC_ROUND_START_FIX.md). Eine bereits laufende ältere Demo bleibt unverändert; sie enthält weiterhin ihre vorab angelegte aktive Runde. Für diesen Fix aus dem oben genannten neuen Worktree frisch starten. Bestehende Pending-Daten oder Browserprofile nicht löschen.

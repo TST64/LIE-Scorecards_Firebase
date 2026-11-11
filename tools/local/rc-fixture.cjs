@@ -33,10 +33,8 @@ async function seed(db) {
         {kursId: 'RC-COURSE', vorgabe: hcp, spielvorgabe: hcp});
     batch.set(db.collection('config').doc('saison'), {saisonStartDatum: '2026-01-01'});
     await batch.commit();
-    // Use the existing authoritative implementation, not hand-written snapshots.
-    await require('../../functions/round-start').createRoundStart(db)(
-        {uid: 'MS01', token: {playerId: 'MS01', role: 'Admin', mustChangePin: false}},
-        {spieltagObj: data.round, flightsPayload: data.flights});
+    // Leave all players available for their first normal UI round start.
+    // The callable creates authoritative snapshots when the user starts it.
     return data;
 }
 module.exports = {fixture, seed};
