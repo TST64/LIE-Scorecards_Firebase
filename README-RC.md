@@ -33,5 +33,6 @@ Ports: App5501, Auth9099, Firestore8088, Functions5001; Hilfsports4400/4500/9150
 
 Weitere Produktionsschritte, Datenunterschiede und G02/F02: [Bestandserhalt und Startplan](docs/RELEASE_CANDIDATE.md).
 Gemeldete18-/9-Loch-Altrunde: [nur lesende Diagnose, Vorschau und Admin-Repair-Plan](docs/ROUND_TYPE_REPAIR.md). Synthetischer Einstieg: `npm run rc:round-preview`; kein Speichern und kein produktiver Zugriff.
+Konkrete Vorbereitung der noch nicht identifizierten Runde: [Lesediagnose und Abfrageumfang](docs/ROUND_DIAGNOSIS_PREP.md). Bestehende Firebase-Umgebung: [Backup-/Rückfallanleitung mit getrennten Freigaben](docs/FIREBASE_BACKUP_ROLLBACK.md). Beide sind vorbereitet, nicht produktiv ausgeführt.
 Tatsächliche lokale Prüfungen: [RC-Validierung](docs/RC_VALIDATION.md).
 Die alten Deployment-Anweisungen in `README-DEPLOYMENT.md` sind historische Notizen und für diesen RC **nicht ausführbar**.

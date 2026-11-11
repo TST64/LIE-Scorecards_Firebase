@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "kind": "documentation-only-read-plan",
+  "basis": "51740649a4e6e491a8b8c910d29a30d251de2a43",
+  "executedAgainstProduction": false,
+  "productionReadApproved": false,
+  "backupApproved": false,
+  "productionWriteApproved": false,
+  "projectId": null,
+  "historicalRepositoryProjectCandidate": "liescorecard-70c5e",
+  "databaseId": null,
+  "target": {"roundId": null, "approximateDate": null, "course": null, "missingView": null},
+  "dataTreatment": "protected operations storage only; no production data in this repository or synthetic test environment",
+  "readsAfterSeparateApproval": [
+    {"phase": "D0", "collection": "spieltage", "purpose": "confirmed document ID, or approved candidate metadata inventory without application visibility filters"},
+    {"phase": "D1", "document": "spieltage/<CONFIRMED_ROUND_ID>", "purpose": "original full metadata and Firestore create/update timestamps; preserve raw types"},
+    {"phase": "D1", "document": "config/saison", "purpose": "current season filter and explicit baseline metadata"},
+    {"phase": "D2", "collection": "scorecards", "where": {"field": "spieltagId", "operator": "==", "value": "<CONFIRMED_STORED_ROUND_REFERENCE>"}, "purpose": "all matching cards, no hole/value filtering, including blanks, duplicates and unknown fields"},
+    {"phase": "D3", "collection": "flights", "where": {"field": "spieltagId", "operator": "==", "value": "<CONFIRMED_ROUND_ID>"}, "purpose": "participant and flight membership comparison"},
+    {"phase": "D3", "documents": ["spieler_public/<REFERENCED_ID>", "kurse/<REFERENCED_COURSE_ID>"], "purpose": "minimum public participant and course references; no PIN or Auth reads"},
+    {"phase": "D3", "collections": ["bahnen", "handicaps"], "purpose": "only approved referenced course data; distinguish current records from historical evidence"},
+    {"phase": "D4", "collections": ["spieltage", "scorecards", "historyPublication", "roundClosureReceipts", "historyCorrectionRuns"], "purpose": "only separately scoped previous HCP basis and affected follow-up chain; no automatic whole-database search"}
+  ],
+  "requiredReport": ["round type and length with original types", "status and flags", "declared/flight/card participant sets", "card counts and hole numbers per player", "positive strokes versus Strich versus empty cards", "duplicates/orphans", "original scores unchanged", "display-cause evidence", "stored versus proposed HCP/results and following rounds", "blocking unknowns"],
+  "forbidden": ["SDK/CLI connection before approval", "application login or callable assumed write-free", "set/update/delete/batch writes", "automatic target or front/back selection", "scorecard deletion/renumbering/recreation", "pending queue deletion/adoption", "backup or restore inferred from read approval", "deploy/merge/project or IAM changes"],
+  "repair": {"previewOnly": true, "automaticCorrection": false, "saveImplemented": false, "persistAllowed": false}
+}
