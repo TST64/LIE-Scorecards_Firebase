@@ -34,10 +34,12 @@ test('18 configured holes with nine scores remain visible as review-only raw dat
 test('actual performance route displays warning and original raw values, without opening legacy rankings or HCP chart',()=>{
     const f=fixture();f.app.state.scoreCards[0].strokes=0;f.app.state.scoreCards[0].puts=0;
     f.app.state.scoreCards[1].id='<script>bad()</script>';delete f.app.state.scoreCards[1].puts;
+    f.app.state.scoreCards[2].lady='<script>bad()</script>';
     const html=f.app.views.performance();
     assert.ok(html.startsWith(guard));assert.ok(html.includes(warning));assert.ok(html.includes('REVIEW'));
     assert.ok(html.includes('Rohscores'));assert.ok(html.includes('nicht erfasst'));assert.ok(html.includes('false'));
     assert.ok(!html.includes('<script>bad()'));assert.ok(!html.includes('<svg'));assert.ok(!html.includes('17.7'));
+    assert.ok(html.includes('&lt;script&gt;bad()&lt;/script&gt;'));
     assert.equal(f.getHcpCalls(),0);
 });
 test('correct completed rounds and saved HCP points remain identical before and after adding a review round',()=>{
@@ -47,6 +49,12 @@ test('correct completed rounds and saved HCP points remain identical before and 
     for(const key of ['rounds','roundsCount','hcpSeries','currentHcp','hcpChange','bestRound','courses'])assert.deepEqual(plain(withReview[key]),plain(reference[key]),key);
     assert.equal(reference.roundsCount,2);assert.equal(reference.currentHcp,24.5);
     assert.equal(f.app.views.performance(),guard,'existing completed-round view stays byte-identical');
+    const back=fixture();back.bad.rundenTyp='9-Back';back.bad.bahnAnzahl=9;
+    for(const card of back.app.state.scoreCards)card.hole+=9;
+    const validBack=back.app.logic.getPersonalPerformance(back.player);
+    assert.equal(validBack.reviewRounds.length,0);assert.equal(validBack.roundsCount,1);
+    assert.equal(validBack.currentHcp,17.7,'stored completed Back result is not recalculated');
+    assert.equal(back.app.views.performance(),guard);
 });
 test('contradictory round metadata or holes stay visible even if normal hole selection throws',()=>{
     for(const change of [f=>f.bad.bahnAnzahl=9,f=>{f.bad.rundenTyp='9-Back';f.bad.bahnAnzahl=9;},f=>f.app.state.scoreCards[8].hole=1]){

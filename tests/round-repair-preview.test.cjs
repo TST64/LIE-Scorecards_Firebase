@@ -2,11 +2,12 @@
 const {test} = require('node:test'), assert = require('node:assert/strict'), vm = require('node:vm'), fs = require('node:fs');
 const {preview, syntheticExample} = require('../tools/local/round-repair-preview.cjs');
 
-test('nine actual holes in configured 18-hole round disappear from personal performance without deleting source data', () => {
+test('incomplete 18-hole rounds stay outside rated aggregates while remaining available for review', () => {
     const input = syntheticExample(), app = {state:{spieltage:[input.rounds[0]], scoreCards:input.scorecards,
         saisonStartDatum:'2026-01-01', kurse:[], golfplaetze:[]},logic:{getRoundHoles:r=>r.hcpHoleData}};
     vm.runInNewContext(fs.readFileSync('App_Logic_Performance.js','utf8'), {app});
     assert.equal(app.logic.getPersonalPerformance({id:'SYN01',hcpLIE:26}).roundsCount,0);
+    assert.equal(app.logic.getPersonalPerformance({id:'SYN01',hcpLIE:26}).reviewRounds.length,1);
     assert.equal(app.state.spieltage.length,1); assert.equal(app.state.scoreCards.length,54);
     app.state.spieltage[0]={...app.state.spieltage[0],rundenTyp:'9-Front',bahnAnzahl:9};
     assert.equal(app.logic.getPersonalPerformance({id:'SYN01',hcpLIE:26}).roundsCount,1);

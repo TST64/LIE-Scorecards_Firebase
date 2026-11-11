@@ -35,4 +35,5 @@ Weitere Produktionsschritte, Datenunterschiede und G02/F02: [Bestandserhalt und 
 Gemeldete18-/9-Loch-Altrunde: [nur lesende Diagnose, Vorschau und Admin-Repair-Plan](docs/ROUND_TYPE_REPAIR.md). Synthetischer Einstieg: `npm run rc:round-preview`; kein Speichern und kein produktiver Zugriff.
 Konkrete Vorbereitung der noch nicht identifizierten Runde: [Lesediagnose und Abfrageumfang](docs/ROUND_DIAGNOSIS_PREP.md). Bestehende Firebase-Umgebung: [Backup-/Rückfallanleitung mit getrennten Freigaben](docs/FIREBASE_BACKUP_ROLLBACK.md). Beide sind vorbereitet, nicht produktiv ausgeführt.
 Tatsächliche lokale Prüfungen: [RC-Validierung](docs/RC_VALIDATION.md).
+Gezielter Performance-Anzeige-Fix auf Diagnosestand9a8c71e: [Prüfrunden sichtbar, Rohscores unverändert, keine neue HCP-Fortschreibung](docs/RC_PERFORMANCE_FIX.md).
 Die alten Deployment-Anweisungen in `README-DEPLOYMENT.md` sind historische Notizen und für diesen RC **nicht ausführbar**.
