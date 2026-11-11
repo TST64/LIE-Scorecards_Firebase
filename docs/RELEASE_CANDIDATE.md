@@ -1,0 +1,64 @@
+# RC1 – Produktivstart mit Bestandserhalt
+
+11.11.2026. Verbindliche Basis PR#27 / `3d55211`. Neues isoliertes Verzeichnis `.codex-rc-worktree`, Branch `codex/mission-samstag-release-candidate`. Anwendung, Geschäftslogik, Rules und Sicherheitsgrenzen aus PR#27 bleiben unverändert. Ergänzt sind nur ein lokales Zwölf-Spieler-Startprofil, kurze Prüfungen und dieser Startplan. Keine weitere allgemeine Testkampagne, kein Architekturumbau.
+
+**Ergebnis:** Ein einheitlicher lokal startbarer RC für zwölf Spieler mit drei vereinbarten Schreibern. **Noch kein produktiv bereitstellbares Artefakt:** Cloudbetrieb ist im übernommenen Code absichtlich gesperrt; Bestandskompatibilität ist mangels freigegebener Inventur nicht bestätigt. Das sind konkrete Startvoraussetzungen, keine Forderung nach einer neuen Forschungsphase.
+
+## Bestätigte Datenunterschiede – ausschließlich Repository und Synthetik
+
+Legacy-Vergleich: versionierter Stand `cb4661f` und historische Codepfade im Repository. Diese belegen mögliche frühere Datenausprägungen, **nicht den tatsächlichen produktiven Bestand**.
+
+| Bereich | Im Legacy-Code möglich | PR#27 / V2-Vertrag und Konsequenz |
+| --- | --- | --- |
+| Spieltage | `id`, `date`, `status`, `kursId`, `rundenTyp`, `bahnAnzahl`, `teilnehmerCsv`, Gewinner, `hcpStart`, `hcpEnd`, `hcpStartOverrides`; direkte Clientwrites | Zusätzlich `hcpSnapshotVersion/Revision`, `holeAllowances`, historische Bahnen-/Vorgabentabelle, `_roundStart`, `_roundClose`, `closure`, Revisions-/Digestbelege. Bestehende Runde wird von `round-start.js` nicht automatisch nachgerüstet/überschrieben. |
+| Scorecards | Einzelkarten mit `strokes`, `puts`, `lady`, `maxscore`, `hcpStart`, `strokesGiven`; nicht zwingend `_sync` | Eigene Generation, Feldrevisionen, Mutation-/Request-Receipts und bei `gen:`-Karten Birth-Binding. IDs und Spieler-/Lochzuordnung müssen eindeutig stimmen. Fehlend,0 undFalse bleiben verschieden; keine geratenen Defaults. |
+| Legacy-Birth | Keine gespeicherte Generation erforderlich | Lesemodul kann aus tatsächlichem Firestore-`createTime` ein `legacy:`-Token und Revision0 ableiten. **Das macht weder die Runde noch den Rundenschluss automatisch V2-kompatibel.** Löschen/Neuanlegen oder logischer Restore ändert Birth und kann G02 auslösen. |
+| Ergebnisse / HCP | Gespeicherte Gewinner, alte Start-/End-HCPs, Overrides und private/öffentliche `hcpLIE`; alte Ganzzahl-/Korrekturpfade möglich | Autoritative S06-Snapshots und S05-Abschluss mit Receipts; private/öffentliche HCP-Projektionen samt Provenienz. S07 akzeptiert nur verifizierte Abschlüsse und vollständige Folgekette. Alte Werte nicht pauschal mit neuen Regeln überschreiben. |
+| Flights | Bestehende IDs/CSV-Mitglieder, potenziell frühere direkte Änderungen | Neue Anlage erwartet `FL-<Runde>-<seq>`, eindeutige Partition, höchstens vier pro Flight. Live-Umteilung ist kein freier Legacy-Schreibweg mehr. |
+| Auth | Ältere PIN-/Rollen-/Auth-Ausprägungen im Repository | UID=Spieler-ID, konsistente private Rolle/Claims, Pflichtwechsel-/Pending-/Sperrzustand. Keine PIN-/Auth-Übernahme anhand von Vermutungen. Bestehende Identitäten erhalten. |
+| Veröffentlichter Stand | Unabhängige Reads und direkte Updates | `historyPublication`, Closure-/History-Belege und konsistenter Published-Read; Payloadgrenze3MiB, historische Publikation höchstens480 Nutzprojektionen. Tatsächliche Bestandsgröße unbekannt. |
+| Backup/Restore | Reale Sicherungsart unbekannt | S08.1 ist ausdrücklich ein **synthetischer Demo-Restore**, kein Produktionsimporter. Keine echten Daten als „synthetisch“ markieren, um Prüfungen zu umgehen. Cloud-/Auth-Restore separat nachweisen. |
+
+Quellen: `functions/{round-start,score-read-v2,score-operations-v2,round-close,history-correction,published-season}.js`, `firestore.rules`, `tools/local/restore-contract.cjs`. Kurze Synthetik bestätigt: vollständige Legacy-Objekte einschließlich HCP23.7 bleiben im Published-Read unverändert; ein neuer Rundenstart bei Legacy-Saisonhistorie wird verweigert. Das ist keine Abnahme der alten HCP-Anzeige oder des echten Bestands.
+
+## Minimaler Erhaltungsplan
+
+**Vorrangiger konkreter Fall:** Eine möglicherweise falsch als18 angelegte9-Loch-Altrunde ist gemeldet. [Diagnose/Vorschau und begrenzter Admin-Repair-Plan](ROUND_TYPE_REPAIR.md) behandeln ihre Wiederanzeige sowie Auswirkungen auf die nachfolgenden HCPs. Vor einer Übernahmebasis zuerst diesen Fall klären; keine ungeprüfte falsche18-Loch-Wertung fortschreiben. Die folgende zunächst unveränderte Historie schließt eine später ausdrücklich bestätigte, versionierte Reparatur dieser Runde nicht aus.
+
+1. **Original erhalten:** Vor Umstellung vollständige konsistente Sicherung sämtlicher Collections, Untercollections und Zusatzfelder sowie Auth/Claims, Kurs-/Bahnen-/Vorgabendaten, Konfiguration, Bilder/Assets und bisheriger bereitgestellter Version. Spieltage, Ergebnisse, Karten, dokumentierte HCP-Verläufe, Gewinner, Overrides, IDs und vorhandene Zeitstempel unverändert sichern. Reale Sicherungen bleiben im genehmigten geschützten DR-Bereich, nicht in diesem lokalen Testprojekt.
+2. **Abgleich statt Überschreiben:** Inventar mit Counts, Zuordnung/IDs, Duplikaten, fehlenden Feldern, vorhandenen V2-Metadaten, HCP-/Ergebnisständen und Published-Payloadgröße erstellen. Originalfelder und gespeicherte HCP0/Dezimalwerte bleiben maßgeblich. Neue Gruppenregel nicht rückwirkend still anwenden. Fehlende historische Angaben als fehlend kennzeichnen, nicht aus heutigen Kursdaten erfinden.
+3. **Kleinster kompatibler Weg:** Ist der Bestand bereits vollständig V2-konform, keine Datenmigration. Liegt Legacy vor, für den ersten Start **alte Historie vollständig lesbar und schreibgeschützt behalten**, neue V2-Runden aus einer ausdrücklich verifizierten HCP-Übernahmebasis je Spieler starten. Diese muss den letzten bestätigten Bestands-HCP einschließlich0 übernehmen, mit Cutover-Zeitpunkt, Quellrunden/Prüfsummen und Import-Provenienz. Keine gefälschten alten V2-ACKs oder Abschluss-Receipts erzeugen.
+4. **Erforderliche kleine Kompatibilitätsänderung bei Legacy:** PR#27 versteht eine solche Übernahmebasis noch nicht. Rundenstart und HCP-Verlaufsanzeige benötigen deshalb eine begrenzte Legacy-/Baseline-Anbindung; diese ist heute **geplant, nicht implementiert oder als kompatibel freigegeben**. Alte Ergebnisse/HCP-Serien müssen unverändert angezeigt werden; nur neue Runden verwenden den neuen autoritativen Vertrag. Kein allgemeiner Historienumbau, keine rückwirkende Neuberechnung für den Erststart. Falls bereits bestehende V2-Runden übernommen werden, deren Generation-/Receipt-/Birth-Vertrag vollständig erhalten bzw. kontrolliert neu binden, niemals alte Tokens blind kopieren.
+5. **Ein gezielter Übernahmevergleich:** Anzahl und Identität aller Originalrunden/Karten/Ergebnisse sowie gespeicherte HCP-Serien vor/nach Übernahme identisch; keine entfernten/unbekannten Zusatzfelder; Start-HCPs aller zwölf stimmen mit bestätigtem Endbestand überein; ein neuer Score mit jedem der drei Schreiber funktioniert. Bei Abweichung keine Veröffentlichung. Nur für tatsächlich festgestellte Schemaabweichungen eine Korrektur, keine weitere allgemeine Kampagne.
+
+**Keine Abkürzung über Saisonreset:** `round-start.js` prüft Altabschlüsse innerhalb der Saison; `App_Logic_Performance.js` filtert nach Saisonstart und beginnt seine Reihe mit26. Nur `saisonStartDatum` verschieben oder `seasonStartHcpByPlayer` setzen löst daher nicht den gesamten Erhaltungsvertrag und kann alte Verläufe ausblenden. Das wird hier nicht getan. Ein allgemeiner Legacy-Historieneditor ist nicht nötig. Die konkret gemeldete18-/9-Loch-Korrektur hat jedoch Vorrang und benötigt vor jeder Schreibfreigabe ihre eigene verifizierte Vorschau.
+
+## G02/F02 bei drei Schreibern
+
+| Fall | Konkretes Risiko im vorgesehenen Betrieb | Minimaler Betriebsrahmen |
+| --- | --- | --- |
+| G02: Karte erhält neue Generation | Drei statt zwölf Schreiber beheben den Fehler nicht. Trigger sind physisches Löschen/Neuanlegen, falscher Import/Restore oder andere Schreiber. Gewöhnliche V2-Eingaben/Clears erhalten die Generation. | Während einer aktiven Runde keine Karten-Neuanlage als Korrektur, kein Restore/Import und keine Altwriter. Nur normale versionierte Eingabe/Korrektur. Genau ein Profil pro Flight als Schreiber. |
+| F02: Flightzuordnung geändert | Auch ein einzelner Schreiber kann danach mit veraltetem Kontext und Pending blockiert bleiben. | Drei Flights **vor** erster Eingabe verbindlich festlegen und während der Runde nicht umteilen. Keine Geräte-/Accountübergabe mit Pending. |
+
+Damit sind G02/F02 **unter ausdrücklich eingehaltenem Betriebsrahmen vermeidbare Ausnahmesituationen**, keine automatisch behobenen Fehler. Es besteht keine serverseitige Begrenzung auf drei Konten; auch alte/offline Zusatzprofile zählen als Schreiber. Alle drei plus tatsächlich benutzte Alt-/Ersatzgeräte vor Rundenschluss persönlich auf online, Pending0 und Konfliktfreiheit prüfen.
+
+Tritt G02/F02 trotzdem auf: betroffenen Flight anhalten, ursprüngliches Gerät/Profil und Pending unverändert erhalten; weder Browserdaten löschen noch Queue automatisch übernehmen, löschen, umadressieren oder als bestätigt markieren. Score/Loch/Spieler für einen bewussten Abgleich festhalten. Kein Rundenschluss bei ungeklärten Eingaben. Erst nach bestätigtem Server-/Receipt-Abgleich ausdrücklich über manuelle Neueingabe oder begründetes Verwerfen entscheiden. **Die vollständige UI-Recovery ist weiterhin offen.** Wer Live-Flightwechsel oder Restore bei offenen Queues benötigt, kann diesen eingeschränkten Betriebsrahmen nicht freigeben.
+
+## Tatsächlich noch erforderliche Schritte zum Produktivstart
+
+| Reihenfolge | Erforderlicher Schritt / Abnahme | Status jetzt |
+| --- | --- | --- |
+| 1 | Gesonderte ausdrückliche Freigabe für eine eng begrenzte **lesende** PROD-Inventur: genaue Projektidentität, Schema/Counts, HCP-/Ergebnis- und Größenabgleich; keine echten Daten in die synthetische Testumgebung | Nicht freigegeben, nicht ausgeführt |
+| 2 | Genehmigte Sicherung des vollständigen Bestands samt Auth und altem Artefakt; Wiederherstellbarkeit im geschützten DR-Ziel sowie gemeinsamer Schreibstopp/alle bekannten Queues klären | Reales Backup/Restore ungeprüft; S08.1 belegt nur Demo |
+| 3 | Nur die tatsächlich nötige Datenkompatibilität aus dem vorigen Abschnitt herstellen und den einen Vorher-/Nachher-Vergleich bestehen; keine Original-HCPs zurücksetzen | Konkreter Umfang hängt vom Inventar ab; Legacy-Baseline fehlt im aktuellen Code |
+| 4 | Begrenztes, ausdrücklich genehmigtes Cloud-Releaseprofil und Bereitstellung vorbereiten: Browserumgebung/Storage-Namespace, Functions-Initialisierung/Credentials/Netzwerk und lokale Maintenance-Hooks, Web-Konfiguration sowie Rules/Indexes/Assets. Eigene isolierte PreProd mit Firebase Hosting-Standard-Subdomain bleibt verbindlich; keine Produktivdaten dorthin kopieren. Anschließend freigegebenes Produktivziel festlegen. | App_Environment und Functions-Guard akzeptieren derzeit nur Demo/Emulator; `config.js` ändern allein genügt nicht. Kein Deploy vorbereitet oder ausgeführt |
+| 5 | Ein kurzer Check auf den drei vorgesehenen Schreibergeräten, feste Flights, verständliche Pending-/Bestätigungsanzeige und persönlicher Abschlussprozess. Offene Wertung: für Erststart nur bestätigte Netto-/LIE-HCP-Regel; Brutto/Putts-Ranking, DNF/Nichtantritt nicht als freigegeben ausgeben | Kein neuer großer Geräteauftrag; drei konkrete Geräte und Betriebsvereinbarung noch bestätigen |
+| 6 | Explizites Start-GO, kontrollierte Bereitstellung im vereinbarten Schreibfenster und geprüfte Rückfallentscheidung | Separat zu genehmigen; hier kein Deploy/Merge |
+
+**Rückfall:** Vor neuem produktivem Schreiben altes Artefakt und konsistente Sicherung bereithalten. Nach neuen V2-Writes nicht bloß alte UI/Altwriter wieder anschalten: zuerst Schreibstopp und alle neuen Scores/Receipts sowie Pending sichern/abgleichen. Dann entweder behobenen RC vorwärts bereitstellen oder den **vollständigen zusammengehörigen** Daten-/Auth-/Regel-/Artefaktstand nach genehmigtem DR-Plan zurückholen; neue Spielereignisse dabei nicht verlieren. Ohne bestätigte Rückfallmöglichkeit kein Cutover.
+
+## Bestätigt / weiterhin unbekannt
+
+Bestätigt sind die Repository-Verträge, der unveränderte PR#27-Anwendungskern, der lokale RC-Aufbau und die in [RC_VALIDATION.md](RC_VALIDATION.md) tatsächlich protokollierten kurzen Prüfungen. Die S08.2-Belege werden referenziert und nicht erneut abgearbeitet.
+
+Unbekannt bleiben reale Daten, bisher ausgelieferte Version, Cloud-Konfiguration, Auth-Bestand, Datenvolumen und tatsächliche Geräte. Es wird weder eine bestandserhaltende reale Migration noch eine Produktivfreigabe behauptet. Betrieb mit drei Schreibern ist eine bewusst vereinbarte Einschränkung; er ersetzt weder Datenkompatibilität noch Backup.

@@ -5,6 +5,9 @@
     "node": "22"
   },
   "scripts": {
+    "rc": "node tools/local/start.cjs --rc",
+    "rc:smoke": "node tools/local/start.cjs --rc --smoke",
+    "rc:round-preview": "node tools/local/round-repair-preview.cjs",
     "local": "node tools/local/start.cjs",
     "build:hcp": "node tools/build-hcp-browser.cjs",
     "test:local": "node --test tests/local-environment.test.cjs",

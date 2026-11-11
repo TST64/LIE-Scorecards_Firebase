@@ -5,7 +5,10 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { profile, PROJECT } = require('./profile.cjs');
 const root = path.resolve(__dirname, '../..');
-if (process.argv.slice(2).some(x => x !== '--test')) throw new Error('Only --test is supported. No deploy command.');
+const args = process.argv.slice(2);
+if (args.some(x => !['--test', '--rc', '--smoke'].includes(x))
+    || new Set(args).size !== args.length || (args.includes('--smoke') && !args.includes('--rc'))
+    || (args.includes('--test') && args.includes('--rc'))) throw new Error('Unsupported local command. No deploy command.');
 const p = profile();
 // CLI discovery intentionally does not inherit arbitrary process variables.
 // Supply only a public local-mode marker; refuse existing dotenv files instead of overwriting them.
@@ -36,7 +39,8 @@ env.HOME = home; env.USERPROFILE = home; env.APPDATA = home; env.CLOUDSDK_CONFIG
 env.XDG_CONFIG_HOME = home;
 const cli = path.join(root, 'node_modules/firebase-tools/lib/bin/firebase.js');
 if (!fs.existsSync(cli)) throw new Error('Run npm ci first (tool download only).');
-const command = 'node tools/local/session.cjs' + (process.argv.includes('--test') ? ' --test' : '');
+const command = args.includes('--rc') ? 'node tools/local/rc-session.cjs' + (args.includes('--smoke') ? ' --smoke' : '')
+    : 'node tools/local/session.cjs' + (args.includes('--test') ? ' --test' : '');
 const child = spawn(process.execPath, [cli, 'emulators:exec', '--config', config, '--project', PROJECT,
     '--only', 'auth,firestore,functions', command], { cwd: root, env, stdio: 'inherit', windowsHide: true });
 child.on('error', () => { process.exitCode = 1; });
