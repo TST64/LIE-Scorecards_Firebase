@@ -60,9 +60,13 @@ app.initStart = async function()
     // Contract failures escape before the legacy login-list fallback can run.
     try
     {
-        app.environment = LieEnvironment.create(window.LIE_LOCAL_PROFILE, window.firebaseConfig,
+        if (window.LIE_PREPROD_PROFILE && window.LIE_LOCAL_PROFILE) throw new Error('Mixed startup profiles.');
+        app.environment = LieEnvironment.create(window.LIE_PREPROD_PROFILE || window.LIE_LOCAL_PROFILE, window.firebaseConfig,
             window.location, firebase, async function(profile)
             {
+                // PreProd uses its separate strict HTTPS/project adapter, not
+                // the loopback readiness service. The local adapter is unchanged.
+                if (profile.mode === 'preprod') return;
                 if (navigator.serviceWorker && navigator.serviceWorker.controller)
                     throw new Error('Use a fresh local browser profile: active service worker.');
                 const response = await fetch('/__local/ready', {cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(3000)});
@@ -74,7 +78,7 @@ app.initStart = async function()
     }
     catch (error)
     {
-        document.getElementById('app-container').textContent = 'Lokaler Start gesperrt: ' + error.message;
+        document.getElementById('app-container').textContent = 'Anwendungsstart gesperrt: ' + error.message;
         return;
     }
     app.logic.registerServiceWorker();

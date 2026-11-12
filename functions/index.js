@@ -5,27 +5,26 @@
  * Der Browser erhält weder PINs noch PIN-Hashes.
  */
 
-const localGuard = require("./local-guard");
-const localOptions = localGuard.validate(process.env);
-require("./network-guard");
+const runtime = require('./runtime').createRuntime();
 const crypto = require("crypto");
 const { onCall: firebaseOnCall, HttpsError } = require("firebase-functions/v2/https");
 const localMaintenance = require('./local-maintenance');
-const onCall = handler => firebaseOnCall(request=>localMaintenance.withRequest(db,'callable',()=>handler(request)));
+const onCall = (name,handler) => firebaseOnCall(async request=>{
+    try{return await runtime.request(name,db,request,()=>localMaintenance.withRequest(db,'callable',()=>handler(request)));}
+    catch(error){if(error.code==='preprod-request-denied')throw new HttpsError('permission-denied','Testzugang oder Funktion nicht freigegeben.');throw error;}
+});
 const { setGlobalOptions } = require("firebase-functions/v2");
 const admin = require("firebase-admin");
 
-admin.initializeApp({ ...localOptions, credential: localGuard.credential(admin) });
-setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
-
-const db = admin.firestore();
+setGlobalOptions(runtime.options);
+const db = runtime.database(admin);
 const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 
 // Authoritative revisioned score endpoint. Direct/V1 score writes are disabled.
 const { createScoreOperationsV2 } = require("./score-operations-v2");
 const saveScoreOperationsV2 = createScoreOperationsV2(db, FieldValue);
 
-exports.saveScoreOperationsV2 = onCall(async function(request)
+exports.saveScoreOperationsV2 = onCall('saveScoreOperationsV2',async function(request)
 {
     requireAuth(request);
     try
@@ -42,7 +41,7 @@ exports.saveScoreOperationsV2 = onCall(async function(request)
 // Separate own-flight read. Loading/exporting does not execute a read.
 const { createScoreReadV2 } = require("./score-read-v2");
 const readOwnFlightScoresV2 = createScoreReadV2(db);
-exports.readOwnFlightScoresV2 = onCall(async function(request)
+exports.readOwnFlightScoresV2 = onCall('readOwnFlightScoresV2',async function(request)
 {
     requireAuth(request);
     try
@@ -58,24 +57,24 @@ exports.readOwnFlightScoresV2 = onCall(async function(request)
 
 const initializeRoundStart = require('./round-start').createRoundStart(db,FieldValue);
 const historyCorrection = require('./history-correction').createHistoryCorrection(db);
-exports.historyCorrectionV1 = onCall(async request=>{
+exports.historyCorrectionV1 = onCall('historyCorrectionV1',async request=>{
     requireAuth(request);
     try{return await historyCorrection(request.auth,request.data);}
     catch(error){const codes=['admin-required','stale-score-cas','stale-preview','competing-correction','active-following-round-blocks-correction','legacy-closure-blocked','historical-chain-invalid','publication-bound-exceeded','source-changed-repair-required','run-not-ready','stage-integrity-failed','run-not-locked'];throw new HttpsError('failed-precondition','Historische Korrektur nicht veröffentlicht ('+(codes.includes(error.code)?error.code:'Prüfung fehlgeschlagen')+'). Laufstatus prüfen; bisheriger veröffentlichter Stand bleibt maßgeblich.');}
 });
 const readPublication = require('./published-season').createPublishedSeasonRead(db);
-exports.readPublishedSeasonV1 = onCall(async request=>{
+exports.readPublishedSeasonV1 = onCall('readPublishedSeasonV1',async request=>{
     requireAuth(request);
     try{return await readPublication(request.auth);}
     catch(_){throw new HttpsError('failed-precondition','Veröffentlichter Saisonstand nicht konsistent lesbar. Keine Erfolgsmeldung.');}
 });
 const roundClosure = require('./round-close').createRoundClosure(db);
-exports.roundClosureV1 = onCall(async request=>{
+exports.roundClosureV1 = onCall('roundClosureV1',async request=>{
     requireAuth(request);
     try { return await roundClosure(request.auth,request.data); }
     catch(error) { throw new HttpsError('failed-precondition','Rundenschluss nicht bestätigt ('+(['round-incomplete','stale-server-basis','flight-releases-missing','flight-review-required','competing-closure','closure-window-mismatch','invalid-actor','privileged-role-required'].includes(error.code)?error.code:'Prüfung fehlgeschlagen')+'). Serverstand erneut laden; lokale Änderungen erhalten.'); }
 });
-exports.createRoundStart = onCall(async request=>
+exports.createRoundStart = onCall('createRoundStart',async request=>
 {
     requireAuth(request);
     try { return await initializeRoundStart(request.auth,request.data); }
@@ -195,7 +194,7 @@ function publicPlayerData(id, data)
     };
 }
 
-exports.getPlayerSessionState = onCall(async request =>
+exports.getPlayerSessionState = onCall('getPlayerSessionState',async request =>
 {
     requireAuth(request);
     if (!request.auth.token || request.auth.token.playerId !== request.auth.uid)
@@ -212,7 +211,7 @@ exports.getPlayerSessionState = onCall(async request =>
     catch (error) { throw pinRecoveryError(error); }
 });
 
-exports.getLoginPlayers = onCall(async (request) =>
+exports.getLoginPlayers = onCall('getLoginPlayers',async (request) =>
 {
 
     const snap = await db.collection("spieler").get();
@@ -252,7 +251,7 @@ exports.getLoginPlayers = onCall(async (request) =>
     };
 });
 
-exports.verifyPlayerPin = onCall(async (request) =>
+exports.verifyPlayerPin = onCall('verifyPlayerPin',async (request) =>
 {
     try
     {
@@ -301,7 +300,7 @@ exports.verifyPlayerPin = onCall(async (request) =>
     catch (error) { throw pinRecoveryError(error); }
 });
 
-exports.updatePlayerPin = onCall(async (request) =>
+exports.updatePlayerPin = onCall('updatePlayerPin',async (request) =>
 {
     requireAuth(request);
     const playerId = validatePlayerId(request.data && request.data.spielerId);
@@ -346,7 +345,7 @@ exports.updatePlayerPin = onCall(async (request) =>
     catch (error) { throw pinRecoveryError(error); }
 });
 
-exports.requestTempPin = onCall(async (request) =>
+exports.requestTempPin = onCall('requestTempPin',async (request) =>
 {
 
     const playerId = String(request.data && request.data.spielerId || "").trim();
@@ -417,7 +416,7 @@ exports.requestTempPin = onCall(async (request) =>
 
     try
     {
-        const response = await localGuard.disabledMail();
+        const response = await runtime.disabledMail();
 
         const text = await response.text();
 

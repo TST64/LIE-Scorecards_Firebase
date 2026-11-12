@@ -11,5 +11,6 @@ ARCHIV/
 functions/node_modules/
 .local-runtime/
 .firebase-local.generated.json
+config/preprod/runtime.local.json
 *-debug.log
 *-debug.*.log

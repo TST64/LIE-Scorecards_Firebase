@@ -35,6 +35,7 @@ async function fixture()
         async createCustomToken(uid,claims) { if(f.failToken)throw new Error('synthetic token failure');f.minted={uid,claims};return 'synthetic-opaque-session'; }
     };
     const context = { Buffer, exports:{}, process:{env:{}}, console:{error:(...args)=>logs.push(args),log:(...args)=>logs.push(args)}, require(name) {
+        if(name==='./runtime')return {createRuntime:()=>({options:{},database:()=>db,request:async(name,db,request,work)=>work(),disabledMail:async()=>{f.mailCalls=(f.mailCalls||0)+1;if(f.mail)return f.mail();throw new Error('mail must not run');}})};
         if(name==='crypto')return crypto;
         if(name==='./local-guard')return {validate:()=>({}),credential:()=>({}),disabledMail:async()=>{f.mailCalls=(f.mailCalls||0)+1;if(f.mail)return f.mail();throw new Error('mail must not run');}};
         if(name==='./network-guard')return {};

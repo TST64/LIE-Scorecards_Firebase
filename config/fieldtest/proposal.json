@@ -28,6 +28,6 @@
   "billingApproved": false,
   "budgetOwner": null,
   "artifactApproved": false,
-  "runtimeProfileImplemented": false,
+  "runtimeProfileImplemented": true,
   "testStarted": false
 }
