@@ -41,7 +41,7 @@ app.logic.roundCloseAction=async function(action,id,flightId){
             app.logic.showToast('Abschluss serverbestätigt. HCPs einmalig veröffentlicht.','success');
         }
         app.router.navigate('round_close');return result;
-    }catch(error){app.logic.showToast('Kein Abschluss bestätigt: '+error.message+' Bei unklarem Ausgang Serverstand neu laden; dieselbe Abschluss-ID wiederholen.','error');return false;}
+    }catch(error){app.logic.showToast(app.logic.roundCloseUserMessage ? app.logic.roundCloseUserMessage(error) : 'Kein Abschluss bestätigt. Bitte den aktuellen Serverstand erneut laden. Lokale Eingaben bleiben erhalten.','error');return false;}
     finally{app.state.roundCloseLocalBusy=false;}
 };
 app.views.round_close=function(){

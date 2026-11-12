@@ -17,6 +17,8 @@ app.router.currentParams = null;
 
 app.router.navigate = function(viewName, params)
 {
+    app.logic.closeLiveLeaderboardOverlay?.();
+    app.logic.stopLeaderboardLive?.();
 
     // ---------------------------------------------------------------------
     // Vorhandenes Live-Polling beim View-Wechsel beenden
@@ -261,13 +263,10 @@ app.router.navigate = function(viewName, params)
     // Live-Polling für Views starten, die aktuelle Spieldaten benötigen
     // ---------------------------------------------------------------------
 
-    if (targetView === 'leaderboard' &&
-        params &&
-        params.id &&
-        app.logic &&
-        typeof app.logic.startLivePolling === 'function')
+    if (targetView === 'leaderboard' && app.state.leaderboardRoundId
+        && typeof app.logic.startLeaderboardLive === 'function')
     {
-        app.logic.startLivePolling(params.id);
+        app.logic.startLeaderboardLive(app.state.leaderboardRoundId);
     }
     else if (targetView === 'score_eingabe' &&
              !app.state.scoreEntryV2 &&

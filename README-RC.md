@@ -3,7 +3,7 @@
 Basis: Draft-PR #27, `3d55211fd82689fee761ce27d910a76a2f1a0ebb`. Stand: 11.11.2026.
 Ein Anwendungskern, zwölf synthetische Spieler, bis zu drei Viererflights. **Lokal benutzbar; keine Produktionsfreigabe.**
 
-Im neuen Worktree `.codex-rc-round-start-worktree`, Node22 und Java21+ auf PATH:
+Im neuen Worktree `.codex-rc-live-worktree`, Node22 und Java21+ auf PATH:
 
 ```powershell
 npm ci --ignore-scripts --no-audit --no-fund
@@ -37,5 +37,7 @@ Konkrete Vorbereitung der noch nicht identifizierten Runde: [Lesediagnose und Ab
 Tatsächliche lokale Prüfungen: [RC-Validierung](docs/RC_VALIDATION.md).
 Gezielter Performance-Anzeige-Fix auf Diagnosestand9a8c71e: [Prüfrunden sichtbar, Rohscores unverändert, keine neue HCP-Fortschreibung](docs/RC_PERFORMANCE_FIX.md).
 Die alten Deployment-Anweisungen in `README-DEPLOYMENT.md` sind historische Notizen und für diesen RC **nicht ausführbar**.
+
+Aktueller UI-Stand: [Live-Scoreboard mit Matrix/Liste/Flights, automatischer V2-Aktualisierung und überarbeitetem Rundenschluss](docs/RC_LIVE_SCOREBOARD.md). Die V2-Score-Eingabe bleibt optisch und in ihrer Synchronisation unverändert. [Vorbereitung für drei Smartphones über Mobilfunk](docs/FIELD_TEST_PREPARATION.md): getrennte Firebase-Testumgebung mit privaten Zugängen, noch nicht angelegt oder bereitgestellt; bestehende lokale Guards bleiben aktiv.
 
 Rundenstart-Korrektur, genaue Ursache und gezielter UI-Nachweis: [RC-Rundenstart](docs/RC_ROUND_START_FIX.md). Eine bereits laufende ältere Demo bleibt unverändert; sie enthält weiterhin ihre vorab angelegte aktive Runde. Für diesen Fix aus dem oben genannten neuen Worktree frisch starten. Bestehende Pending-Daten oder Browserprofile nicht löschen.

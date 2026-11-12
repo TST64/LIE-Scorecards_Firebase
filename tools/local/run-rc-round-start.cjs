@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),{spawn}=require('node:child_process'),{profile,PROJECT}=require('./profile.cjs');
 const root=path.resolve(__dirname,'../..'),args=process.argv.slice(2);
-if(args.length>1||(args.length&&!['--expect-blocked','--smoke'].includes(args[0])))throw new Error('Local RC round-start proof only.');
+if(args.length>1||(args.length&&!['--expect-blocked','--smoke','--live-ui','--live-visual'].includes(args[0])))throw new Error('Local RC UI proof only.');
 profile();
 const runtime=path.join(root,'.local-runtime');fs.mkdirSync(runtime,{recursive:true});
 const dotenv=path.join(root,'functions/.env.local');
@@ -23,7 +23,8 @@ const env={...process.env,LIE_MODE:'local',FUNCTIONS_EMULATOR:'true',GCLOUD_PROJ
     LIE_BROWSER_USERPROFILE:process.env.USERPROFILE||'',LIE_BROWSER_APPDATA:process.env.APPDATA||'',
     LIE_BROWSER_HOME:process.env.HOME||process.env.USERPROFILE||'',HOME:home,USERPROFILE:home,APPDATA:home,
     CLOUDSDK_CONFIG:home,XDG_CONFIG_HOME:home,TEMP:tmp,TMP:tmp,TMPDIR:tmp,
-    RC_START_EXPECT_BLOCKED:args[0]==='--expect-blocked'?'1':'0',RC_START_SMOKE:args[0]==='--smoke'?'1':'0'};
+    RC_START_EXPECT_BLOCKED:args[0]==='--expect-blocked'?'1':'0',RC_START_SMOKE:args[0]==='--smoke'?'1':'0',
+    RC_LIVE_UI:args[0]==='--live-ui'?'1':'0',RC_LIVE_VISUAL:args[0]==='--live-visual'?'1':'0'};
 for(const key of ['GOOGLE_APPLICATION_CREDENTIALS','FIREBASE_TOKEN','NODE_OPTIONS','FIREBASE_CONFIG','FIREBASE_EMULATOR_HUB',
     'HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy'])delete env[key];
 const child=spawn(process.execPath,[path.join(root,'node_modules/firebase-tools/lib/bin/firebase.js'),'emulators:exec','--config',config,

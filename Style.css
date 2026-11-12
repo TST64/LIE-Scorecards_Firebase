@@ -750,3 +750,71 @@ body:has(.lie-score-screen) #bottom-nav
 /* Local completion never uses the green server-confirmed marker. */
 .lie-hole--pending { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
 .lie-player--pending .lie-player-status, .lie-player--pending .lie-status-icon { color: #92400e; }
+
+/* Familiar emerald scoreboard and closure cards. Score input styles unchanged. */
+.lie-live-board, .lie-close { max-width: 1000px; margin: auto; color: #213b30; padding-bottom: 28px; }
+.lie-live-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 8px 0 18px; background-color:transparent !important; backdrop-filter:none; -webkit-backdrop-filter:none; border-bottom:none !important; }
+.lie-live-heading h1 { font-size:24px; font-weight:800; margin:0; color:#065f46; }
+.lie-eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:#62786d; margin:0 0 4px; }
+.lie-live-context, .lie-live-footnote { color:#52655c; font-size:13px; line-height:1.6; margin:12px 0; }
+.lie-live-tabs { display:flex; gap:6px; background:#e9f1ec; border-radius:14px; padding:5px; margin:16px 0; }
+.lie-live-tabs button { flex:1; background:transparent; border-color:transparent; font-weight:700; }
+.lie-live-tabs button.is-active { background:white; color:#065f46; box-shadow:0 2px 5px #193e2312; }
+.lie-live-status { padding:10px 13px; border-radius:10px; color:#066348; background:#e9f7ee; font-size:13px; line-height:1.5; }
+.lie-live-status.is-stale { color:#854d0e; background:#fff5db; }
+.lie-live-notice { border:1px solid #e7d7a1; border-radius:12px; background:#fffaf0; color:#73551c; padding:14px; font-size:14px; line-height:1.6; margin:16px 0; }
+.lie-live-board h2, .lie-close h2 { font-size:17px; font-weight:800; margin:20px 0 12px; }
+.lie-live-table-wrap { overflow-x:auto; border:1px solid #dde7e0; border-radius:13px; background:white; margin:12px 0; }
+.lie-live-table-wrap table { width:100%; border-collapse:separate; border-spacing:0; font-size:14px; }
+.lie-live-table-wrap caption { text-align:left; padding:12px; color:#52655c; font-size:12px; }
+.lie-live-table-wrap th, .lie-live-table-wrap td { padding:12px 10px; border-top:1px solid #e8eee9; white-space:nowrap; text-align:center; }
+.lie-live-table-wrap th:first-child { text-align:left; }
+.lie-live-table-wrap thead th { background:#eef4f0; color:#335044; font-size:12px; }
+.lie-live-matrix th:first-child { position:sticky; left:0; z-index:1; background:white; min-width:110px; box-shadow:1px 0 #dde7e0; }
+.lie-live-matrix thead th:first-child { background:#eef4f0; }
+.lie-live-par { color:#708278; font-size:12px; }
+.lie-live-table-wrap .lie-live-total { background:#eaf5ec; color:#065f46; font-weight:800; font-size:17px; }
+.lie-live-par-score { color:#2563a3; background:#f0f6fc; font-weight:700; }
+.lie-live-player { display:flex; align-items:center; gap:12px; background:white; padding:15px; border:1px solid #e1e9e3; border-radius:13px; margin:8px 0; }
+.lie-live-player p { font-size:12px; color:#65766b; margin:4px 0 0; }
+.lie-live-rank { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:#e9f2ec; color:#146448; font-weight:800; flex-shrink:0; }
+.lie-live-points { margin-left:auto; text-align:right; }
+.lie-live-points strong { display:block; color:#065f46; font-size:24px; }
+.lie-live-points span { display:block; color:#65766b; font-size:11px; }
+.lie-live-flights, .lie-close-flights { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:14px; }
+.lie-live-flight, .lie-close-flight { border:1px solid #dce7df; border-radius:16px; padding:14px; background:#f5f9f6; }
+.lie-live-flight h2 { margin:0 0 12px; color:#065f46; }
+.lie-live-flight .lie-live-player { padding:11px; gap:8px; }
+.lie-live-official { background:#ecf8ef; border:1px solid #a7d7b9; border-radius:14px; padding:16px; margin:18px 0; }
+.lie-live-official h2 { color:#065f46; margin-top:0; }
+.lie-live-board .lie-button, .lie-close .lie-button { min-height:48px; font-weight:700; cursor:pointer; }
+.lie-live-board button:focus-visible, .lie-close button:focus-visible, .lie-close input:focus-visible { outline:3px solid #2b9368; outline-offset:3px; }
+.lie-button.lie-button-primary { background:#08704b; color:white; border-color:#08704b; }
+.lie-button.lie-button-warning { background:#fff8e5; color:#854d0e; border-color:#dec583; }
+.lie-close .lie-button:disabled { cursor:not-allowed; background:#e8eee9; color:#68776d; border-color:#dce4de; }
+.lie-close-stage { display:flex; align-items:center; gap:14px; border-radius:16px; padding:20px; background:#ecf5ef; border:1px solid #c8dfcf; }
+.lie-close-stage > i { font-size:28px; color:#08704b; }
+.lie-close-stage strong { font-size:17px; }
+.lie-close-stage p { font-size:14px; line-height:1.6; margin:5px 0 0; }
+.lie-close-steps { padding:16px 16px 16px 35px; margin:16px 0; font-size:14px; line-height:1.8; }
+.lie-close-flight-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.lie-close-flight h3 { font-size:16px; font-weight:800; margin:0; }
+.lie-close-flight p { font-size:13px; line-height:1.6; }
+.lie-close-badge { background:#fff0cd; color:#854d0e; border-radius:20px; padding:5px 8px; font-size:11px; font-weight:700; }
+.lie-close-badge.is-complete { color:#065f46; background:#d9f1e1; }
+.lie-close-progress { display:block; font-size:11px; color:#91671c; margin-top:4px; }
+.lie-close-progress.is-complete { color:#08704b; }
+.lie-close-review { display:flex; gap:12px; align-items:flex-start; min-height:48px; padding:14px 0; font-size:13px; line-height:1.6; cursor:pointer; }
+.lie-close-review input { width:24px; height:24px; flex-shrink:0; margin-top:3px; accent-color:#08704b; }
+.lie-close-flight .lie-button { width:100%; margin-top:8px; }
+.lie-close-actions { display:flex; flex-wrap:wrap; gap:10px; margin:24px 0; }
+.lie-close-receipt summary, .lie-close details > summary { cursor:pointer; min-height:48px; padding:14px 0; font-size:13px; }
+.lie-close-receipt p { font-size:12px; overflow-wrap:anywhere; }
+@media (max-width:480px) {
+    .lie-live-heading { align-items:flex-start; }
+    .lie-live-heading h1 { font-size:21px; }
+    .lie-live-heading .lie-button { padding:10px; font-size:12px; }
+    .lie-live-table-wrap th, .lie-live-table-wrap td { padding:11px 8px; }
+    .lie-close-actions { flex-direction:column; }
+    .lie-close-actions .lie-button { width:100%; }
+}

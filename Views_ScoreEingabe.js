@@ -280,20 +280,7 @@ app.views.scoreEingabe = app.views.score_eingabe = function(id, hole, seq)
     }).join('');
     app.logic.openLeaderboardOverlay = function(stId) 
     {
-        const mode = app.state.lastLeaderboardMode || 'netto';
-        const html = app.views.leaderboard(stId, mode);
-        
-        const overlayContent = document.getElementById('overlay-leaderboard-content');
-        if (overlayContent) 
-        {
-            overlayContent.innerHTML = html;
-            const backBtn = overlayContent.querySelector('.fa-arrow-left')?.parentElement;
-            if (backBtn) backBtn.style.display = 'none';
-            const adminBox = overlayContent.querySelector('.fa-user-shield')?.parentElement;
-            if (adminBox) adminBox.style.display = 'none';
-        }
-        
-        document.getElementById('score-leaderboard-overlay').classList.remove('hidden');
+        app.logic.showLiveLeaderboardOverlay(stId);
     };
 
 
@@ -326,5 +313,5 @@ app.views.scoreEingabe = app.views.score_eingabe = function(id, hole, seq)
         + '<nav class="lie-round-nav" aria-label="Rundennavigation"><button ' + (c.hole === c.first ? 'disabled' : 'onclick="' + navigate(c.hole - 1) + '"') + '><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg><span>Loch ' + (c.hole === c.first ? c.first : c.hole - 1) + '</span></button>'
         + '<button onclick="app.logic.openLeaderboardOverlay(' + arg(c.id) + ')"><svg class="lie-flight-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3"/><circle cx="4" cy="8" r="2"/><circle cx="20" cy="8" r="2"/><path d="M7 21v-5a5 5 0 0 1 10 0v5ZM1 20v-5a3 3 0 0 1 4-3v8ZM19 20v-8a3 3 0 0 1 4 3v5Z"/></svg><span>Flight / Live</span></button><button class="lie-next" '
         + (c.hole === c.last ? 'onclick="app.router.navigate(\'dashboard\')">Eingabe verlassen' : 'onclick="' + navigate(c.hole + 1) + '"><span>Loch ' + (c.hole + 1) + '</span><svg class="lie-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>') + '</button></nav></div>'
-        + '<div id="score-leaderboard-overlay" class="lie-overlay hidden" role="dialog" aria-modal="true" aria-label="Flight und Live-Stand"><div class="lie-overlay-panel"><button class="lie-button" onclick="document.getElementById(\'score-leaderboard-overlay\').classList.add(\'hidden\')">Schließen</button><div id="overlay-leaderboard-content"></div></div></div>';
+        + '';
 };
