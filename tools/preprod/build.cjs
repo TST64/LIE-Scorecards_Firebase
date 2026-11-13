@@ -62,7 +62,9 @@ async function build(input,output){
     }
     write('firebase.json',JSON.stringify(config,null,2));
     const evidence={schemaVersion:1,sourceCommit,sourceDirty,mode:c.mode,projectId:projectId,origin:c.origin,cloudExecutionAuthorized:false,...(production?{releaseDecision:'NO-GO',dataMigrationAuthorized:false}:{}),files};
-    write('ARTIFACT.json',JSON.stringify({...evidence,artifactDigest:hash(JSON.stringify(files))},null,2));return evidence;
+    // The manifest cannot hash itself. Keep returned and serialized inventories
+    // identical; the transport ZIP checksum covers the manifest as well.
+    fs.writeFileSync(path.join(out,'ARTIFACT.json'),JSON.stringify({...evidence,artifactDigest:hash(JSON.stringify(files))},null,2),{flag:'wx'});return evidence;
 }
 if(require.main===module){
     (async()=>{if(process.argv.length!==4)throw new Error('Usage: node tools/preprod/build.cjs <runtime-config.json> <fresh-.local-runtime-output>');

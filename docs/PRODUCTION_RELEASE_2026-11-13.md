@@ -35,8 +35,8 @@ Basis `3f51d11`, gleicher Worktree/Branch. Der abschließende Release-Commit wir
 
 ```powershell
 # Rein lokal; kein Firebase-/GitHub-Aufruf, keine Datenänderung:
-node tools/production/build.cjs .local-runtime/production-release-20261113
-node tools/preprod/check-artifact.cjs .local-runtime/production-release-20261113
+node tools/production/build.cjs .local-runtime/production-release-20261113-r2
+node tools/preprod/check-artifact.cjs .local-runtime/production-release-20261113-r2
 ```
 
 Die Ausgabe ist ausdrücklich **production**, gebunden an das live bestätigte Projekt und `https://app.lochihnein.de`, mit dessen tatsächlichen öffentlichen SDK-Werten und beobachtetem Runtime-Account. Keine PreProd-Projekt-ID, keine MS-Testkonto-Allowlist, keine Seed-Daten und kein Emulatorprofil. Runtime-/Browser-Guards akzeptieren keine anderen Projekte oder gemischten Profile. Der lokale Checkout bleibt weiterhin Emulatorbetrieb; nur das gesonderte Paket lädt die Produktionsadapter.
@@ -45,7 +45,7 @@ Die Ausgabe ist ausdrücklich **production**, gebunden an das live bestätigte P
 
 `functions/` enthält die bestehenden Fachmodule plus ausdrücklich produktiven Bootstrap. Discovery initialisiert keine Cloud-Credentials; erst der tatsächliche Cloud-Run-Request kann die projektgebundene Runtime-Identität verwenden. `firebase.json` enthält nur Functions und unveränderte Rules, **kein Hosting-Deployment-Ziel**. Frontend-Ziel ist der bestehende Pages-Host, dokumentiert in `HOSTING_TARGET.json`.
 
-**Dateibelege:** `ARTIFACT.json` listet alle81 Release-Dateien mit SHA256 einzeln auf; der Checker verifiziert jeden Hash und weist zusätzliche/manipulierte Dateien zurück. Der Manifest-Digest deckt diese Dateiliste ab; ein zusätzliches ZIP-Checksum schützt die lokale Transportdatei. `cloudExecutionAuthorized:false`, `dataMigrationAuthorized:false` und `releaseDecision:NO-GO` sind keine versteckten Schalter zur automatischen Bereitstellung.
+**Dateibelege:** `ARTIFACT.json` listet alle80 Nutzdateien mit SHA256 einzeln auf; hinzu kommt der Manifest selbst, also81 Dateien im Transportpaket. Der Checker verifiziert jeden Nutzdatei-Hash und weist zusätzliche/manipulierte Dateien zurück. Der Manifest-Digest deckt diese Dateiliste ab; die zusätzliche ZIP-Prüfsumme schützt auch den Manifest. `cloudExecutionAuthorized:false`, `dataMigrationAuthorized:false` und `releaseDecision:NO-GO` sind keine versteckten Schalter zur automatischen Bereitstellung.
 
 ## Ausschließlich releasekritische Nachweise
 
@@ -88,7 +88,7 @@ Erst nach Aufhebung aller fünf NO-GO-Gründe und ausdrücklicher Freigabe für 
 
 ```powershell
 # NICHT ausführen: NO-GO besteht. Nur eine explizit genehmigte Identität benutzen.
-$release = (Resolve-Path '.local-runtime/production-release-20261113').Path
+$release = (Resolve-Path '.local-runtime/production-release-20261113-r2').Path
 $cli = (Resolve-Path 'node_modules/firebase-tools/lib/bin/firebase.js').Path
 $deployer = '<EXPLIZIT_FREIGEGEBENES_KONTO>'
 npm --prefix "$release/functions" ci --ignore-scripts --no-audit --no-fund

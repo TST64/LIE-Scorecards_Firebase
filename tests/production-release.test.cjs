@@ -20,6 +20,7 @@ test('production artifact has no PreProd/test accounts, copies protected applica
     const output=fs.mkdtempSync(path.resolve('.local-runtime/production-release-test-'));
     const result=await require('../tools/production/build.cjs').build(config,output);assert.equal(result.releaseDecision,'NO-GO');
     const check=require('../tools/preprod/check-artifact.cjs').check(output);assert.equal(check.integrityVerified,true);
+    assert.equal(Object.keys(result.files).length,Object.keys(JSON.parse(fs.readFileSync(path.join(output,'ARTIFACT.json'))).files).length);
     for(const name of ['App_Logic_ScoreAutoSyncV2.js','App_Logic_ScoreSyncV2.js','App_Storage_ScoreSync.js','Views_ScoreEingabe.js','Views_LiveScoreboard.js','Views_RoundClose.js'])assert.deepEqual(fs.readFileSync(path.join(output,'hosting',name)),fs.readFileSync(name));
     for(const name of ['hosting/config.js','hosting/production-profile.js','hosting/App_ProductionEnvironment.js','hosting/App_ProductionBindings.js','functions/runtime.js'])assert.doesNotMatch(fs.readFileSync(path.join(output,name),'utf8'),/lie-scorecards-preprod|MS0[159]|local-demo-key|FUNCTIONS_EMULATOR:.*true/);
     assert.equal(fs.existsSync(path.join(output,'functions/preprod-guard.js')),false);
