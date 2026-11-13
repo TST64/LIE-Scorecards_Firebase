@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "mode": "preprod",
+  "projectId": "lie-scorecards-preprod",
+  "origin": "https://lie-scorecards-preprod.web.app",
+  "region": "europe-west1",
+  "firebase": {
+    "projectId": "lie-scorecards-preprod",
+    "authDomain": "lie-scorecards-preprod.firebaseapp.com",
+    "storageBucket": "lie-scorecards-preprod.firebasestorage.app",
+    "apiKey": null,
+    "appId": null,
+    "messagingSenderId": null
+  }
+}

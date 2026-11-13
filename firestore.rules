@@ -4,10 +4,20 @@ service cloud.firestore
 {
   match /databases/{database}/documents
   {
-    function signedIn()
+    function identified()
     {
       return request.auth != null
-        && request.auth.token.playerId != null;
+        && request.auth.token.playerId == request.auth.uid
+        && exists(/databases/$(database)/documents/spieler/$(request.auth.uid))
+        && get(/databases/$(database)/documents/spieler/$(request.auth.uid)).data.get('istGeloescht', false) != true;
+    }
+
+    function signedIn()
+    {
+      return identified()
+        && request.auth.token.mustChangePin == false
+        && get(/databases/$(database)/documents/spieler/$(request.auth.uid)).data.get('mustChangePin', false) != true
+        && get(/databases/$(database)/documents/spieler/$(request.auth.uid)).data.get('pinChangePending', null) == null;
     }
 
     function playerId()
@@ -18,7 +28,8 @@ service cloud.firestore
     function isAdmin()
     {
       return signedIn()
-        && request.auth.token.role == 'Admin';
+        && request.auth.token.role == 'Admin'
+        && get(/databases/$(database)/documents/spieler/$(request.auth.uid)).data.role == 'Admin';
     }
 
     function isSpielleiter()
@@ -27,12 +38,13 @@ service cloud.firestore
         && (
           request.auth.token.role == 'Admin'
           || request.auth.token.role == 'Spielleiter'
-        );
+        )
+        && request.auth.token.role == get(/databases/$(database)/documents/spieler/$(request.auth.uid)).data.role;
     }
 
     function isOwnPlayer(spielerId)
     {
-      return signedIn()
+      return identified()
         && playerId() == spielerId;
     }
 
@@ -41,19 +53,16 @@ service cloud.firestore
     {
       allow read: if isAdmin() || isOwnPlayer(spielerId);
 
-      allow create, delete: if isAdmin();
+      allow create: if isAdmin()
+        && (!exists(/databases/$(database)/documents/spieler_public/$(spielerId))
+          || !get(/databases/$(database)/documents/spieler_public/$(spielerId)).data.keys().hasAny(['hcpClosure']));
+      allow delete: if isAdmin() && !resource.data.keys().hasAny(['hcpClosure']);
 
-      // Admin: alles.
-      // Spielleiter: ausschließlich LIE-Handicap.
-      // Spieler: nur eigene allgemeine Profildaten.
-      allow update: if isAdmin()
+      // HCP and closure provenance are server-authoritative, including for Admin.
+      // Players may still change their own general profile.
+      allow update: if isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpLIE','hcpClosure','historyPublication'])
         || (
-          isSpielleiter()
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['hcpLIE'])
-        )
-        || (
-          isOwnPlayer(spielerId)
+          signedIn() && isOwnPlayer(spielerId)
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['name', 'nickname', 'email'])
         );
@@ -62,18 +71,16 @@ service cloud.firestore
     // Nicht sensible Spielerdaten.
     match /spieler_public/{spielerId}
     {
-      allow read: if signedIn();
+      allow read: if identified();
 
-      allow create, delete: if isAdmin();
+      allow create: if isAdmin()
+        && (!exists(/databases/$(database)/documents/spieler/$(spielerId))
+          || !get(/databases/$(database)/documents/spieler/$(spielerId)).data.keys().hasAny(['hcpClosure']));
+      allow delete: if isAdmin() && !resource.data.keys().hasAny(['hcpClosure']);
 
-      allow update: if isAdmin()
+      allow update: if isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hcpLIE','hcpClosure','historyPublication'])
         || (
-          isSpielleiter()
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['hcpLIE'])
-        )
-        || (
-          isOwnPlayer(spielerId)
+          signedIn() && isOwnPlayer(spielerId)
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['name', 'nickname'])
         );
@@ -83,7 +90,9 @@ service cloud.firestore
     match /spieltage/{docId}
     {
       allow read: if signedIn();
-      allow write: if isSpielleiter();
+      allow create, delete: if false;
+      allow update: if isSpielleiter()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id','istGeloescht','hcpStart','holeAllowances','hcpHoleData','hcpCourseTable','hcpSnapshotVersion','hcpSnapshotRevision','historyPublication','_roundStart','kursId','rundenTyp','bahnAnzahl','teilnehmerCsv','date','status','closure','scoreRevision','_roundClose','hcpEnd','nettoSieger','bruttoSieger']);
     }
 
     // Scores dürfen angemeldete Mitglieder während einer laufenden Runde erfassen.
@@ -92,42 +101,21 @@ service cloud.firestore
     {
       allow read: if signedIn();
 
-      allow create: if signedIn()
-        && (
-          isAdmin()
-          || get(/databases/$(database)/documents/spieltage/$(request.resource.data.spieltagId)).data.status != 'Beendet'
-        );
-
-      allow update, delete: if signedIn()
-        && (
-          isAdmin()
-          || get(/databases/$(database)/documents/spieltage/$(resource.data.spieltagId)).data.status != 'Beendet'
-        );
+      // Only the revisioned Callable may mutate score values, including Admins.
+      allow write: if false;
     }
 
-    // Legacy/zusätzliche Score-Daten: gleiche Schutzlogik wie scorecards.
     match /scores/{docId}
     {
       allow read: if signedIn();
-
-      allow create: if signedIn()
-        && (
-          isAdmin()
-          || get(/databases/$(database)/documents/spieltage/$(request.resource.data.spieltagId)).data.status != 'Beendet'
-        );
-
-      allow update, delete: if signedIn()
-        && (
-          isAdmin()
-          || get(/databases/$(database)/documents/spieltage/$(resource.data.spieltagId)).data.status != 'Beendet'
-        );
+      allow write: if false;
     }
 
     // Flight-Einteilung ist Aufgabe der Spielleitung.
     match /flights/{docId}
     {
       allow read: if signedIn();
-      allow write: if isSpielleiter();
+      allow write: if false;
     }
 
     // Stammdaten Golfplätze/Kurse nur Admin.
@@ -188,6 +176,12 @@ service cloud.firestore
     }
 
     // Alles, was wir nicht ausdrücklich freigegeben haben, bleibt gesperrt.
+    // Correction runs/stages remain private. Only the sanitized barrier is public.
+    match /historyPublication/{docId}
+    {
+      allow read: if signedIn();
+      allow write: if false;
+    }
     match /{document=**}
     {
       allow read, write: if false;

@@ -17,6 +17,8 @@ app.router.currentParams = null;
 
 app.router.navigate = function(viewName, params)
 {
+    app.logic.closeLiveLeaderboardOverlay?.();
+    app.logic.stopLeaderboardLive?.();
 
     // ---------------------------------------------------------------------
     // Vorhandenes Live-Polling beim View-Wechsel beenden
@@ -74,6 +76,12 @@ app.router.navigate = function(viewName, params)
     }
 
 
+    if (app.router.currentView === 'score_eingabe' && targetView !== 'score_eingabe'
+        && app.state.scoreEntryV2)
+    {
+        app.state.scoreEntryV2.needsReload = true;
+    }
+
     app.router.currentView = targetView;
     app.router.currentParams = params || null;
     app.state.currentView = targetView;
@@ -113,6 +121,13 @@ app.router.navigate = function(viewName, params)
 
         case 'pin_aendern':
             html = app.views.pin_aendern ? app.views.pin_aendern() : "";
+            break;
+
+        case 'round_close':
+            html = app.views.round_close ? app.views.round_close() : 'Abschlussansicht nicht verfügbar.';
+            break;
+        case 'history_correction':
+            html = app.views.history_correction ? app.views.history_correction() : 'Historische Prüfung nicht verfügbar.';
             break;
 
         case 'dashboard':
@@ -248,15 +263,13 @@ app.router.navigate = function(viewName, params)
     // Live-Polling für Views starten, die aktuelle Spieldaten benötigen
     // ---------------------------------------------------------------------
 
-    if (targetView === 'leaderboard' &&
-        params &&
-        params.id &&
-        app.logic &&
-        typeof app.logic.startLivePolling === 'function')
+    if (targetView === 'leaderboard' && app.state.leaderboardRoundId
+        && typeof app.logic.startLeaderboardLive === 'function')
     {
-        app.logic.startLivePolling(params.id);
+        app.logic.startLeaderboardLive(app.state.leaderboardRoundId);
     }
     else if (targetView === 'score_eingabe' &&
+             !app.state.scoreEntryV2 &&
              params &&
              params.id &&
              app.logic &&

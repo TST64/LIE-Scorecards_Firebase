@@ -1,0 +1,99 @@
+{
+  "observedAt": "2026-11-13T17:43:30.616Z",
+  "projectId": "liescorecard-70c5e",
+  "projectStatus": "ACTIVE",
+  "productionWrites": 0,
+  "userDataExported": false,
+  "hosting": {
+    "status": 200,
+    "sites": [
+      {
+        "name": "projects/liescorecard-70c5e/sites/liescorecard-70c5e",
+        "defaultUrl": "https://liescorecard-70c5e.web.app",
+        "latestRelease": []
+      }
+    ]
+  },
+  "webApps": [
+    {
+      "appId": "1:163868016379:web:0b7f1aeb29d80f9ca37a5e",
+      "name": "projects/liescorecard-70c5e/webApps/1:163868016379:web:0b7f1aeb29d80f9ca37a5e"
+    }
+  ],
+  "databases": [
+    {
+      "name": "projects/liescorecard-70c5e/databases/(default)",
+      "locationId": "eur3",
+      "type": "FIRESTORE_NATIVE",
+      "pointInTimeRecoveryEnablement": "POINT_IN_TIME_RECOVERY_DISABLED",
+      "deleteProtectionState": "DELETE_PROTECTION_DISABLED"
+    }
+  ],
+  "collections": [
+    "bahnen",
+    "config",
+    "flights",
+    "golfplaetze",
+    "kalender_termine",
+    "kurse",
+    "scorecards",
+    "spieler",
+    "spieler_public",
+    "spieltage"
+  ],
+  "counts": {
+    "spieler": 15,
+    "spieler_public": 15,
+    "spieltage": 42,
+    "scorecards": 707,
+    "flights": 70,
+    "scoreSyncV2Generations": 0,
+    "roundClosureReceipts": 0,
+    "historyPublication": 0,
+    "activeRounds": 17,
+    "closedRounds": 25,
+    "v2RoundSnapshots": 0,
+    "publishedClosures": 0,
+    "cardsWithGeneration": 0,
+    "playersWithPinHash": 13
+  },
+  "functions": {
+    "status": 200,
+    "items": [
+      {
+        "name": "projects/liescorecard-70c5e/locations/europe-west1/functions/updatePlayerPin",
+        "state": "ACTIVE",
+        "updateTime": "2026-10-08T09:44:24.183150745Z",
+        "uri": "https://updateplayerpin-ohkshsc4ta-ew.a.run.app"
+      },
+      {
+        "name": "projects/liescorecard-70c5e/locations/europe-west1/functions/requestTempPin",
+        "state": "ACTIVE",
+        "updateTime": "2026-10-08T15:01:47.931316995Z",
+        "uri": "https://requesttemppin-ohkshsc4ta-ew.a.run.app"
+      },
+      {
+        "name": "projects/liescorecard-70c5e/locations/europe-west1/functions/verifyPlayerPin",
+        "state": "ACTIVE",
+        "updateTime": "2026-10-08T14:40:11.444250457Z",
+        "uri": "https://verifyplayerpin-ohkshsc4ta-ew.a.run.app"
+      },
+      {
+        "name": "projects/liescorecard-70c5e/locations/europe-west1/functions/getLoginPlayers",
+        "state": "ACTIVE",
+        "updateTime": "2026-10-08T09:44:19.612203422Z",
+        "uri": "https://getloginplayers-ohkshsc4ta-ew.a.run.app"
+      }
+    ]
+  },
+  "actualFrontend": {
+    "server": "GitHub.com",
+    "publicConfigProjectId": "liescorecard-70c5e",
+    "indexSha256": "0738eee04ec2d8aefcf0535e809ef83db788761e58d71d9a80c77dac3e59a53e",
+    "version": "5.3.3-flight-preview",
+    "configSha256": "369a1e581c68d87d5c2c2918e323c829884938902a4f79db4f5acc477e18128c",
+    "origin": "https://app.lochihnein.de",
+    "status": 200
+  },
+  "backupTargets": "User confirmed not available; export and restore not authorized/executed"
+}

@@ -1,0 +1,24 @@
+{
+  "name": "lie-local-emulator-profile",
+  "private": true,
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "rc": "node tools/local/start.cjs --rc",
+    "rc:smoke": "node tools/local/start.cjs --rc --smoke",
+    "rc:round-preview": "node tools/local/round-repair-preview.cjs",
+    "local": "node tools/local/start.cjs",
+    "build:hcp": "node tools/build-hcp-browser.cjs",
+    "test:local": "node --test tests/local-environment.test.cjs",
+    "test:integration": "node tools/local/start.cjs --test",
+    "test:restore": "node tools/local/run-restore-suite.cjs",
+    "test:rehearsal": "node tools/local/run-rehearsal.cjs"
+  },
+  "devDependencies": {
+    "@fortawesome/fontawesome-free": "6.4.0",
+    "@tailwindcss/browser": "4.1.14",
+    "firebase": "10.8.0",
+    "firebase-tools": "15.33.0"
+  }
+}

@@ -7,136 +7,107 @@
 var app = app || {};
 app.logic = app.logic || {};
 
-app.logic.submitPin = async function(event) 
+// Read the authoritative non-secret status as well as the actual refreshed token.
+app.logic.readPlayerSessionState = async function(authUser)
 {
-    if (event) 
-    {
-        if (typeof event.preventDefault === 'function') event.preventDefault();
-        if (typeof event.stopPropagation === 'function') event.stopPropagation();
-    }
-
+    if (!authUser) throw new Error('session');
+    const result = await authUser.getIdTokenResult(true);
+    if (!result.claims || result.claims.playerId !== authUser.uid) throw new Error('identity');
+    const status = await app.logic.callFunction('getPlayerSessionState', {});
+    if (!status || status.success !== true || status.playerId !== authUser.uid) throw new Error('status');
+    return { ...status, mustChangePin: status.mustChangePin !== false || result.claims.mustChangePin !== false };
+};
+app.logic.submitPin = async function(event)
+{
+    if (event) { if (event.preventDefault) event.preventDefault(); if (event.stopPropagation) event.stopPropagation(); }
     const btn = document.getElementById('loginSubmitBtn') || (event && event.target);
     if (btn && btn.disabled) return false;
-
     const spielerId = document.getElementById('loginSpielerSelect')?.value;
-    const pin = document.getElementById('loginPinInput')?.value;
-
-    if (!spielerId || !pin || pin.trim() === "") 
+    const pinInput = document.getElementById('loginPinInput');
+    if (!spielerId || !pinInput || !pinInput.value.trim()) { app.logic.showToast('Bitte Namen auswählen und PIN eintippen!', 'info'); return false; }
+    if (btn) btn.disabled = true;
+    try
     {
-        if (typeof app.logic.showToast === 'function') app.logic.showToast("Bitte Namen auswählen und PIN eintippen!", "info");
-        return false;
+        const response = await app.logic.apiRequest('verifyPlayerPin', { spielerId, pin: pinInput.value });
+        if (!response || response.success !== true || !response.customToken) throw new Error('login');
+        await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+        await firebase.auth().signInWithCustomToken(response.customToken);
+        const status = await app.logic.readPlayerSessionState(firebase.auth().currentUser);
+        if (status.playerId !== String(spielerId)) throw new Error('identity');
+        if (status.mustChangePin) await app.logic.loadLoginPlayers();
+        else await app.logic.apiRequest('getInitialAppData');
+        const player = (app.state.spieler || []).find(s => String(s.id) === String(spielerId));
+        if (!player) throw new Error('profile');
+        app.state.currentUser = { ...player, role: status.role, mustChangePin: status.mustChangePin };
+        localStorage.setItem('lie_scorecard_user_id', player.id);
+        pinInput.value = '';
+        if (app.logic.updateHeaderRoleIcon) app.logic.updateHeaderRoleIcon();
+        if (!status.mustChangePin && app.logic.resumeScoreAutoSyncV2)app.logic.resumeScoreAutoSyncV2().catch(()=>{});
+        app.router.navigate(status.mustChangePin ? 'pin_aendern' : 'dashboard');
     }
-
-    if (btn)
+    catch (_)
     {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Prüfe Identität...`;
-    }
-
-    app.logic.apiRequest('verifyPlayerPin', { spielerId: spielerId, pin: pin })
-        .then(async function(response)
+        if (firebase.auth().currentUser && firebase.auth().currentUser.uid === String(spielerId))
         {
-            if (response && response.success)
-            {
-                // Die Cloud Function hat die PIN serverseitig geprüft und liefert
-                // ausschließlich bei Erfolg ein kurzlebiges Firebase Custom Token.
-                // Damit entsteht jetzt die echte, geschützte Firebase-Sitzung.
-                if (!response.customToken)
-                {
-                    throw new Error('Anmeldetoken fehlt.');
-                }
-
-                // Die Firebase-Anmeldung soll Browser-Neustarts und Seiten-Reloads überleben.
-                await firebase.auth().setPersistence(
-                    firebase.auth.Auth.Persistence.LOCAL
-                );
-
-                await firebase.auth().signInWithCustomToken(response.customToken);
-                await app.logic.apiRequest('getInitialAppData');
-
-                const ausgewaehlterSpieler = (app.state && app.state.spieler)
-                    ? app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); })
-                    : null;
-
-                if (!ausgewaehlterSpieler)
-                {
-                    app.logic.showToast("Spielerdaten konnten nicht geladen werden!", "error");
-                    resetButton(btn);
-                    return;
-                }
-
-                app.state = app.state || {};
-                app.state.currentUser = ausgewaehlterSpieler;
-                app.state.currentUser.mustChangePin = !!response.mustChangePin;
-                localStorage.setItem('lie_scorecard_user_id', ausgewaehlterSpieler.id);
-
-                if (app.logic.updateHeaderRoleIcon) app.logic.updateHeaderRoleIcon();
-
-                if (response.mustChangePin)
-                {
-                    app.logic.showToast("Bitte lege eine neue persönliche PIN fest.", "warning");
-                    if (app.router && typeof app.router.navigate === 'function') app.router.navigate('pin_aendern');
-                }
-                else
-                {
-                    if (app.router && typeof app.router.navigate === 'function') app.router.navigate('dashboard');
-                }
-            }
-            else
-            {
-                app.logic.showToast("PIN ist inkorrekt!", "error");
-                resetButton(btn);
-            }
-        }).catch(function(error) {
-            app.logic.showToast("Verbindungsfehler zur Datenbank.", "error");
-            resetButton(btn);
-        });
-
-    function resetButton(button) {
-        if (button) {
-            button.disabled = false;
-            button.innerHTML = `Login <i class="fas fa-sign-in-alt ml-1"></i>`; 
+            try { await firebase.auth().signOut(); } catch (_) { /* Stay on login; never claim success. */ }
         }
+        if (app.state.currentUser && String(app.state.currentUser.id) === String(spielerId)) app.state.currentUser = null;
+        app.logic.showToast('Anmeldung nicht bestätigt. Bitte erneut mit der gültigen PIN versuchen.', 'error');
     }
-
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = 'Login'; } }
     return false;
 };
 
-app.logic.changePin = function()
+app.logic.changePin = async function()
 {
-    const p1 = document.getElementById('pin-new-1');
-    const p2 = document.getElementById('pin-new-2');
-    if (!p1 || !p2 || !app.state.currentUser) return;
-
-    const val1 = p1.value.trim();
-    const val2 = p2.value.trim();
-
-    if (val1.length < 4 || isNaN(val1))
+    const p1 = document.getElementById('pin-new-1'), p2 = document.getElementById('pin-new-2');
+    const button = document.getElementById('change-pin-btn');
+    const user = app.state.currentUser;
+    if (!p1 || !p2 || !user || app.state.pinChangeInProgress) return false;
+    const playerId = String(user.id), value = p1.value.trim();
+    if (!/^\d{4,6}$/.test(value))
     {
-        app.logic.showToast("Die PIN muss mindestens 4 Zahlen lang sein!", "info");
-        return;
+        app.logic.showToast('Die PIN muss aus 4 bis 6 Ziffern bestehen.', 'info'); return false;
     }
-
-    if (val1 !== val2)
+    if (value !== p2.value.trim())
     {
-        app.logic.showToast("Die beiden PINs stimmen nicht überein!", "info");
-        return;
+        app.logic.showToast('Die beiden PINs stimmen nicht überein.', 'info'); return false;
     }
-
-    app.logic.apiRequest('updatePlayerPin', { spielerId: app.state.currentUser.id, newPin: val1 })
-        .then(async function(response) {
-            if (response && response.success) {
-                if (firebase.auth().currentUser)
-                {
-                    await firebase.auth().currentUser.getIdToken(true);
-                }
-                app.state.currentUser.mustChangePin = false;
-                app.logic.showToast("PIN dauerhaft gespeichert!", "success");
-                app.router.navigate('dashboard');
-            } else {
-                app.logic.showToast("Fehler beim Speichern der PIN.", "error");
-            }
-        });
+    const sameOwner = () => app.state.currentUser && String(app.state.currentUser.id) === playerId
+        && firebase.auth().currentUser && firebase.auth().currentUser.uid === playerId;
+    app.state.pinChangeInProgress = true;
+    if (button) button.disabled = true;
+    try
+    {
+        if (!sameOwner()) throw new Error('session');
+        const response = await app.logic.apiRequest('updatePlayerPin', { spielerId: playerId, newPin: value });
+        if (!response || response.success !== true || response.mustChangePin !== false || !response.customToken || !sameOwner()) throw new Error('incomplete');
+        // Reauthenticate without the previous custom-token overrides, then verify
+        // the actually refreshed session rather than trusting a success boolean.
+        await firebase.auth().signInWithCustomToken(response.customToken);
+        const session = firebase.auth().currentUser;
+        const status = await app.logic.readPlayerSessionState(session);
+        if (!sameOwner() || status.playerId !== playerId || status.mustChangePin !== false) throw new Error('claims');
+        app.state.currentUser.mustChangePin = false;
+        app.state.currentUser.role = status.role;
+        if(app.logic.resumeScoreAutoSyncV2)app.logic.resumeScoreAutoSyncV2().catch(()=>{});
+        p1.value = ''; p2.value = '';
+        app.logic.showToast('PIN dauerhaft gespeichert!', 'success');
+        app.router.navigate('dashboard');
+        return true;
+    }
+    catch (_)
+    {
+        // The new PIN may already be active. No rollback, no raw provider error,
+        // no success claim. Retry the SAME new PIN or sign in with that PIN.
+        app.logic.showToast('PIN-Status nicht bestätigt. Mit derselben neuen PIN erneut versuchen oder neu anmelden.', 'error');
+        return false;
+    }
+    finally
+    {
+        app.state.pinChangeInProgress = false;
+        if (button) button.disabled = false;
+    }
 };
 
 app.logic.savePlayer = function(isNew)
@@ -260,6 +231,15 @@ app.logic.logout = function()
         {
             try
             {
+                if(app.logic.stopScoreAutoSyncV2)app.logic.stopScoreAutoSyncV2();
+                // Keep durable buffers; stop timers and remove only in-memory ownership.
+                Object.values(app.state.scoreAutoSyncTimers || {}).forEach(clearTimeout);
+                clearInterval(app.state.scorePeriodicSyncId);
+                app.state.scoreSyncListenersReady = false;
+                app.state.scoreBufferOwner = null;
+                app.state.pendingScoreKeys = {};
+                app.state.liveScores = {};
+                app.state.scoreSyncRestored = false;
                 // Firebase-Sitzung vollständig beenden.
                 if (typeof firebase !== 'undefined' && firebase.auth)
                 {

@@ -41,7 +41,7 @@ app.logic.getPerformanceCourseInfo = function(round)
     };
 };
 
-app.logic.getPersonalPerformance = function(player)
+app.logic.getPersonalPerformance = function(player, options)
 {
     if (!player)
     {
@@ -74,6 +74,8 @@ app.logic.getPersonalPerformance = function(player)
         player: player,
         seasonStart: seasonStart,
         rounds: [],
+        reviewRounds: [],
+        hasHcpReviewGaps: false,
         roundsCount: 0,
         holesCount: 0,
         totalPutts: 0,
@@ -112,7 +114,10 @@ app.logic.getPersonalPerformance = function(player)
 
     rounds.forEach(function(round)
     {
-        const holes = app.logic.getRoundHoles ? app.logic.getRoundHoles(round) : [];
+        let holes;
+        try { holes = app.logic.getRoundHoles ? app.logic.getRoundHoles(round) : []; }
+        catch (_) { holes = []; }
+        if (!Array.isArray(holes)) holes = [];
         const scores = (app.state.scoreCards || []).filter(function(score)
         {
             return String(score.spieltagId).trim() === String(round.id).trim() &&
@@ -122,6 +127,38 @@ app.logic.getPersonalPerformance = function(player)
         const requiredHoles = (round.bahnAnzahl === 9 || String(round.rundenTyp || '').startsWith('9'))
             ? 9
             : (parseInt(round.bahnAnzahl) || 18);
+
+        // Keep unclear historical rounds visible, but outside calculated results.
+        // In particular, do this before invoking any HCP/Netto calculator.
+        const type = String(round.rundenTyp || '');
+        const expected = type === '18' ? 18 : 9;
+        const first = type === '9-Back' ? 10 : 1;
+        const seen = new Set();
+        const unclear = !['18', '9', '9-Front', '9-Back'].includes(type)
+            || Number(round.bahnAnzahl) !== expected
+            || scores.some(function(score)
+            {
+                const nr = Number(score.hole), strokes = Number(score.strokes);
+                const invalid = !Number.isInteger(nr) || nr < first || nr >= first + expected || seen.has(nr)
+                    || (!(Number.isInteger(strokes) && strokes > 0)
+                        && score.maxscore !== true && score.maxscore !== 'true' && score.isStrich !== true);
+                seen.add(nr);
+                return invalid;
+            })
+            || seen.size !== expected
+            || Array.from({length: expected}, (_, i) => first + i).some(nr => !holes.some(h => Number(h.nr) === nr));
+        if (unclear)
+        {
+            result.hasHcpReviewGaps = true;
+            result.reviewRounds.push({id: round.id, date: String(round.date || round.datum || ''),
+                courseName: app.logic.getPerformanceCourseInfo(round).name,
+                rundenTyp: round.rundenTyp, configuredHoles: round.bahnAnzahl,
+                warning: 'Prüfung erforderlich – Rundentyp oder Score-Vollständigkeit unklar',
+                rawScores: scores.map(score => Object.assign({}, score)),
+                hcpStart: null, hcpEnd: null, netto: null});
+            return;
+        }
+        if (options && options.reviewOnly === true) return;
 
         let played = 0;
         let strokesTotal = 0;

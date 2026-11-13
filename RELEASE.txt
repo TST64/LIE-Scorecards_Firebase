@@ -1,5 +1,7 @@
-LIE Scorecard 5.2.9-hcp-confirm-modal-layer
-Build: 2026-10-11
-Release: Historical HCP recalculation and admin round corrections
-Login: Name auswählen → PIN eingeben → Firebase Custom Token
-Anonymous Authentication: nicht erforderlich
+LIE Scorecards Mission Samstag RC1 – local synthetic candidate
+Stand: 2026-11-11
+Basis: PR #27 / 3d55211fd82689fee761ce27d910a76a2f1a0ebb
+Start: npm run rc – README-RC.md
+12 Spieler, 3 vereinbarte Schreiber; bestehender V2-Anwendungskern unverändert.
+Produktivstart erfordert Backup, bestätigte Datenkompatibilität und genehmigtes Cloudprofil.
+Keine Produktionsfreigabe; kein Deploy oder Merge.

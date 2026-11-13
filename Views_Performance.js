@@ -149,6 +149,33 @@ app.logic.selectPerformancePlayer = function(playerId)
 
 app.views.performance = function()
 {
+    return (function()
+    {
+        const notice = '<div role="alert">Legacy-Performance/Brutto/Putts bleiben bis zur fachlichen S05/S07-Abnahme gesperrt. Die Netto-/HCP-Vorschau verwendet den gemeinsamen Rechner.</div>';
+        const user = app.state && app.state.currentUser;
+        if (!user) return notice;
+        const player = user.role === 'Admin' && app.state.performancePlayerId
+            ? ((app.state.spieler || []).find(p => String(p.id) === String(app.state.performancePlayerId)) || user) : user;
+        const data = app.logic.getPersonalPerformance(player, {reviewOnly: true});
+        if (!data || !data.reviewRounds.length) return notice;
+        const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const raw = value => value === undefined ? 'nicht erfasst' : value === null ? 'null' : esc(value);
+        return notice + '<section class="space-y-3 mt-4"><h2>Historische Runden zur Prüfung</h2>'
+            + '<p>Diese Runden werden nicht als gültige HCP-Fortschreibung gewertet. Die HCP-Kette ist an diesen Stellen ungeprüft; bestätigte Werte bleiben unverändert. Keine Neuberechnung oder Speicherung.</p>'
+            + data.reviewRounds.map(function(round)
+            {
+                return '<article class="border border-amber-400 bg-amber-50 rounded-xl p-3">'
+                    + '<h3>' + esc(round.date) + ' · ' + esc(round.courseName) + ' · ' + esc(round.id) + '</h3>'
+                    + '<p role="alert"><strong>' + esc(round.warning) + '</strong></p>'
+                    + '<p>Konfiguration: ' + raw(round.rundenTyp) + ' / ' + raw(round.configuredHoles) + ' Loch. Rohkarten: ' + round.rawScores.length + '.</p>'
+                    + '<div class="overflow-x-auto"><table><caption>Rohscores – unverändert</caption><thead><tr><th>Bahn</th><th>Schläge</th><th>Putts</th><th>Lady</th><th>Strich</th></tr></thead><tbody>'
+                    + round.rawScores.map(score => '<tr><td>' + raw(score.hole) + '</td><td>' + raw(score.strokes)
+                        + '</td><td>' + raw(score.puts !== undefined ? score.puts : score.putts !== undefined ? score.putts : score.putt)
+                        + '</td><td>' + raw(score.lady !== undefined ? score.lady : score.ladies)
+                        + '</td><td>' + raw(score.maxscore !== undefined ? score.maxscore : score.isStrich) + '</td></tr>').join('')
+                    + '</tbody></table></div></article>';
+            }).join('') + '</section>';
+    })();
     const user = app.state.currentUser;
 
     if (!user)

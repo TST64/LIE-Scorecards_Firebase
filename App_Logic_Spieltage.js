@@ -227,8 +227,9 @@ app.logic.saveManualFlights = function()
         {
             if (response && response.success)
             {
-                app.state.spieltage.push(spieltagObj);
-                flightsPayload.forEach(function(f) { app.state.flights.push(f); });
+                if(!response.spieltag || !response.flights)throw new Error('Autoritativer Rundenstart fehlt.');
+                app.state.spieltage.push(response.spieltag);
+                response.flights.forEach(function(f) { app.state.flights.push(f); });
                 app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und manuelle Flights angelegt!", "success");
@@ -412,8 +413,9 @@ app.logic.saveZufallsFlights = function()
         {
             if (response && response.success)
             {
-                app.state.spieltage.push(spieltagObj);
-                flightsPayload.forEach(function(f) { app.state.flights.push(f); });
+                if(!response.spieltag || !response.flights)throw new Error('Autoritativer Rundenstart fehlt.');
+                app.state.spieltage.push(response.spieltag);
+                response.flights.forEach(function(f) { app.state.flights.push(f); });
                 app.state.tempKalenderId = null;
                 
                 app.logic.showToast("Spieltag und Flights generiert!", "success");
@@ -488,156 +490,9 @@ app.logic.cancelActiveSpieltag = function(spieltagId)
 
 app.logic.closeActiveSpieltag = function(spieltagId, bruttoSieger, nettoSieger)
 {
-    const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-    if (!spieltag)
-    {
-        app.logic.showToast("Spieltag nicht gefunden!", "error");
-        return;
-    }
-
-    const teilnehmerString = String(spieltag.teilnehmerCsv || "");
-    const teilnehmerIds = teilnehmerString ? teilnehmerString.split(',').map(function(id) { return String(id).trim(); }) : [];
-    const kursBahnen = app.state.bahnen.filter(function(b) { return String(b.kursId).trim() === String(spieltag.kursId).trim(); });
-
-    // Auswertung für 9 Loch vs 18 Loch
-    const is9Loch = (spieltag.bahnAnzahl === 9 || String(spieltag.rundenTyp || '').startsWith('9'));
-    const maxBahnen = is9Loch ? 9 : (spieltag.bahnAnzahl || 18);
-    const stablefordSoll = is9Loch ? 18 : 36;
-
-    // Bahnen filtern falls Front-9 / Back-9
-    let zuWertendeBahnen = kursBahnen;
-    if (spieltag.rundenTyp === '9-Front')
-    {
-        zuWertendeBahnen = kursBahnen.filter(b => parseInt(b.nr) <= 9);
-    }
-    else if (spieltag.rundenTyp === '9-Back')
-    {
-        zuWertendeBahnen = kursBahnen.filter(b => parseInt(b.nr) >= 10);
-    }
-
-    const handicapUpdates = [];
-    let infoText = "";
-
-    teilnehmerIds.forEach(function(spielerId)
-    {
-        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === spielerId; });
-        if (!spieler) return;
-
-        const dbScores = app.state.scoreCards.filter(function(sc) 
-        {
-            return String(sc.spieltagId).trim() === String(spieltagId).trim() && String(sc.spielerId).trim() === spielerId;
-        });
-
-        let totalNettoStableford = 0;
-        let playedHoles = 0;
-
-        zuWertendeBahnen.forEach(function(bahn)
-        {
-            const hNr = parseInt(bahn.nr);
-
-            // Beim offiziellen Rundenabschluss sind die zuvor frisch aus
-            // Firestore geladenen Scorecards die maßgebliche Datenquelle.
-            const dbMatch = dbScores.find(function(sc)
-            {
-                return sc.hole !== undefined &&
-                    parseInt(sc.hole) === hNr;
-            });
-
-            let strokes = dbMatch
-                ? parseInt(dbMatch.strokes)
-                : undefined;
-
-            if (strokes !== undefined && strokes > 0)
-            {
-                playedHoles++;
-                let holeVorgabe = app.logic.calculateHoleVorgabe(
-                    spieler,
-                    spieltag,
-                    hNr
-                );
-                const nettoPkt = app.logic.calculateNettoStableford(strokes, bahn.par, holeVorgabe);
-                totalNettoStableford += nettoPkt;
-            }
-        });
-
-        if (playedHoles >= maxBahnen)
-        {
-            const altesHcp = parseInt(spieler.hcpLIE) || 54;
-            let neuesHcp = altesHcp;
-
-            if (totalNettoStableford > stablefordSoll)
-            {
-                const punkteUeberSoll = totalNettoStableford - stablefordSoll;
-                const verbesserung = punkteUeberSoll * 0.5;
-                neuesHcp = Math.max(0, Math.round(altesHcp - verbesserung));
-            }
-            else if (totalNettoStableford < stablefordSoll)
-            {
-                const punkteUnterSoll = stablefordSoll - totalNettoStableford;
-                const verschlechterung = punkteUnterSoll * 0.1;
-                neuesHcp = Math.min(54, Math.round(altesHcp + verschlechterung));
-            }
-
-            if (parseInt(neuesHcp) !== parseInt(altesHcp))
-            {
-                handicapUpdates.push({
-                    spielerId: String(spielerId).trim(),
-                    newHcpLie: parseInt(neuesHcp)
-                });
-                infoText += ` | ${spieler.nickname}: ${altesHcp}➔${neuesHcp}`;
-            }
-        }
-    });
-
-    const confirmationMsg = `Möchtest du die Runde (${maxBahnen} Loch) jetzt schließen? Sieger: Brutto: ${bruttoSieger}, Netto: ${nettoSieger}. HCP-Updates:${infoText || " Keine (alle im Puffer)"}.`;
-
-    app.logic.showConfirm(
-        "Spieltag beenden?", 
-        confirmationMsg, 
-        "standard", 
-        function() 
-        {
-            const btn = document.getElementById('close-round-btn');
-            if (btn)
-            {
-                btn.disabled = true;
-                btn.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-1"></i> Berechne & Schließe...`;
-            }
-
-            app.logic.apiRequest('closeSpieltagServer', { spieltagId: spieltagId, bruttoSieger: bruttoSieger, nettoSieger: nettoSieger, handicapUpdates: handicapUpdates })
-                .then(function(response)
-                {
-                    if (response && response.success)
-                    {
-                        const spieltagObj = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
-                        if (spieltagObj)
-                        {
-                            spieltagObj.status = "Beendet";
-                            spieltagObj.bruttoSieger = bruttoSieger;
-                            spieltagObj.nettoSieger = nettoSieger;
-                        }
-
-                        handicapUpdates.forEach(function(upd)
-                        {
-                            const sp = app.state.spieler.find(function(s) { return String(s.id).trim() === String(upd.spielerId).trim(); });
-                            if (sp) sp.hcpLIE = upd.newHcpLie;
-                        });
-
-                        app.logic.showToast("Der Spieltag wurde offiziell beendet!", "success");
-                        app.router.navigate('spieltage');
-                    }
-                    else
-                    {
-                        app.logic.showToast("Fehler beim Beenden der Runde: " + response.error, "error");
-                        if (btn)
-                        {
-                            btn.disabled = false;
-                            btn.innerHTML = `<i class="fas fa-flag-checkered mr-1"></i> Spieltag offiziell beenden`;
-                        }
-                    }
-                });
-        }
-    );
+    const pending=Object.values(app.state.scoreEntryV2?.entries || {}).reduce((n,e)=>n+(e.pendingOperations?.length || 0),0);
+    app.logic.showToast('Rundenschluss bleibt gesperrt (S05): '+pending+' ausstehende Felder. HCP-Vorschau ist keine Fortschreibung.','error');
+    return false;
 };
 
 app.logic.softDeleteSpieltag = function(spieltagId)
@@ -922,6 +777,8 @@ app.logic.movePlayerInFlight = async function(spieltagId, flightSeq, spielerId, 
 // =========================================================================
 app.logic.openEditSpieltagModal = function(spieltagId, currentHoleNr, flightSeq) 
 {
+    app.logic.showToast('Rundenstart ist unveränderlich. Bearbeitung und Siegerfreigabe bleiben bis S05/S07 gesperrt.','error');
+    return false;
     const spieltag = app.state.spieltage.find(st => String(st.id) === String(spieltagId));
     if(!spieltag) return;
     
@@ -1008,33 +865,26 @@ app.logic.saveEditSpieltag = async function(spieltagId, currentHoleNr, flightSeq
 // =========================================================================
 // NEU: Logik für die Tabellarische Schnellerfassung
 // =========================================================================
-app.logic.updateRapidScoreState = function(spieltagId, spielerId, holeNr, type, value)
+app.logic.updateRapidScoreState = function(spieltagId, spielerId, holeNr, type, value, input)
 {
-    // Die Live-Score Keys müssen exakt mit denen der Views_ScoreEingabe.js übereinstimmen
-    const key = type === 'strokes' 
-        ? `${spieltagId}_${spielerId}_${holeNr}` 
-        : `${spieltagId}_${spielerId}_${holeNr}_puts`;
-
-    // Wert bereinigen (leere Felder erlauben)
+    const key = type === 'strokes' ? `${spieltagId}_${spielerId}_${holeNr}` : `${spieltagId}_${spielerId}_${holeNr}_puts`;
     const strVal = String(value).trim();
-    
-    if (strVal === "")
+    let accepted = false;
+    if ((type === 'strokes' || type === 'putts') && (strVal === '' || /^\d+$/.test(strVal)))
     {
-        // Wenn das Feld geleert wird, löschen wir den Key aus dem State
-        delete app.state.liveScores[key];
+        if (strVal === '') delete app.state.liveScores[key];
+        else app.state.liveScores[key] = Number(strVal);
+        accepted = app.logic.markScorePending(spieltagId, key);
     }
-    else
+    if (!accepted)
     {
-        const intVal = parseInt(strVal);
-        if (!isNaN(intVal))
+        if (input)
         {
-            app.state.liveScores[key] = intVal;
+            const card = (app.state.scoreCards || []).find(c => String(c.spieltagId) === String(spieltagId) && String(c.spielerId) === String(spielerId) && Number(c.hole) === Number(holeNr));
+            input.value = app.logic.getV1DisplayedValue(key, card && card[type === 'strokes' ? 'strokes' : 'puts']) ?? '';
         }
+        if (app.logic.showToast) app.logic.showToast('Eingabe nicht gespeichert – Wert und lokalen Speicher prüfen.', 'error');
     }
-    
-    // WICHTIG: Wir rufen hier ganz bewusst NICHT den Router oder eine Render-Funktion auf!
-    // Dadurch wird das DOM nicht zerstört, das Input-Feld behält den Fokus und 
-    // das zeilenweise TAB-Springen funktioniert blitzschnell und reibungslos.
+    // No rerender: preserve focus and rapid-entry tab order.
+    return accepted;
 };
-
-

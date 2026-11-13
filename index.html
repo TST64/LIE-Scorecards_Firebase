@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LIE Scorecard</title>
 
-    <!-- Tailwind CSS & FontAwesome via CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Local wrapper serves pinned SDK assets. No runtime CDN dependency. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data:; font-src 'self'; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'">
+    <script src="/__local/profile.js"></script>
+    <script src="App_Environment.js"></script>
+    <script src="/__vendor/tailwind.js"></script>
+    <link rel="stylesheet" href="/__vendor/fontawesome/css/all.min.css">
+    <script src="/__sdk/firebase-app-compat.js"></script>
+    <script src="/__sdk/firebase-auth-compat.js"></script>
+    <script src="/__sdk/firebase-firestore-compat.js"></script>
+    <script src="/__sdk/firebase-functions-compat.js"></script>
 
-    <!-- Firebase Web SDK (v10 Compat Mode) -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-functions-compat.js"></script>
-
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <!-- Custom CSS -->
     <link rel="stylesheet" href="Style.css?v=3">
 
@@ -31,8 +31,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="LIE Scorecard">
 </head>
-<body class="bg-zinc-100 text-zinc-900 font-sans antialiased">
+<body data-environment="local" class="bg-zinc-100 text-zinc-900 font-sans antialiased">
 
+    <p style="background:#fde68a;padding:8px;text-align:center">LOKAL · demo-lie-scorecards-local · kein E-Mail-Versand</p>
     <!-- Globale Namespace Initialisierung -->
     <script>
         window.app = window.app || {};
@@ -152,11 +153,20 @@
             {
                 const scripts = [
                     "App_Core.js",
+                    "Hcp_Rules.js",
+                    "App_Storage_ScoreSync.js",
+                    "App_Logic_ScoreSyncV2.js",
+                    "App_Storage_ScoreEntryContext.js",
+                    "App_Logic_ScoreEntryV2.js",
+                    "App_Logic_ScoreAutoSyncV2.js",
                     "App_View_Help.js",
                     "App_Router.js",
                     "App_Logic_Bridge.js",
                     "App_Logic_Scores.js",
                     "App_Logic_Spieltage.js",
+                    "App_Logic_RoundClose.js",
+                    "App_Logic_Leaderboard.js",
+                    "App_Logic_HistoryCorrection.js",
                     "App_Logic_History.js",
                     "App_Logic_Performance.js",
                     "App_Logic_Spieler.js",
@@ -170,6 +180,8 @@
                     "Views_ScoreEingabe.js",
                     "Views_ScoreSchnellerfassung.js",
                     "Views_Leaderboard.js",
+                    "Views_LiveScoreboard.js",
+                    "Views_RoundClose.js",
                     "Views_Admin.js",
                     "Views_AdminKorrektur.js",
                     "Views_AdminGruppe.js",

@@ -1,0 +1,36 @@
+name: PreProd offline gates (no deploy)
+on:
+  pull_request:
+    paths:
+      - 'config/preprod/**'
+      - 'tools/preprod/**'
+      - 'tests/preprod-*.cjs'
+      - 'tests/local-environment.test.cjs'
+      - 'App_Environment.js'
+      - 'config.js'
+      - '.firebaserc'
+      - 'firebase.json'
+      - 'functions/**'
+      - 'tools/local/**'
+      - 'docs/PREPROD_CLOUD_PLAN.md'
+      - 'docs/PHASE2B_GATE_TEST_REPORT.md'
+      - 'docs/PHASE2C_HOSTING_PLAN.md'
+      - 'docs/PHASE2C_HOSTING_TEST_REPORT.md'
+      - '.github/workflows/preprod-offline-review.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node version
+        run: node --version
+      - name: Offline policy and negative tests (built-ins only)
+        run: node --test tests/preprod-gates.test.cjs tests/preprod-hosting.test.cjs tests/local-environment.test.cjs
+      - name: Show locked policy (not a deployment approval)
+        run: node tools/preprod/review.cjs inspect

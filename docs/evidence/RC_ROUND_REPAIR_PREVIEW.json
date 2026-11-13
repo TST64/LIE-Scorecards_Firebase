@@ -1,0 +1,354 @@
+{
+  "scope": "bundled synthetic example only; no Firebase access",
+  "front": {
+    "readOnly": true,
+    "saveImplemented": false,
+    "automaticCorrection": false,
+    "persistAllowed": false,
+    "sourceHash": "4676e713259c5b40cd83c130384ebec90a735f607e5e76b36297fcfd078410b6",
+    "roundId": "SYN-R1",
+    "target": "9-Front",
+    "blockingReasons": [],
+    "rawCardCount": 54,
+    "recorded": {
+      "rundenTyp": "18",
+      "bahnAnzahl": 18,
+      "status": "Beendet",
+      "hcpStart": {
+        "SYN01": 26,
+        "SYN02": 26
+      },
+      "hcpEnd": {
+        "SYN01": 26.1,
+        "SYN02": 26.1
+      },
+      "nettoSieger": "SYN01"
+    },
+    "holesByPlayer": {
+      "SYN01": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "SYN02": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "displayFindings": [
+      "Spieltage defaults to the current-month filter; all/month/season/my have different membership and date filters.",
+      "Deleted/aborted flags, missing IDs, participant IDs and status can independently hide a round.",
+      "Personal performance omits a round when positive-stroke played count is below its configured 9/18-hole requirement.",
+      "A Strich with no positive strokes can also reduce that legacy performance count.",
+      "Legacy leaderboard data without S06 snapshots is blocked, not automatically converted."
+    ],
+    "cardsOutsideSelectedRange": [],
+    "proposedRoundMetadata": {
+      "rundenTyp": "9-Front",
+      "bahnAnzahl": 9
+    },
+    "impact": [
+      {
+        "roundId": "SYN-R1",
+        "playerId": "SYN01",
+        "date": "2026-02-01",
+        "recordedStartHcp": 26,
+        "recordedEndHcp": 26.1,
+        "recomputedBeforeComplete": false,
+        "proposedComplete": true,
+        "proposedStartHcp": 26,
+        "proposedEndHcp": 24,
+        "proposedNetto": 22,
+        "proposedStrokes": 45,
+        "errors": []
+      },
+      {
+        "roundId": "SYN-R1",
+        "playerId": "SYN02",
+        "date": "2026-02-01",
+        "recordedStartHcp": 26,
+        "recordedEndHcp": 26.1,
+        "recomputedBeforeComplete": false,
+        "proposedComplete": true,
+        "proposedStartHcp": 26,
+        "proposedEndHcp": 24,
+        "proposedNetto": 22,
+        "proposedStrokes": 45,
+        "errors": []
+      },
+      {
+        "roundId": "SYN-R2",
+        "playerId": "SYN01",
+        "date": "2026-02-02",
+        "recordedStartHcp": 26.1,
+        "recordedEndHcp": 26.2,
+        "recomputedBeforeComplete": false,
+        "proposedComplete": true,
+        "proposedStartHcp": 24,
+        "proposedEndHcp": 22.5,
+        "proposedNetto": 21,
+        "proposedStrokes": 45,
+        "errors": []
+      },
+      {
+        "roundId": "SYN-R2",
+        "playerId": "SYN02",
+        "date": "2026-02-02",
+        "recordedStartHcp": 26.1,
+        "recordedEndHcp": 26.2,
+        "recomputedBeforeComplete": false,
+        "proposedComplete": true,
+        "proposedStartHcp": 24,
+        "proposedEndHcp": 22.5,
+        "proposedNetto": 21,
+        "proposedStrokes": 45,
+        "errors": []
+      },
+      {
+        "roundId": "SYN-R3",
+        "playerId": "SYN01",
+        "date": "2026-02-03",
+        "recordedStartHcp": 26.2,
+        "recordedEndHcp": 26.3,
+        "recomputedBeforeComplete": false,
+        "proposedComplete": true,
+        "proposedStartHcp": 22.5,
+        "proposedEndHcp": 21,
+        "proposedNetto": 21,
+        "proposedStrokes": 45,
+        "errors": []
+      },
+      {
+        "roundId": "SYN-R3",
+        "playerId": "SYN02",
+        "date": "2026-02-03",
+        "recordedStartHcp": 26.2,
+        "recordedEndHcp": 26.3,
+        "recomputedBeforeComplete": false,
+        "proposedComplete": true,
+        "proposedStartHcp": 22.5,
+        "proposedEndHcp": 21,
+        "proposedNetto": 21,
+        "proposedStrokes": 45,
+        "errors": []
+      }
+    ],
+    "results": [
+      {
+        "roundId": "SYN-R1",
+        "recordedNettoWinner": "SYN01",
+        "proposedNettoWinners": [
+          "SYN01",
+          "SYN02"
+        ],
+        "bruttoOrPuttingRankingApproved": false,
+        "complete": true
+      },
+      {
+        "roundId": "SYN-R2",
+        "recordedNettoWinner": "SYN01",
+        "proposedNettoWinners": [
+          "SYN01",
+          "SYN02"
+        ],
+        "bruttoOrPuttingRankingApproved": false,
+        "complete": true
+      },
+      {
+        "roundId": "SYN-R3",
+        "recordedNettoWinner": "SYN01",
+        "proposedNettoWinners": [
+          "SYN01",
+          "SYN02"
+        ],
+        "bruttoOrPuttingRankingApproved": false,
+        "complete": true
+      }
+    ],
+    "proposedFinalHcp": {
+      "SYN01": 21,
+      "SYN02": 21
+    },
+    "previewComplete": true,
+    "rawValuesUnchanged": true,
+    "requiredBeforeAnySave": [
+      "Explicit administrator choice and approval of this exact source hash",
+      "Verified historical basis, full original archive, no pending writers or active follow-up round",
+      "Versioned round-type repair with CAS, resumable staging and one atomic publication; not implemented here"
+    ]
+  },
+  "back": {
+    "readOnly": true,
+    "saveImplemented": false,
+    "automaticCorrection": false,
+    "persistAllowed": false,
+    "sourceHash": "4676e713259c5b40cd83c130384ebec90a735f607e5e76b36297fcfd078410b6",
+    "roundId": "SYN-R1",
+    "target": "9-Back",
+    "blockingReasons": [
+      "cards-outside-selected-range-no-automatic-remap-or-exclusion"
+    ],
+    "rawCardCount": 54,
+    "recorded": {
+      "rundenTyp": "18",
+      "bahnAnzahl": 18,
+      "status": "Beendet",
+      "hcpStart": {
+        "SYN01": 26,
+        "SYN02": 26
+      },
+      "hcpEnd": {
+        "SYN01": 26.1,
+        "SYN02": 26.1
+      },
+      "nettoSieger": "SYN01"
+    },
+    "holesByPlayer": {
+      "SYN01": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "SYN02": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "displayFindings": [
+      "Spieltage defaults to the current-month filter; all/month/season/my have different membership and date filters.",
+      "Deleted/aborted flags, missing IDs, participant IDs and status can independently hide a round.",
+      "Personal performance omits a round when positive-stroke played count is below its configured 9/18-hole requirement.",
+      "A Strich with no positive strokes can also reduce that legacy performance count.",
+      "Legacy leaderboard data without S06 snapshots is blocked, not automatically converted."
+    ],
+    "cardsOutsideSelectedRange": [
+      {
+        "id": "SC-SYN-R1-SYN01-1",
+        "playerId": "SYN01",
+        "hole": 1
+      },
+      {
+        "id": "SC-SYN-R1-SYN01-2",
+        "playerId": "SYN01",
+        "hole": 2
+      },
+      {
+        "id": "SC-SYN-R1-SYN01-3",
+        "playerId": "SYN01",
+        "hole": 3
+      },
+      {
+        "id": "SC-SYN-R1-SYN01-4",
+        "playerId": "SYN01",
+        "hole": 4
+      },
+      {
+        "id": "SC-SYN-R1-SYN01-5",
+        "playerId": "SYN01",
+        "hole": 5
+      },
+      {
+        "id": "SC-SYN-R1-SYN01-6",
+        "playerId": "SYN01",
+        "hole": 6
+      },
+      {
+        "id": "SC-SYN-R1-SYN01-7",
+        "playerId": "SYN01",
+        "hole": 7
+      },
+      {
+        "id": "SC-SYN-R1-SYN01-8",
+        "playerId": "SYN01",
+        "hole": 8
+      },
+      {
+        "id": "SC-SYN-R1-SYN01-9",
+        "playerId": "SYN01",
+        "hole": 9
+      },
+      {
+        "id": "SC-SYN-R1-SYN02-1",
+        "playerId": "SYN02",
+        "hole": 1
+      },
+      {
+        "id": "SC-SYN-R1-SYN02-2",
+        "playerId": "SYN02",
+        "hole": 2
+      },
+      {
+        "id": "SC-SYN-R1-SYN02-3",
+        "playerId": "SYN02",
+        "hole": 3
+      },
+      {
+        "id": "SC-SYN-R1-SYN02-4",
+        "playerId": "SYN02",
+        "hole": 4
+      },
+      {
+        "id": "SC-SYN-R1-SYN02-5",
+        "playerId": "SYN02",
+        "hole": 5
+      },
+      {
+        "id": "SC-SYN-R1-SYN02-6",
+        "playerId": "SYN02",
+        "hole": 6
+      },
+      {
+        "id": "SC-SYN-R1-SYN02-7",
+        "playerId": "SYN02",
+        "hole": 7
+      },
+      {
+        "id": "SC-SYN-R1-SYN02-8",
+        "playerId": "SYN02",
+        "hole": 8
+      },
+      {
+        "id": "SC-SYN-R1-SYN02-9",
+        "playerId": "SYN02",
+        "hole": 9
+      }
+    ],
+    "proposedRoundMetadata": {
+      "rundenTyp": "9-Back",
+      "bahnAnzahl": 9
+    },
+    "previewComplete": false,
+    "rawValuesUnchanged": true,
+    "requiredBeforeAnySave": [
+      "Explicit administrator choice and approval of this exact source hash",
+      "Verified historical basis, full original archive, no pending writers or active follow-up round",
+      "Versioned round-type repair with CAS, resumable staging and one atomic publication; not implemented here"
+    ]
+  }
+}

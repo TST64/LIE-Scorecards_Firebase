@@ -1,0 +1,230 @@
+{
+  "basis": "d50c3d9e37d05a8edef2db9684da0a304a981733",
+  "originalBranch": "feature/score-autosync",
+  "originalHead": "cb4661f5194147fa0ef0f40fe44838ce3d0aa19e",
+  "changed": [
+    {
+      "path": "App_Logic_Bridge.js",
+      "bytes": 26841,
+      "sha256": "84a19b68678514c77241f101d9b38ee7f16b9088ed35b593759de921347e355f",
+      "alreadyImportedAt8763d7b": true
+    },
+    {
+      "path": "App_Logic_Scores.js",
+      "bytes": 23797,
+      "sha256": "ecce43bbc7f5e3d0bceb2f8a462bcc3153458a14b613fd66500922a18c3d4959",
+      "alreadyImportedAt8763d7b": true
+    },
+    {
+      "path": "App_Logic_Spieltage.js",
+      "bytes": 39467,
+      "sha256": "6693be07fb84f69b2fa4b919a43855b7350837884de89f55f1d81603303736e2",
+      "alreadyImportedAt8763d7b": true
+    },
+    {
+      "path": "Views_ScoreSchnellerfassung.js",
+      "bytes": 11777,
+      "sha256": "e7281341b52baa3498cd03811a6ef0d44770673a8164ab6ddc68105a3bc64e87",
+      "alreadyImportedAt8763d7b": true
+    },
+    {
+      "path": "config.js",
+      "bytes": 838,
+      "sha256": "8e342329b7dba58d17f9dccf8db04ad8d7334979247efd36f4535dca7766e468",
+      "alreadyImportedAt8763d7b": true
+    },
+    {
+      "path": "sw.js",
+      "bytes": 4387,
+      "sha256": "d11daec748e44b5f5e4095abec436280c37d477ab4554d2d073676c397401179",
+      "alreadyImportedAt8763d7b": true
+    }
+  ],
+  "untracked": [
+    {
+      "path": "docs/PROJECT_STATUS.md",
+      "bytes": 16215,
+      "sha256": "4f02ea1f5d6987b592645e6d832ab907926d045da07e5b36e8dc71f167fb1c1c"
+    },
+    {
+      "path": "fiveserver.config.js",
+      "bytes": 114,
+      "sha256": "6164c2e615d92b0719745aba7521ae3e987634e8bcf2cf7f2f5b9d791a1e7fe0"
+    },
+    {
+      "path": "design-reference/lie-6-score-mode-target",
+      "bytes": 1595521,
+      "sha256": "483fe8b419b63374f415d425f190e90361be903374dc9f5746cce07cbb55a5e1"
+    },
+    {
+      "path": "design-reference/lie-current-liveboard",
+      "bytes": 71940,
+      "sha256": "85b09a8be03ac87e7c854b94f507741542739cf6bd947d4b63d040246df5a9b4"
+    },
+    {
+      "path": "design-reference/lie-current-score.png",
+      "bytes": 226408,
+      "sha256": "bfb1b63a3833dfb015126d1d8396094ca0c42c8077a3acf99e96ef5b9c75932e"
+    }
+  ],
+  "addedAutosyncFunctions": [
+    {
+      "name": "restoreLocalScoreBuffer",
+      "presentInCurrentV2": true
+    },
+    {
+      "name": "persistLocalScoreBuffer",
+      "presentInCurrentV2": true
+    },
+    {
+      "name": "getOwnFlightForSpieltag",
+      "presentInCurrentV2": true
+    },
+    {
+      "name": "getFlightForPlayer",
+      "presentInCurrentV2": true
+    },
+    {
+      "name": "getFlightSeq",
+      "presentInCurrentV2": true
+    },
+    {
+      "name": "syncAllPendingScoreFlights",
+      "presentInCurrentV2": true
+    },
+    {
+      "name": "updateScoreSyncStatus",
+      "presentInCurrentV2": true
+    },
+    {
+      "name": "markScorePending",
+      "presentInCurrentV2": true
+    },
+    {
+      "name": "initScoreAutoSync",
+      "presentInCurrentV2": true
+    }
+  ],
+  "branches": [
+    {
+      "branch": "codex/local-emulator-isolation",
+      "head": "06dbe619beb8494d7abd194cc76cace448e37a5e",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/mission-samstag-audit",
+      "head": "3ac98f44b324682422605a62340a062a3fc3218a",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/mission-samstag-release-candidate",
+      "head": "51740649a4e6e491a8b8c910d29a30d251de2a43",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/preprod-cloud-preparation",
+      "head": "8668c9e817a3d9dc075d5c363382d5101f6fea9f",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/preprod-hosting-plan",
+      "head": "c2be311e2890423133df5c9a8cbe26264950f4db",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/preprod-safety-analysis",
+      "head": "afadff894755f608bd295ae9fc22d63227d4f73d",
+      "ancestorOfD50c3d9": false
+    },
+    {
+      "branch": "codex/project-status-2026-11-08",
+      "head": "5eba4e64cb8f3f579dc8943db5dff828f6bd89f7",
+      "ancestorOfD50c3d9": false
+    },
+    {
+      "branch": "codex/rc1-live-scoreboard",
+      "head": "d50c3d9e37d05a8edef2db9684da0a304a981733",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/rc1-performance-review",
+      "head": "b3ee957baa60b8b35da4dc57c159914c9d7a90f5",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/rc1-round-diagnosis",
+      "head": "9a8c71e92c7429ab20ab192ece3d8fa721f8ad17",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/rc1-ui-round-start",
+      "head": "37afa5cf99280718d743d87f0443920806966b73",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/s01-v1-snapshot-safety",
+      "head": "f862cf0c8f73ef610cdc711218e2a1dd84b8a839",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/s02-s03-authoritative-score-sync",
+      "head": "437c76d4cadbba2bc6587acac2f60b5aa616b7f6",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/s04-pin-auth-safety",
+      "head": "3d77af88318679d30896b9d611bbaf812af4d4a7",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/s05-authoritative-round-close",
+      "head": "2c32064a9850eeac10587d807f1d523d3bcafe8f",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/s06-hcp-round-snapshots",
+      "head": "295d13b46762b9b42a45dec481f87cce6f960cb1",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/s07-revisioned-history-correction",
+      "head": "9a29e2ea23d0f3306a96a5e352b11e30f0104352",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/s08-1-synthetic-cold-restore",
+      "head": "684c470b8c2411da82058b401df0b108fa0d4440",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "codex/s08-2-twelve-profile-rehearsal",
+      "head": "3d55211fd82689fee761ce27d910a76a2f1a0ebb",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "consolidation/lie-scorecards-v2",
+      "head": "d50c3d9e37d05a8edef2db9684da0a304a981733",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "feature/hcp-recalculation",
+      "head": "1f67ef534e31804d049054cfa06abef52b051f24",
+      "ancestorOfD50c3d9": true
+    },
+    {
+      "branch": "feature/score-autosync",
+      "head": "cb4661f5194147fa0ef0f40fe44838ce3d0aa19e",
+      "ancestorOfD50c3d9": false
+    },
+    {
+      "branch": "hotfix/v1-score-safety",
+      "head": "55c0db4344c1da9501609d7525722a7c82e2aeb5",
+      "ancestorOfD50c3d9": false
+    },
+    {
+      "branch": "main",
+      "head": "f4dcbecf9c4c95ca30135f3f2a1458def82ca757",
+      "ancestorOfD50c3d9": true
+    }
+  ]
+}

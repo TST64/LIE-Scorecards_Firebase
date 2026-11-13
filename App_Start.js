@@ -10,6 +10,7 @@ app.logic = app.logic || {};
 // Registrierung des Service Workers für PWA-Installation und automatische Updates
 app.logic.registerServiceWorker = function()
 {
+    if (app.environment) return; // No SW registration or cache reuse in local mode.
     if ('serviceWorker' in navigator)
     {
         navigator.serviceWorker.register('./sw.js')
@@ -56,14 +57,35 @@ app.initStart = async function()
 {
     console.log("[App] Starting LIE Scorecard initialization...");
 
+    // Contract failures escape before the legacy login-list fallback can run.
+    try
+    {
+        if ([window.LIE_PRODUCTION_PROFILE, window.LIE_PREPROD_PROFILE, window.LIE_LOCAL_PROFILE].filter(Boolean).length !== 1) throw new Error('Exactly one startup profile required.');
+        app.environment = LieEnvironment.create(window.LIE_PRODUCTION_PROFILE || window.LIE_PREPROD_PROFILE || window.LIE_LOCAL_PROFILE, window.firebaseConfig,
+            window.location, firebase, async function(profile)
+            {
+                // PreProd uses its separate strict HTTPS/project adapter, not
+                // the loopback readiness service. The local adapter is unchanged.
+                if (['preprod','production'].includes(profile.mode)) return;
+                if (navigator.serviceWorker && navigator.serviceWorker.controller)
+                    throw new Error('Use a fresh local browser profile: active service worker.');
+                const response = await fetch('/__local/ready', {cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(3000)});
+                const actual = await response.json();
+                if (!response.ok || JSON.stringify(actual) !== JSON.stringify(profile))
+                    throw new Error('Local emulator readiness mismatch.');
+            });
+        await app.initCore();
+    }
+    catch (error)
+    {
+        document.getElementById('app-container').textContent = 'Anwendungsstart gesperrt: ' + error.message;
+        return;
+    }
     app.logic.registerServiceWorker();
 
     try
     {
-        if (typeof app.initCore === 'function')
-        {
-            await app.initCore();
-        }
+        app.environment.assertReady();
 
 
         // Nach einem Reload muss Firebase Auth zunächst die gespeicherte
@@ -97,19 +119,25 @@ app.initStart = async function()
             );
         });
 
+        if (authUser && navigator.onLine === false && app.openOfflineScoreEntryV2
+            && await app.openOfflineScoreEntryV2(authUser))
+        {
+            return;
+        }
+
         let claims = {};
 
         if (authUser)
         {
-            const tokenResult = await authUser.getIdTokenResult();
-            claims = tokenResult.claims || {};
+            claims = await app.logic.readPlayerSessionState(authUser);
         }
 
         // Nach einem Seitenwechsel bleibt die Firebase-Session erhalten.
         // Nur wenn bereits ein gültiger Spieler-Claim vorhanden ist, wird die App direkt geöffnet.
         if (claims.playerId)
         {
-            await app.logic.apiRequest('getInitialAppData');
+            if (claims.mustChangePin) await app.logic.loadLoginPlayers();
+            else await app.logic.apiRequest('getInitialAppData');
 
             const savedUserId = String(claims.playerId);
             const matchedUser = (app.state.spieler || []).find(function(s)
@@ -121,6 +149,7 @@ app.initStart = async function()
             {
                 app.state.currentUser = matchedUser;
                 app.state.currentUser.mustChangePin = !!claims.mustChangePin;
+                app.state.currentUser.role = claims.role;
 
                 localStorage.setItem('lie_scorecard_user_id', savedUserId);
 
@@ -129,6 +158,7 @@ app.initStart = async function()
                     app.logic.updateHeaderRoleIcon();
                 }
 
+                if(!claims.mustChangePin && app.logic.resumeScoreAutoSyncV2)app.logic.resumeScoreAutoSyncV2().catch(()=>{});
                 if (claims.mustChangePin)
                 {
                     app.router.navigate('pin_aendern');

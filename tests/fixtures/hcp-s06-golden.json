@@ -1,0 +1,17 @@
+{
+  "contract": "Independent hand-calculated one-decimal group HCP; immutable old raw-score totals",
+  "players": [
+    {"id":"MS01","netto":[18,18,36],"rawAllowances":[13,13,26],"ends":[26,26,26]},
+    {"id":"MS02","netto":[20,18,38],"rawAllowances":[13,13,25],"ends":[25,25,24]},
+    {"id":"MS03","netto":[16,18,34],"rawAllowances":[13,13,26],"ends":[26.2,26.2,26.4]},
+    {"id":"MS04","netto":[13,18,31],"rawAllowances":[13,14,27],"ends":[26.5,26.5,27]},
+    {"id":"MS05","netto":[19,18,37],"rawAllowances":[13,13,26],"ends":[25.5,25.5,25]},
+    {"id":"MS06","netto":[17,18,35],"rawAllowances":[13,13,26],"ends":[26.1,26.1,26.2]},
+    {"id":"MS07","netto":[0,18,0],"rawAllowances":[13,14,28],"ends":[27.8,27.8,31.4]},
+    {"id":"MS08","netto":[18,18,36],"rawAllowances":[13,13,26],"ends":[26,26,26]},
+    {"id":"MS09","netto":[22,18,40],"rawAllowances":[13,12,24],"ends":[24,24,22]},
+    {"id":"MS10","netto":[14,18,32],"rawAllowances":[13,13,26],"ends":[26.4,26.4,26.8]},
+    {"id":"MS11","netto":[18,18,36],"rawAllowances":[13,13,26],"ends":[26,26,26]},
+    {"id":"MS12","netto":[18,18,36],"rawAllowances":[13,13,26],"ends":[26,26,26]}
+  ]
+}

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<title>Score-Speichertest</title>
+<h1>Isolierter IndexedDB-Test</h1>
+<p>Jeder Lauf verwendet eine neue Testdatenbank. Bestehende Daten werden nicht gelesen oder gelöscht.</p>
+<button id="run">Tests starten</button>
+<pre id="result"></pre>
+<script src="../App_Storage_ScoreSync.js"></script>
+<script>
+'use strict';
+
+document.getElementById('run').onclick = async function()
+{
+    const output = document.getElementById('result');
+    const name = 'lie_score_sync_test_' + crypto.randomUUID();
+    const first = app.createScoreSyncStore(name);
+    const second = app.createScoreSyncStore(name);
+    const c =
+    {
+        ownerUid: 'test-user', playerId: 'P1', spieltagId: 'TEST',
+        flightId: 'F1', spielerId: 'P1', hole: 1, documentId: 'SC-TEST-P1-1'
+    };
+    output.textContent = name + '\n';
+
+    function check(condition, message)
+    {
+        if (!condition)
+        {
+            throw new Error(message);
+        }
+        output.textContent += 'PASS: ' + message + '\n';
+    }
+
+    try
+    {
+        await first.putServerSnapshot(c, { strokes: 5, puts: 2, lady: true });
+        await Promise.all([
+            first.appendChanges(c, [{ field: 'strokes', operation: 'set', value: 6 }]),
+            second.appendChanges(c, [{ field: 'puts', operation: 'set', value: 1 }])
+        ]);
+        let score = await first.readScorecard(c);
+        check(score.confirmed.strokes === 5 && score.displayed.strokes === 6,
+            'Servercache und lokale Anzeige sind getrennt');
+        check(score.pendingOperations.length === 2 && score.displayed.puts === 1,
+            'Zwei Verbindungen verlieren keine parallelen Änderungen');
+        check(new Set(score.pendingOperations.map(function(op)
+        {
+            return op.changeId;
+        })).size === 2, 'Eindeutige Änderungs-IDs');
+        await first.appendChanges(c, [{ field: 'strokes', operation: 'set', value: 7 }]);
+        await first.appendChanges(c, [{ field: 'puts', operation: 'delete', value: null }]);
+        await first.putServerSnapshot(c, { strokes: 8, puts: 3, lady: false });
+        await first.close();
+        score = await first.readScorecard(c);
+        check(score.pendingOperations.length === 4 && score.displayed.strokes === 7,
+            'Wiederöffnen erhält alle Operationen und ihre Reihenfolge');
+        check(!Object.hasOwn(score.displayed, 'puts') && score.confirmed.puts === 3,
+            'Persistentes Leeren überlagert ausschließlich den Anzeigewert');
+        for (const key of ['ownerUid', 'playerId', 'spieltagId', 'flightId'])
+        {
+            const other = Object.assign({}, c, { [key]: 'other' });
+            const data = await first.inspect(other);
+            check(data.pendingOperations.length === 0 && data.serverCache.length === 0,
+                'Kontexttrennung: ' + key);
+        }
+        let rejected = false;
+        try
+        {
+            await first.appendChanges(c, [
+                { field: 'puts', operation: 'set', value: 0 },
+                { field: 'strokes', operation: 'set', value: 0 }
+            ]);
+        }
+        catch (error)
+        {
+            rejected = true;
+        }
+        check(rejected && (await first.inspect(c)).pendingOperations.length === 4,
+            'Ungültige Änderungsgruppe wird vollständig abgewiesen');
+        const lifecycle = Object.assign({}, c, { spieltagId: 'LIFECYCLE', documentId: 'SC-LIFECYCLE-P1-1' });
+        const old = await first.appendChanges(lifecycle,
+            [{ field: 'strokes', operation: 'set', value: 5 }]);
+        const snapshot = await first.createRequestSnapshot(lifecycle);
+        const serialized = JSON.stringify(snapshot);
+        const newer = await second.appendChanges(lifecycle,
+            [{ field: 'strokes', operation: 'set', value: 6 }]);
+        check(Object.isFrozen(snapshot) && Object.isFrozen(snapshot.operations[0])
+            && JSON.stringify(snapshot) === serialized && snapshot.operations[0].value === 5,
+            'Snapshot bleibt nach neuer Eingabe unverändert und tief eingefroren');
+        await first.acknowledgeRequest(lifecycle, snapshot.requestId, [old[0].changeId]);
+        let remaining = (await first.inspect(lifecycle)).pendingOperations;
+        check(remaining.length === 1 && remaining[0].changeId === newer[0].changeId
+            && remaining[0].value === 6, 'Bestätigung der 5 erhält die neuere 6 vollständig');
+        await second.acknowledgeRequest(lifecycle, snapshot.requestId, [old[0].changeId]);
+        check((await first.inspect(lifecycle)).pendingOperations[0].changeId === newer[0].changeId,
+            'Doppelte Bestätigung ist idempotent');
+
+        const partial = await first.appendChanges(lifecycle,
+            [{ field: 'puts', operation: 'set', value: 1 }]);
+        const partialSnapshot = await first.createRequestSnapshot(lifecycle);
+        await first.acknowledgeRequest(lifecycle, partialSnapshot.requestId, [partial[0].changeId]);
+        remaining = (await first.inspect(lifecycle)).pendingOperations;
+        check(remaining.length === 1 && remaining[0].changeId === newer[0].changeId,
+            'Teilbestätigung entfernt ausschließlich das bestätigte Feld');
+
+        const otherFlight = Object.assign({}, lifecycle, { flightId: 'F2' });
+        const otherUser = Object.assign({}, lifecycle, { ownerUid: 'user-B', playerId: 'P2' });
+        await first.appendChanges(otherFlight, [{ field: 'strokes', operation: 'set', value: 8 }]);
+        await first.appendChanges(otherUser, [{ field: 'strokes', operation: 'set', value: 9 }]);
+        const persistent = await first.createRequestSnapshot(lifecycle);
+        await first.close();
+        await second.close();
+        const restored = await first.getRequestSnapshot(lifecycle, persistent.requestId);
+        check(restored.operations[0].changeId === newer[0].changeId
+            && (await first.inspect(lifecycle)).pendingOperations.length === 1,
+            'Snapshot und Pending überstehen Schließen und Wiederöffnen');
+        for (const outcome of ['failed', 'aborted'])
+        {
+            await first.markRequestOutcome(lifecycle, persistent.requestId, outcome);
+            check((await first.inspect(lifecycle)).pendingOperations.length === 1,
+                'Request-Ausgang löscht keine Pending-Daten: ' + outcome);
+        }
+        for (const key of ['ownerUid', 'playerId', 'spieltagId', 'flightId'])
+        {
+            let denied = false;
+            try
+            {
+                await first.acknowledgeRequest(Object.assign({}, lifecycle, { [key]: 'wrong' }),
+                    persistent.requestId, [newer[0].changeId]);
+            }
+            catch (error)
+            {
+                denied = true;
+            }
+            check(denied, 'Falscher Bestätigungskontext wird abgewiesen: ' + key);
+        }
+        let unknownDenied = false;
+        try
+        {
+            await first.acknowledgeRequest(lifecycle, persistent.requestId,
+                [newer[0].changeId, 'not-in-request']);
+        }
+        catch (error)
+        {
+            unknownDenied = true;
+        }
+        check(unknownDenied && (await first.inspect(lifecycle)).pendingOperations.length === 1,
+            'Unbekannte Bestätigung wird atomar ohne Teillöschung abgewiesen');
+        await first.acknowledgeRequest(lifecycle, persistent.requestId, [newer[0].changeId]);
+        check((await first.inspect(otherFlight)).pendingOperations.length === 1,
+            'Bestätigung Flight 1 verändert Flight 2 nicht');
+        check((await first.inspect(otherUser)).pendingOperations.length === 1,
+            'Bestätigung Benutzer A verändert Benutzer B nicht');
+        check(await first.createRequestSnapshot(lifecycle) === null,
+            'Leere Queue erzeugt keinen Request');
+        const scope=await first.inspectOwnerRound(lifecycle.ownerUid,lifecycle.spieltagId);
+        check(scope.pendingOperations.some(op=>op.flightId===otherFlight.flightId),
+            'S05: Freigabeprüfung erfasst andere Flightpartition ohne Ansichtskontext');
+        check(scope.pendingOperations.every(op=>op.ownerUid===lifecycle.ownerUid&&op.spieltagId===lifecycle.spieltagId),
+            'S05: Rundenscan bleibt auf eigenes Konto und Runde begrenzt');
+        output.textContent += 'Alle Tests bestanden. Testdatenbank bleibt zur Inspektion erhalten.\n';
+    }
+    catch (error)
+    {
+        output.textContent += 'FAIL: ' + error.message + '\n';
+        console.error(error);
+    }
+    finally
+    {
+        await first.close();
+        await second.close();
+    }
+};
+</script>
+</html>

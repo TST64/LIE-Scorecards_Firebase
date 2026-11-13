@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "status": "offline-proposal-not-provisioned",
+  "cloudExecutionAuthorized": false,
+  "approved": false,
+  "projectId": "lie-scorecards-preprod",
+  "projectAvailabilityChecked": false,
+  "hostingSite": "lie-scorecards-preprod",
+  "origin": "https://lie-scorecards-preprod.web.app",
+  "authDomain": "lie-scorecards-preprod.firebaseapp.com",
+  "region": "europe-west1",
+  "banner": "PREPROD — SYNTHETIC TEST DATA",
+  "storageNamespace": "preprod:lie-scorecards-preprod",
+  "dataPolicy": "synthetic-only-no-production-imports",
+  "mailMode": "disabled",
+  "gasUrl": null,
+  "serviceWorker": "disabled",
+  "secretPolicy": "individual-random-six-digit-pins-out-of-band-hashes-only",
+  "knownDemoPinsAllowed": false,
+  "hashAllTwelvePlayers": true,
+  "issueCredentialsOnlyTo": ["MS01", "MS05", "MS09"],
+  "flights": [["MS01", "MS02", "MS03", "MS04"], ["MS05", "MS06", "MS07", "MS08"], ["MS09", "MS10", "MS11", "MS12"]],
+  "frontendFirebaseValues": {
+    "apiKey": null,
+    "appId": null,
+    "messagingSenderId": null
+  },
+  "billingApproved": false,
+  "budgetOwner": null,
+  "artifactApproved": false,
+  "runtimeProfileImplemented": true,
+  "testStarted": false
+}

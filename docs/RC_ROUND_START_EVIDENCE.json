@@ -1,0 +1,59 @@
+{
+  "basis": "b3ee957baa60b8b35da4dc57c159914c9d7a90f5",
+  "regressionCommit": "4d5ff2a",
+  "syntheticOnly": true,
+  "before": {
+    "stage": "before",
+    "httpStatus": 400,
+    "errorCode": "functions/failed-precondition",
+    "failedCheck": "Participant already has active round; S05 required",
+    "blockingRound": "RC-ROUND",
+    "overlappingPlayers": 12,
+    "noNewRoundWritten": true,
+    "project": "demo-lie-scorecards-local",
+    "forbiddenOrigins": 0
+  },
+  "after": {
+    "stage": "after",
+    "httpStatus": 200,
+    "createdByNormalUi": true,
+    "type": "9-Front",
+    "players": 12,
+    "flights": 3,
+    "authoritativeSnapshot": true,
+    "confirmedUiScore": 5,
+    "secondOverlappingUiRoundBlocked": true,
+    "roundCount": 1,
+    "project": "demo-lie-scorecards-local",
+    "forbiddenOrigins": 0
+  },
+  "startupSmoke": {
+    "basis": "3d55211",
+    "project": "demo-lie-scorecards-local",
+    "players": 12,
+    "writers": 3,
+    "flights": 3,
+    "confirmedCards": 12,
+    "authoritativeRoundStart": true,
+    "forbiddenOrigins": 0,
+    "productionReady": false
+  },
+  "unitTests": {
+    "after": {
+      "failed": 0,
+      "passed": 25,
+      "total": 25
+    },
+    "before": {
+      "failed": 2,
+      "passed": 2,
+      "total": 4
+    }
+  },
+  "existingWorktrees": {
+    "checked": 19,
+    "originalDirtyFileHashesUnchanged": 6,
+    "headAndTrackedStatusUnchanged": true,
+    "originalUntrackedInventoryUnchanged": true
+  }
+}

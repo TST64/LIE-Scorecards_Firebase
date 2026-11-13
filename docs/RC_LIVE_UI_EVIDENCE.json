@@ -1,0 +1,51 @@
+{
+  "basis": "37afa5cf99280718d743d87f0443920806966b73",
+  "syntheticOnly": true,
+  "unitBefore": {
+    "pass": 0,
+    "fail": 8,
+    "total": 8
+  },
+  "unitAfter": {
+    "pass": 16,
+    "fail": 0,
+    "total": 16
+  },
+  "browser": {
+    "syntheticOnly": true,
+    "project": "demo-lie-scorecards-local",
+    "players": 12,
+    "writers": 3,
+    "holes": 9,
+    "cards": 108,
+    "automaticRemoteUpdate": true,
+    "pendingExcluded": true,
+    "offlineRecovery": true,
+    "overlaySurvivesAck": true,
+    "modes": [
+      "matrix",
+      "list",
+      "flights"
+    ],
+    "mobileWidth": 390,
+    "valuesAgree": true,
+    "closurePublished": true,
+    "forbiddenOrigins": 0
+  },
+  "cloudAccessed": false,
+  "deployed": false,
+  "merged": false,
+  "fieldtestOnlineReady": false,
+  "visualFollowUp": {
+    "incompleteClosureDisabled": true,
+    "mobileWidth": 390,
+    "headingContrastFixed": true,
+    "passed": true
+  },
+  "integrity": {
+    "approvedCloudTargets": 0,
+    "backendRulesAndV2SyncUnchanged": true,
+    "previousWorktrees": 20,
+    "headsStatusAndDirtyHashesUnchanged": true
+  }
+}
