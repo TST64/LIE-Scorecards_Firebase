@@ -1,5 +1,5 @@
 // =========================================================================
-// BMAssistent / LIE Scorecard - Live-Scoring & Calculations (mit 9/18 Loch Support)
+// BMAssistent / LIE Scorecard - Live-Scoring & Calculations (mit Auto-Save & Debounce)
 // App_Logic_Scores.js
 // BSD (Allman) Style
 // =========================================================================
@@ -22,49 +22,27 @@ app.logic.calculateHoleVorgabe = function(spieler, spieltag, holeNr)
         return 0;
     }
 
-    // Spielvorgabe für den Kurs ermitteln
-    const hcpsForKurs = (app.state.handicaps || []).filter(function(h)
-    {
-        return String(h.kursId).trim() === String(kursId).trim();
-    });
+    const hcpsForKurs = (app.state.handicaps || []).filter(h => String(h.kursId).trim() === String(kursId).trim());
+    const vorgabeMatch = hcpsForKurs.find(h => parseFloat(h.vorgabe) === hcp);
 
-    const vorgabeMatch = hcpsForKurs.find(function(h)
-    {
-        return parseFloat(h.vorgabe) === hcp;
-    });
+    let spielvorgabeTotal = vorgabeMatch ? parseInt(vorgabeMatch.spielvorgabe) : Math.round(hcp);
 
-    let spielvorgabeTotal = vorgabeMatch
-        ? parseInt(vorgabeMatch.spielvorgabe)
-        : Math.round(hcp);
-
-    // Alle Bahnen des ausgewählten Kurses
-    let gespielteBahnen = (app.state.bahnen || []).filter(function(b)
-    {
-        return String(b.kursId).trim() === String(kursId).trim();
-    });
+    let gespielteBahnen = (app.state.bahnen || []).filter(b => String(b.kursId).trim() === String(kursId).trim());
 
     const is9Loch = (
         spieltag.bahnAnzahl === 9 ||
         String(spieltag.rundenTyp || '').startsWith('9')
     );
 
-    // Bei Front-/Back-Nine nur die tatsächlich gespielten Bahnen verwenden
     if (spieltag.rundenTyp === '9-Front')
     {
-        gespielteBahnen = gespielteBahnen.filter(function(b)
-        {
-            return parseInt(b.nr) <= 9;
-        });
+        gespielteBahnen = gespielteBahnen.filter(b => parseInt(b.nr) <= 9);
     }
     else if (spieltag.rundenTyp === '9-Back')
     {
-        gespielteBahnen = gespielteBahnen.filter(function(b)
-        {
-            return parseInt(b.nr) >= 10;
-        });
+        gespielteBahnen = gespielteBahnen.filter(b => parseInt(b.nr) >= 10);
     }
 
-    // Bei einer 9-Loch-Runde wird die Spielvorgabe halbiert
     if (is9Loch)
     {
         spielvorgabeTotal = Math.round(spielvorgabeTotal / 2);
@@ -75,33 +53,19 @@ app.logic.calculateHoleVorgabe = function(spieler, spieltag, holeNr)
         return 0;
     }
 
-    // Die tatsächlich gespielten Bahnen nach SI sortieren.
-    // Damit entsteht für eine 9-Loch-Runde automatisch die Rangfolge 1..9.
-    gespielteBahnen.sort(function(a, b)
-    {
-        return parseInt(a.si) - parseInt(b.si);
-    });
+    gespielteBahnen.sort((a, b) => parseInt(a.si) - parseInt(b.si));
 
-    const bahnIndex = gespielteBahnen.findIndex(function(b)
-    {
-        return parseInt(b.nr) === parseInt(holeNr);
-    });
-
+    const bahnIndex = gespielteBahnen.findIndex(b => parseInt(b.nr) === parseInt(holeNr));
     if (bahnIndex < 0)
     {
         return 0;
     }
 
     const anzahlBahnen = gespielteBahnen.length;
-
     const basisSchlaege = Math.floor(spielvorgabeTotal / anzahlBahnen);
     const restSchlaege = spielvorgabeTotal % anzahlBahnen;
 
     let holeVorgabe = basisSchlaege;
-
-    // Die schwierigsten Bahnen erhalten die verbleibenden Schläge.
-    // Durch die SI-Sortierung entsprechen die ersten Einträge
-    // den niedrigsten Stroke-Index-Werten.
     if (bahnIndex < restSchlaege)
     {
         holeVorgabe += 1;
@@ -124,13 +88,67 @@ app.logic.calculateNettoStableford = function(strokes, par, holeVorgabe)
     return punkte < 0 ? 0 : punkte;
 };
 
+// Debounce Timer Map für Auto-Save
+let autoSaveTimeouts = {};
+
+app.logic.autoSaveScoreFieldAtomic = function(spieltagId, spielerId, holeNr, field, value, flightSeq)
+{
+    const scoreId = `SC-${spieltagId}-${spielerId}-${holeNr}`;
+    const timeoutKey = `${spieltagId}_${spielerId}_${holeNr}_${field}`;
+
+    if (autoSaveTimeouts[timeoutKey])
+    {
+        clearTimeout(autoSaveTimeouts[timeoutKey]);
+    }
+
+    const statusEl = document.getElementById('connection-status');
+    if (statusEl)
+    {
+        statusEl.className = "w-3 h-3 rounded-full bg-amber-400";
+    }
+
+    autoSaveTimeouts[timeoutKey] = setTimeout(async () =>
+    {
+        try
+        {
+            const spieler = app.state.spieler.find(s => String(s.id).trim() === String(spielerId).trim());
+            const spieltag = app.state.spieltage.find(st => String(st.id).trim() === String(spieltagId).trim());
+            let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag, holeNr);
+
+            const payloadData = {
+                scoreId: scoreId,
+                spieltagId: spieltagId,
+                spielerId: spielerId,
+                holeNr: holeNr,
+                field: field,
+                value: value
+            };
+
+            await app.logic.apiRequest('updateSingleScoreField', payloadData);
+
+            if (statusEl)
+            {
+                statusEl.className = "w-3 h-3 rounded-full bg-teal-400";
+            }
+        }
+        catch (err)
+        {
+            console.error("Auto-save error:", err);
+            if (statusEl)
+            {
+                statusEl.className = "w-3 h-3 rounded-full bg-red-400";
+            }
+        }
+    }, 500);
+};
+
 app.logic.adjustScore = function(spieltagId, spielerId, holeNr, delta, par, spielvorgabe)
 {
     const key = `${spieltagId}_${spielerId}_${holeNr}`;
     const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
     
-    const dbScores = app.state.scoreCards.filter(function(sc) { return String(sc.spieltagId) === String(spieltagId) && String(sc.spielerId) === String(spielerId); });
-    const dbMatch = dbScores.find(function(sc) { return sc.hole !== undefined && parseInt(sc.hole) === holeNr; });
+    const dbScores = app.state.scoreCards.filter(sc => String(sc.spieltagId) === String(spieltagId) && String(sc.spielerId) === String(spielerId));
+    const dbMatch = dbScores.find(sc => sc.hole !== undefined && parseInt(sc.hole) === holeNr);
     const hatDbScore = dbMatch ? parseInt(dbMatch.strokes) : undefined;
 
     let aktuellerScore = app.state.liveScores[key] || hatDbScore || parseInt(par);
@@ -141,6 +159,7 @@ app.logic.adjustScore = function(spieltagId, spielerId, holeNr, delta, par, spie
     }
 
     app.state.liveScores[key] = neuerScore;
+    app.logic.autoSaveScoreFieldAtomic(spieltagId, spielerId, holeNr, 'strokes', neuerScore);
 
     const scoreEl = document.getElementById(`score-val-${spielerId}`);
     if (scoreEl) 
@@ -151,6 +170,8 @@ app.logic.adjustScore = function(spieltagId, spielerId, holeNr, delta, par, spie
     if (app.state.liveScores[maxScoreKey])
     {
         app.state.liveScores[maxScoreKey] = false;
+        app.logic.autoSaveScoreFieldAtomic(spieltagId, spielerId, holeNr, 'maxscore', false);
+
         const maxBtn = document.getElementById(`maxscore-btn-${spielerId}`);
         if (maxBtn)
         {
@@ -188,6 +209,7 @@ app.logic.adjustLiveValue = function(spieltagId, spielerId, holeNr, field, delta
     }
     
     app.state.liveScores[key] = newVal;
+    app.logic.autoSaveScoreFieldAtomic(spieltagId, spielerId, holeNr, field, newVal);
     
     const element = document.getElementById(`${field}-val-${spielerId}`);
     if (element)
@@ -204,6 +226,7 @@ app.logic.toggleLiveBoolean = function(spieltagId, spielerId, holeNr, field)
     const newVal = !currentVal;
     
     app.state.liveScores[key] = newVal;
+    app.logic.autoSaveScoreFieldAtomic(spieltagId, spielerId, holeNr, field, newVal);
     
     const btn = document.getElementById(`${field}-btn-${spielerId}`);
     if (btn)
@@ -238,6 +261,7 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     const newMax = !currentMax;
     
     app.state.liveScores[maxScoreKey] = newMax;
+    app.logic.autoSaveScoreFieldAtomic(spieltagId, spielerId, holeNr, 'maxscore', newMax);
     
     const scoreValElement = document.getElementById(`score-val-${spielerId}`);
     const maxBtn = document.getElementById(`maxscore-btn-${spielerId}`);
@@ -245,6 +269,8 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     if (newMax)
     {
         app.state.liveScores[scoreKey] = maxScoreValue;
+        app.logic.autoSaveScoreFieldAtomic(spieltagId, spielerId, holeNr, 'strokes', maxScoreValue);
+
         if (scoreValElement) 
         {
             scoreValElement.innerText = maxScoreValue;
@@ -264,6 +290,8 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
     else
     {
         app.state.liveScores[scoreKey] = par;
+        app.logic.autoSaveScoreFieldAtomic(spieltagId, spielerId, holeNr, 'strokes', par);
+
         if (scoreValElement) 
         {
             scoreValElement.innerText = par;
@@ -292,11 +320,12 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
 
 app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
 {
-    const keysToSync = Object.keys(app.state.liveScores).filter(function(k) { return k.startsWith(spieltagId + "_"); });
+    // Behält die bisherige syncScoresWithServer Funktion für manuelle Syncs / Fallbacks bei
+    const keysToSync = Object.keys(app.state.liveScores).filter(k => k.startsWith(spieltagId + "_"));
     
     if (keysToSync.length === 0)
     {
-        app.logic.showToast("Keine ausstehenden Änderungen.", "info");
+        app.logic.showToast("Alles bereits automatisch gesichert.", "info");
         return;
     }
 
@@ -312,7 +341,7 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
     const scoresPayload = [];
     const verarbeiteteKeys = {};
 
-    keysToSync.forEach(function(key)
+    keysToSync.forEach(key =>
     {
         const parts = key.split('_'); 
         const spielerId = parts[1];
@@ -330,8 +359,8 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
         let strokes = app.state.liveScores[scoreKey];
         if (strokes === undefined || strokes === null || strokes <= 0) return;
 
-        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
-        const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
+        const spieler = app.state.spieler.find(s => String(s.id).trim() === String(spielerId).trim());
+        const spieltag = app.state.spieltage.find(st => String(st.id).trim() === String(spieltagId).trim());
 
         let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag, holeNr);
 
@@ -358,18 +387,15 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
     }
 
     app.logic.apiRequest('saveLiveScores', { payload: scoresPayload })
-        .then(function(response)
+        .then(response =>
         {
             if (response && response.success)
             {
-                keysToSync.forEach(function(key)
-                {
-                    delete app.state.liveScores[key];
-                });
+                keysToSync.forEach(key => delete app.state.liveScores[key]);
 
-                scoresPayload.forEach(function(item)
+                scoresPayload.forEach(item =>
                 {
-                    const idx = app.state.scoreCards.findIndex(function(sc) { return String(sc.id).trim() === String(item.id).trim(); });
+                    const idx = app.state.scoreCards.findIndex(sc => String(sc.id).trim() === String(item.id).trim());
                     if (idx !== -1) 
                     {
                         app.state.scoreCards[idx] = item;
@@ -394,7 +420,7 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
             }
             app.logic.startLivePolling(spieltagId, null, flightSeq);
         })
-        .catch(function(err)
+        .catch(err =>
         {
             console.error("Netzwerkfehler beim Sichern:", err);
             app.logic.showToast("Fehler beim Sichern der Daten", "error");
@@ -402,5 +428,3 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
             app.logic.startLivePolling(spieltagId, null, flightSeq);
         });
 };
-
-

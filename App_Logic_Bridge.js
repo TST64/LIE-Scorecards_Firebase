@@ -28,9 +28,6 @@ app.logic.refreshGlobalAppData = async function()
             throw new Error('Firestore database instance (app.db) is not initialized.');
         }
 
-        // Ohne angemeldeten Firebase-Benutzer dürfen die geschützten
-        // Firestore-Daten nicht geladen werden.
-        // Auf der Login-Seite wird stattdessen nur die minimale Spielerliste geladen.
         if (!firebase.auth().currentUser)
         {
             await app.logic.loadLoginPlayers();
@@ -56,83 +53,22 @@ app.logic.refreshGlobalAppData = async function()
             kalenderSnap,
             configSnap
         ] = await Promise.all([
-            app.db.collection('spieler_public').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('spieltage').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('scorecards').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('scores').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('flights').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('kurse').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('golfplaetze').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('bahnen').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('handicaps').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('kalender_termine').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            ),
-            app.db.collection('config').get().catch(
-                function()
-                {
-                    return ({ forEach: function() {} });
-                }
-            )
+            app.db.collection('spieler_public').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('spieltage').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('scorecards').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('scores').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('flights').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('kurse').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('golfplaetze').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('bahnen').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('handicaps').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('kalender_termine').get().catch(() => ({ forEach: () => {} })),
+            app.db.collection('config').get().catch(() => ({ forEach: () => {} }))
         ]);
 
         const spielerData = [];
-        spielerSnap.forEach(
-            function(doc)
-            {
-                spielerData.push(Object.assign({ id: doc.id }, doc.data()));
-            }
-        );
+        spielerSnap.forEach(doc => spielerData.push(Object.assign({ id: doc.id }, doc.data())));
 
-        // Sensible Spielerdaten (E-Mail/PIN-Hash) werden nur für Administratoren geladen.
         let adminSession = !!(app.state.currentUser && app.state.currentUser.role === 'Admin');
 
         if (!adminSession && firebase && firebase.auth && firebase.auth().currentUser)
@@ -152,12 +88,7 @@ app.logic.refreshGlobalAppData = async function()
         {
             const fullSpielerSnap = await app.db.collection('spieler').get();
             const fullSpielerData = [];
-            fullSpielerSnap.forEach(
-                function(doc)
-                {
-                    fullSpielerData.push(Object.assign({ id: doc.id }, doc.data()));
-                }
-            );
+            fullSpielerSnap.forEach(doc => fullSpielerData.push(Object.assign({ id: doc.id }, doc.data())));
             app.state.spieler = fullSpielerData;
         }
         else
@@ -166,113 +97,58 @@ app.logic.refreshGlobalAppData = async function()
         }
 
         const spieltageData = [];
-        spieltageSnap.forEach(
-            function(doc)
-            {
-                spieltageData.push(Object.assign({ id: doc.id }, doc.data()));
-            }
-        );
+        spieltageSnap.forEach(doc => spieltageData.push(Object.assign({ id: doc.id }, doc.data())));
         app.state.spieltage = spieltageData;
 
         const scoresMap = {};
-        scorecardsSnap.forEach(
-            function(doc)
-            {
-                const data = Object.assign({ id: doc.id }, doc.data());
-                if (data.id)
-                {
-                    scoresMap[data.id] = data;
-                }
-            }
-        );
-        scoresSnap.forEach(
-            function(doc)
-            {
-                const data = Object.assign({ id: doc.id }, doc.data());
-                if (data.id)
-                {
-                    scoresMap[data.id] = data;
-                }
-            }
-        );
+        scorecardsSnap.forEach(doc => {
+            const data = Object.assign({ id: doc.id }, doc.data());
+            if (data.id) scoresMap[data.id] = data;
+        });
+        scoresSnap.forEach(doc => {
+            const data = Object.assign({ id: doc.id }, doc.data());
+            if (data.id) scoresMap[data.id] = data;
+        });
         app.state.scoreCards = Object.values(scoresMap);
 
         const flightsData = [];
-        flightsSnap.forEach(
-            function(doc)
-            {
-                flightsData.push(Object.assign({ id: doc.id }, doc.data()));
-            }
-        );
+        flightsSnap.forEach(doc => flightsData.push(Object.assign({ id: doc.id }, doc.data())));
         app.state.flights = flightsData;
 
         const kurseData = [];
-        kurseSnap.forEach(
-            function(doc)
-            {
-                kurseData.push(Object.assign({ id: doc.id }, doc.data()));
-            }
-        );
+        kurseSnap.forEach(doc => kurseData.push(Object.assign({ id: doc.id }, doc.data())));
         app.state.kurse = kurseData;
 
         const plaetzeData = [];
-        plaetzeSnap.forEach(
-            function(doc)
-            {
-                plaetzeData.push(Object.assign({ id: doc.id }, doc.data()));
-            }
-        );
+        plaetzeSnap.forEach(doc => plaetzeData.push(Object.assign({ id: doc.id }, doc.data())));
         app.state.golfplaetze = plaetzeData;
 
         const bahnenData = [];
-        bahnenSnap.forEach(
-            function(doc)
-            {
-                bahnenData.push(Object.assign({ id: doc.id }, doc.data()));
-            }
-        );
+        bahnenSnap.forEach(doc => bahnenData.push(Object.assign({ id: doc.id }, doc.data())));
         app.state.bahnen = bahnenData;
 
         const handicapsData = [];
-        handicapsSnap.forEach(
-            function(doc)
-            {
-                handicapsData.push(Object.assign({ id: doc.id }, doc.data()));
-            }
-        );
+        handicapsSnap.forEach(doc => handicapsData.push(Object.assign({ id: doc.id }, doc.data())));
         app.state.handicaps = handicapsData;
 
         const kalenderData = [];
-        kalenderSnap.forEach(
-            function(doc)
-            {
-                kalenderData.push(Object.assign({ id: doc.id }, doc.data()));
-            }
-        );
+        kalenderSnap.forEach(doc => kalenderData.push(Object.assign({ id: doc.id }, doc.data())));
         app.state.kalenderTermine = kalenderData;
 
-        configSnap.forEach(
-            function(doc)
+        configSnap.forEach(doc => {
+            if (doc.id === 'saison')
             {
-                if (doc.id === 'saison')
+                const sData = doc.data();
+                if (sData && sData.saisonStartDatum)
                 {
-                    const sData = doc.data();
-                    if (sData && sData.saisonStartDatum)
-                    {
-                        app.state.saisonStartDatum = sData.saisonStartDatum;
-                    }
+                    app.state.saisonStartDatum = sData.saisonStartDatum;
                 }
             }
-        );
+        });
 
         if (app.state.currentUser)
         {
-            const freshUserMatch = app.state.spieler.find(
-                function(s)
-                {
-                    return String(s.id).trim() === String(app.state.currentUser.id).trim();
-                }
-            );
+            const freshUserMatch = app.state.spieler.find(s => String(s.id).trim() === String(app.state.currentUser.id).trim());
             if (freshUserMatch)
             {
                 app.state.currentUser = freshUserMatch;
@@ -299,21 +175,16 @@ app.logic.refreshGlobalAppData = async function()
     }
     finally
     {
-        setTimeout(
-            function()
+        setTimeout(() => {
+            if (btn && icon)
             {
-                if (btn && icon)
-                {
-                    btn.disabled = false;
-                    icon.classList.remove('fa-spin');
-                }
-            },
-            300
-        );
+                btn.disabled = false;
+                icon.classList.remove('fa-spin');
+            }
+        }, 300);
     }
 };
 
-// Firebase Cloud Functions werden für Authentifizierung und sensible Aktionen verwendet.
 app.logic.callFunction = async function(functionName, payload)
 {
     if (!firebase || !firebase.functions)
@@ -339,11 +210,8 @@ app.logic.loadLoginPlayers = async function()
     return app.state.spieler;
 };
 
-// Abstraction layer for API requests
 app.logic.apiRequest = async function(action, payload = {})
 {
-    // Payload absichtlich nicht protokollieren:
-    // API-Aufrufe können PINs oder andere sensible Daten enthalten.
     console.log(`[Bridge Firestore Request] Action: ${action}`);
 
     try
@@ -351,8 +219,7 @@ app.logic.apiRequest = async function(action, payload = {})
         if (action === 'getInitialAppData')
         {
             await app.logic.refreshGlobalAppData();
-            return (
-            {
+            return ({
                 success: true,
                 spieler: app.state.spieler,
                 golfplaetze: app.state.golfplaetze,
@@ -371,15 +238,26 @@ app.logic.apiRequest = async function(action, payload = {})
             if (Array.isArray(scoresArray))
             {
                 const batch = app.db.batch();
-                scoresArray.forEach(
-                    function(sc)
-                    {
-                        const docRef = app.db.collection('scorecards').doc(String(sc.id));
-                        batch.set(docRef, sc, { merge: true });
-                    }
-                );
+                scoresArray.forEach(sc => {
+                    const docRef = app.db.collection('scorecards').doc(String(sc.id));
+                    batch.set(docRef, sc, { merge: true });
+                });
                 await batch.commit();
             }
+            return ({ success: true });
+        }
+        else if (action === 'updateSingleScoreField')
+        {
+            const { scoreId, field, value, spieltagId, spielerId, holeNr } = payload;
+            const docRef = app.db.collection('scorecards').doc(String(scoreId));
+            await docRef.set({
+                id: String(scoreId),
+                spieltagId: String(spieltagId),
+                spielerId: String(spielerId),
+                hole: parseInt(holeNr),
+                [field]: value,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
             return ({ success: true });
         }
         else if (action === 'createNewSpieltag')
@@ -390,13 +268,10 @@ app.logic.apiRequest = async function(action, payload = {})
             await app.db.collection('spieltage').doc(String(stObj.id)).set(stObj);
 
             const batch = app.db.batch();
-            flights.forEach(
-                function(f)
-                {
-                    const fRef = app.db.collection('flights').doc(String(f.id));
-                    batch.set(fRef, f);
-                }
-            );
+            flights.forEach(f => {
+                const fRef = app.db.collection('flights').doc(String(f.id));
+                batch.set(fRef, f);
+            });
             await batch.commit();
 
             return ({ success: true });
@@ -405,8 +280,7 @@ app.logic.apiRequest = async function(action, payload = {})
         {
             const { spieltagId, bruttoSieger, nettoSieger, handicapUpdates } = payload;
 
-            await app.db.collection('spieltage').doc(String(spieltagId)).update(
-            {
+            await app.db.collection('spieltage').doc(String(spieltagId)).update({
                 status: 'Beendet',
                 bruttoSieger: bruttoSieger || '',
                 nettoSieger: nettoSieger || ''
@@ -416,34 +290,21 @@ app.logic.apiRequest = async function(action, payload = {})
             {
                 const batch = app.db.batch();
 
-                handicapUpdates.forEach(
-                    function(upd)
+                handicapUpdates.forEach(upd => {
+                    const spielerId = String(upd.spielerId);
+                    const newHcpLie = parseInt(upd.newHcpLie, 10);
+
+                    if (!Number.isFinite(newHcpLie))
                     {
-                        const spielerId = String(upd.spielerId);
-                        const newHcpLie = parseInt(upd.newHcpLie, 10);
-
-                        if (!Number.isFinite(newHcpLie))
-                        {
-                            throw new Error('Ungültiges LIE-Handicap für Spieler ' + spielerId + '.');
-                        }
-
-                        // hcpLIE wird bewusst in beiden Collections synchron gehalten:
-                        // - spieler: geschützte vollständige Spielerdaten
-                        // - spieler_public: nicht sensible Daten für die App
-                        const privateRef = app.db.collection('spieler').doc(spielerId);
-                        const publicRef = app.db.collection('spieler_public').doc(spielerId);
-
-                        batch.update(privateRef,
-                        {
-                            hcpLIE: newHcpLie
-                        });
-
-                        batch.update(publicRef,
-                        {
-                            hcpLIE: newHcpLie
-                        });
+                        throw new Error('Ungültiges LIE-Handicap für Spieler ' + spielerId + '.');
                     }
-                );
+
+                    const privateRef = app.db.collection('spieler').doc(spielerId);
+                    const publicRef = app.db.collection('spieler_public').doc(spielerId);
+
+                    batch.update(privateRef, { hcpLIE: newHcpLie });
+                    batch.update(publicRef, { hcpLIE: newHcpLie });
+                });
 
                 await batch.commit();
             }
@@ -452,61 +313,29 @@ app.logic.apiRequest = async function(action, payload = {})
         }
         else if (action === 'cancelSpieltagServer')
         {
-            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update(
-            {
-                status: 'Abgebrochen'
-            });
+            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update({ status: 'Abgebrochen' });
             return ({ success: true });
         }
         else if (action === 'softDeleteSpieltagServer')
         {
-            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update(
-            {
-                istGeloescht: true
-            });
+            await app.db.collection('spieltage').doc(String(payload.spieltagId)).update({ istGeloescht: true });
             return ({ success: true });
         }
-        else if (action === 'saveSaisonStartDateServer')
+        else if (action === 'saveSaisonStartDateServer' || action === 'startNeueSaisonServer')
         {
             const startDate = String(payload.startDate || '').trim();
-
             if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate))
             {
                 throw new Error('Ungültiges Saison-Startdatum.');
             }
 
-            await app.db.collection('config').doc('saison').set(
-                { saisonStartDatum: startDate },
-                { merge: true }
-            );
-
+            await app.db.collection('config').doc('saison').set({ saisonStartDatum: startDate }, { merge: true });
             app.state.saisonStartDatum = startDate;
-
-            return ({ success: true });
-        }
-        else if (action === 'startNeueSaisonServer')
-        {
-            const startDate = String(payload.startDate || '').trim();
-
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate))
-            {
-                throw new Error('Ungültiges Saison-Startdatum.');
-            }
-
-            await app.db.collection('config').doc('saison').set(
-                { saisonStartDatum: startDate },
-                { merge: true }
-            );
-
-            app.state.saisonStartDatum = startDate;
-
             return ({ success: true });
         }
         else if (action === 'savePlayerServer')
         {
             const sp = Object.assign({}, payload);
-
-            // isNew ist ausschließlich ein internes Steuerfeld.
             const isNewPlayer = !!sp.isNew;
             delete sp.isNew;
 
@@ -519,22 +348,16 @@ app.logic.apiRequest = async function(action, payload = {})
             const tokenResult = await authUser.getIdTokenResult();
             const claims = tokenResult.claims || {};
             const isAdmin = claims.role === 'Admin';
-            const ownPlayer =
-                String(claims.playerId || '').trim() === String(sp.id || '').trim();
+            const ownPlayer = String(claims.playerId || '').trim() === String(sp.id || '').trim();
 
             if (isAdmin)
             {
-                // Admin darf vollständige Spielerdaten verwalten.
                 const publicData = {
                     nickname: sp.nickname || '',
                     name: sp.name || '',
                     teeColor: sp.teeColor || 'Gelb',
-                    hcpOfficial: Number.isFinite(Number(sp.hcpOfficial))
-                        ? Number(sp.hcpOfficial)
-                        : 54,
-                    hcpLIE: Number.isFinite(Number(sp.hcpLIE))
-                        ? Number(sp.hcpLIE)
-                        : 54,
+                    hcpOfficial: Number.isFinite(Number(sp.hcpOfficial)) ? Number(sp.hcpOfficial) : 54,
+                    hcpLIE: Number.isFinite(Number(sp.hcpLIE)) ? Number(sp.hcpLIE) : 54,
                     role: sp.role || 'Spieler'
                 };
 
@@ -544,19 +367,8 @@ app.logic.apiRequest = async function(action, payload = {})
                 }
 
                 const batch = app.db.batch();
-
-                batch.set(
-                    app.db.collection('spieler').doc(String(sp.id)),
-                    sp,
-                    { merge: true }
-                );
-
-                batch.set(
-                    app.db.collection('spieler_public').doc(String(sp.id)),
-                    publicData,
-                    { merge: true }
-                );
-
+                batch.set(app.db.collection('spieler').doc(String(sp.id)), sp, { merge: true });
+                batch.set(app.db.collection('spieler_public').doc(String(sp.id)), publicData, { merge: true });
                 await batch.commit();
 
                 return ({ success: true });
@@ -567,7 +379,6 @@ app.logic.apiRequest = async function(action, payload = {})
                 throw new Error('Keine Berechtigung zum Bearbeiten dieses Spielers.');
             }
 
-            // Ein normaler Spieler darf ausschließlich sein eigenes Profil ändern.
             const privateData = {
                 nickname: sp.nickname || '',
                 name: sp.name || '',
@@ -580,19 +391,8 @@ app.logic.apiRequest = async function(action, payload = {})
             };
 
             const batch = app.db.batch();
-
-            batch.set(
-                app.db.collection('spieler').doc(String(sp.id)),
-                privateData,
-                { merge: true }
-            );
-
-            batch.set(
-                app.db.collection('spieler_public').doc(String(sp.id)),
-                publicData,
-                { merge: true }
-            );
-
+            batch.set(app.db.collection('spieler').doc(String(sp.id)), privateData, { merge: true });
+            batch.set(app.db.collection('spieler_public').doc(String(sp.id)), publicData, { merge: true });
             await batch.commit();
 
             return ({ success: true });
@@ -610,23 +410,12 @@ app.logic.apiRequest = async function(action, payload = {})
         {
             const doc = await app.db.collection('settings').doc('vault').get();
             const data = doc.exists ? doc.data() : {};
-            return (
-            {
-                success: true,
-                isUnlocked: !!data.isUnlocked
-            });
+            return ({ success: true, isUnlocked: !!data.isUnlocked });
         }
         else if (action === 'toggleVaultLock')
         {
-            await app.db.collection('settings').doc('vault').set(
-                { isUnlocked: !!payload.status },
-                { merge: true }
-            );
-            return (
-            {
-                success: true,
-                isUnlocked: !!payload.status
-            });
+            await app.db.collection('settings').doc('vault').set({ isUnlocked: !!payload.status }, { merge: true });
+            return ({ success: true, isUnlocked: !!payload.status });
         }
         else if (action === 'updateFirestoreDoc')
         {
@@ -642,26 +431,15 @@ app.logic.apiRequest = async function(action, payload = {})
         }
         else if (action === 'verifyPlayerPin')
         {
-            return await app.logic.callFunction('verifyPlayerPin',
-            {
-                spielerId: payload.spielerId,
-                pin: payload.pin
-            });
+            return await app.logic.callFunction('verifyPlayerPin', { spielerId: payload.spielerId, pin: payload.pin });
         }
         else if (action === 'updatePlayerPin')
         {
-            return await app.logic.callFunction('updatePlayerPin',
-            {
-                spielerId: payload.spielerId,
-                newPin: payload.newPin
-            });
+            return await app.logic.callFunction('updatePlayerPin', { spielerId: payload.spielerId, newPin: payload.newPin });
         }
         else if (action === 'requestTempPin')
         {
-            return await app.logic.callFunction('requestTempPin',
-            {
-                spielerId: payload.spielerId
-            });
+            return await app.logic.callFunction('requestTempPin', { spielerId: payload.spielerId });
         }
         else
         {
@@ -672,11 +450,7 @@ app.logic.apiRequest = async function(action, payload = {})
     catch (err)
     {
         console.error(`[Bridge Error] for action "${action}":`, err);
-        return (
-        {
-            success: false,
-            error: err.message
-        });
+        return ({ success: false, error: err.message });
     }
 };
 
@@ -693,69 +467,49 @@ app.logic.startLivePolling = function(spieltagId, holeNr, flightSeq)
         }
 
         app.db.collection('scorecards').get()
-            .then(
-                function(snapshot)
+            .then(snapshot => {
+                if (statusDot)
                 {
-                    if (statusDot)
+                    statusDot.className = "w-3 h-3 rounded-full bg-emerald-400";
+                }
+
+                const freshScores = [];
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    if (String(d.spieltagId).trim() === String(spieltagId).trim())
                     {
-                        statusDot.className = "w-3 h-3 rounded-full bg-emerald-400";
+                        freshScores.push(Object.assign({ id: doc.id }, d));
                     }
+                });
 
-                    const freshScores = [];
-                    snapshot.forEach(
-                        function(doc)
-                        {
-                            const d = doc.data();
-                            if (String(d.spieltagId).trim() === String(spieltagId).trim())
-                            {
-                                freshScores.push(Object.assign({ id: doc.id }, d));
-                            }
-                        }
-                    );
+                const otherRoundScores = app.state.scoreCards.filter(sc => String(sc.spieltagId).trim() !== String(spieltagId).trim());
+                app.state.scoreCards = otherRoundScores.concat(freshScores);
 
-                    const otherRoundScores = app.state.scoreCards.filter(
-                        function(sc)
-                        {
-                            return String(sc.spieltagId).trim() !== String(spieltagId).trim();
-                        }
-                    );
-                    app.state.scoreCards = otherRoundScores.concat(freshScores);
-
-                    const container = document.getElementById('app-container');
-                    if (container)
+                const container = document.getElementById('app-container');
+                if (container)
+                {
+                    if (app.state.currentView === 'leaderboard')
                     {
-                        if (app.state.currentView === 'leaderboard')
+                        const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
+                        container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
+                    }
+                    else if (app.state.currentView === 'score_eingabe' && holeNr)
+                    {
+                        const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(k => k.startsWith(spieltagId + "_")).length;
+                        if (ungesicherteAenderungen === 0)
                         {
-                            const activeTab = document.querySelector('[onclick*="brutto"]')?.classList.contains('bg-white') ? 'brutto' : 'netto';
-                            container.innerHTML = app.views.leaderboard(spieltagId, activeTab);
-                        }
-                        else if (app.state.currentView === 'score_eingabe' && holeNr)
-                        {
-                            const ungesicherteAenderungen = Object.keys(app.state.liveScores).filter(
-                                function(k)
-                                {
-                                    return k.startsWith(spieltagId + "_");
-                                }
-                            ).length;
-
-                            if (ungesicherteAenderungen === 0)
-                            {
-                                container.innerHTML = app.views.score_eingabe(spieltagId, holeNr, flightSeq);
-                            }
+                            container.innerHTML = app.views.score_eingabe(spieltagId, holeNr, flightSeq);
                         }
                     }
                 }
-            )
-            .catch(
-                function(err)
+            })
+            .catch(err => {
+                if (statusDot)
                 {
-                    if (statusDot)
-                    {
-                        statusDot.className = "w-3 h-3 rounded-full bg-red-400";
-                    }
-                    console.warn("Polling update failed:", err);
+                    statusDot.className = "w-3 h-3 rounded-full bg-red-400";
                 }
-            );
+                console.warn("Polling update failed:", err);
+            });
     };
 
     const msInterval = (app.state.currentPollingRate || 60) * 1000;

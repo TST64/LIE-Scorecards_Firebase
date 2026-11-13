@@ -78,5 +78,3 @@ app.core = (function()
 
 app.initCore = app.core.init;
 app.initFirebase = app.core.initFirebase;
-
-

@@ -76,7 +76,7 @@ Sub WriteDirectoryTree(folder, indent, outFile, ignoreDict, fso)
         If Left(item.Name, 1) <> "." Then
             If Not ignoreDict.Exists(item.Name) And Not ignoreDict.Exists(relPath) Then
                 If item.Name <> codeFileName And item.Name <> "mergeAll.vbs" Then
-                    If fileExt = "js" Or fileExt = "css" Or fileExt = "html" Then
+                    If fileExt = "js" Or fileExt = "css" Or fileExt = "html" Or fileExt = "json" Then
                         validFiles.Add item, True
                     End If
                 End If
