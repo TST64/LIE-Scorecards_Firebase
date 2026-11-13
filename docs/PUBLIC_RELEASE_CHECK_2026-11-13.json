@@ -1,0 +1,262 @@
+{
+  "commit": "f4dcbecf9c4c95ca30135f3f2a1458def82ca757",
+  "checked_at": "2026-11-13T20:46:02.644909+00:00",
+  "files": [
+    {
+      "path": "index.html",
+      "url": "https://app.lochihnein.de/index.html",
+      "server": "envoy",
+      "sha256": "0738eee04ec2d8aefcf0535e809ef83db788761e58d71d9a80c77dac3e59a53e",
+      "matches_main": true,
+      "bytes": 12081
+    },
+    {
+      "path": "config.js",
+      "url": "https://app.lochihnein.de/config.js",
+      "server": "envoy",
+      "sha256": "369a1e581c68d87d5c2c2918e323c829884938902a4f79db4f5acc477e18128c",
+      "matches_main": true,
+      "bytes": 835
+    },
+    {
+      "path": "sw.js",
+      "url": "https://app.lochihnein.de/sw.js",
+      "server": "envoy",
+      "sha256": "9257781463ca728e95d1e8509afbf6f3054c5224245547f914d3fd727170491b",
+      "matches_main": true,
+      "bytes": 4094
+    },
+    {
+      "path": "Style.css",
+      "url": "https://app.lochihnein.de/Style.css",
+      "server": "envoy",
+      "sha256": "531ebc63b8c2a995f52975206d5b1526265f076adcbaf55d439ee65de2b1b419",
+      "matches_main": true,
+      "bytes": 3914
+    },
+    {
+      "path": "manifest.json",
+      "url": "https://app.lochihnein.de/manifest.json",
+      "server": "envoy",
+      "sha256": "e029408e12bf280d0855d2e1c2f9046c07280411edb0204c339960cbcc2836d8",
+      "matches_main": true,
+      "bytes": 188
+    },
+    {
+      "path": "App_Core.js",
+      "url": "https://app.lochihnein.de/App_Core.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "7f8175829bfb3b31b0cbe848452fa8244ce87da0fce37fa05de33da97f1b6106",
+      "matches_main": true,
+      "bytes": 1819
+    },
+    {
+      "path": "App_Logic_Bridge.js",
+      "url": "https://app.lochihnein.de/App_Logic_Bridge.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "35a3b9ee1e365be5996a32828162effb9bb4e99ec9af2edb052ad6f8e96e5b33",
+      "matches_main": true,
+      "bytes": 25991
+    },
+    {
+      "path": "App_Logic_History.js",
+      "url": "https://app.lochihnein.de/App_Logic_History.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "bd23f5da137b73a14c0723bf1a9a4854a6741ea7cb19cabd20043f81c5dd94b1",
+      "matches_main": true,
+      "bytes": 8657
+    },
+    {
+      "path": "App_Logic_Performance.js",
+      "url": "https://app.lochihnein.de/App_Logic_Performance.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "70cd7bc768e031d21ee5309bd70d3800dc645c48911eb336567c19a0b6cdbd69",
+      "matches_main": true,
+      "bytes": 11430
+    },
+    {
+      "path": "App_Logic_Scores.js",
+      "url": "https://app.lochihnein.de/App_Logic_Scores.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "9be21c5a24f3d72085b3c668398b2990654c9f2ddb854220886c29d719b956a7",
+      "matches_main": true,
+      "bytes": 13054
+    },
+    {
+      "path": "App_Logic_Spieler.js",
+      "url": "https://app.lochihnein.de/App_Logic_Spieler.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "c737cc2ef06906015ca6e2ed137184e8bdb593f2e1943a2d22a9893b371771b7",
+      "matches_main": true,
+      "bytes": 15347
+    },
+    {
+      "path": "App_Logic_Spieltage.js",
+      "url": "https://app.lochihnein.de/App_Logic_Spieltage.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "fa56df4b73e6ec1d3668b02232bbc27c9d81fd37a3aad5352b0b2c77e1935f8b",
+      "matches_main": true,
+      "bytes": 39334
+    },
+    {
+      "path": "App_Logic_UI.js",
+      "url": "https://app.lochihnein.de/App_Logic_UI.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "28c693087c7947cbcda2a8e794d17e17ab4c77294fcc2dfe5f34f258469094c5",
+      "matches_main": true,
+      "bytes": 8455
+    },
+    {
+      "path": "App_Router.js",
+      "url": "https://app.lochihnein.de/App_Router.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "cdfb740987543c0d64f0c3bafdd1c8b11bd7b43252ec60a9891897b2b6879dad",
+      "matches_main": true,
+      "bytes": 12403
+    },
+    {
+      "path": "App_Start.js",
+      "url": "https://app.lochihnein.de/App_Start.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "5425f597d29cbc023b00abbf14ec9143580548dbe33523e0aa7c6474f21e356b",
+      "matches_main": true,
+      "bytes": 5338
+    },
+    {
+      "path": "App_View_Help.js",
+      "url": "https://app.lochihnein.de/App_View_Help.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "076b6ddee7451e6a31423c3def4923c99970278f313cb0e1ef7abe86a896f40a",
+      "matches_main": true,
+      "bytes": 7413
+    },
+    {
+      "path": "Views_Admin.js",
+      "url": "https://app.lochihnein.de/Views_Admin.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "f55029b7705ddbf18ec70cf57cce2f2476ef63942ce2d1a8e512cb7ad1745df6",
+      "matches_main": true,
+      "bytes": 11262
+    },
+    {
+      "path": "Views_AdminGruppe.js",
+      "url": "https://app.lochihnein.de/Views_AdminGruppe.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "ee5c86145d9ae998455c6691e7718e4a4bf6a624486b907db836e15c57424c13",
+      "matches_main": true,
+      "bytes": 5293
+    },
+    {
+      "path": "Views_AdminKorrektur.js",
+      "url": "https://app.lochihnein.de/Views_AdminKorrektur.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "c52d86f900e49761fa019a747704dba4d051a4fdddef0a418e9c1ad8861368ad",
+      "matches_main": true,
+      "bytes": 17899
+    },
+    {
+      "path": "Views_Dashboard.js",
+      "url": "https://app.lochihnein.de/Views_Dashboard.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "89cae4108fb3d9a19c550e9131f83a53f0fdc490070ca52de4cfb1bc1e7d6301",
+      "matches_main": true,
+      "bytes": 19034
+    },
+    {
+      "path": "Views_Golfplaetze.js",
+      "url": "https://app.lochihnein.de/Views_Golfplaetze.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "55e1c1a9eab5403a99b51d6e42b3f68d7a2aa481838b493d90ef975d7a691025",
+      "matches_main": true,
+      "bytes": 42722
+    },
+    {
+      "path": "Views_Kalender.js",
+      "url": "https://app.lochihnein.de/Views_Kalender.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "d6b10b67c7311a705d60fba61b5f848df2cae6702fd2fb4e34ffb3b33e45b90c",
+      "matches_main": true,
+      "bytes": 20797
+    },
+    {
+      "path": "Views_Leaderboard.js",
+      "url": "https://app.lochihnein.de/Views_Leaderboard.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "36ed4814f8a54e34018905225e3f6e10bf46657d52d89f66c582780899c28377",
+      "matches_main": true,
+      "bytes": 43888
+    },
+    {
+      "path": "Views_LiveDashboard.js",
+      "url": "https://app.lochihnein.de/Views_LiveDashboard.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "22d4c0d5db69130e17e756dfb046597e01d0b295c3af0f2f0dd7a97f5a91afd5",
+      "matches_main": true,
+      "bytes": 27917
+    },
+    {
+      "path": "Views_Login.js",
+      "url": "https://app.lochihnein.de/Views_Login.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "79e88e36d4e05120dad57a52256be1f4a9935855758cf1da2b0c8be948fdb792",
+      "matches_main": true,
+      "bytes": 7341
+    },
+    {
+      "path": "Views_Performance.js",
+      "url": "https://app.lochihnein.de/Views_Performance.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "ba2e7c4be718823b97d33c7ce062fd4ee9ca576c4cff71f0cbcaac3fa5a07db4",
+      "matches_main": true,
+      "bytes": 21402
+    },
+    {
+      "path": "Views_ScoreEingabe.js",
+      "url": "https://app.lochihnein.de/Views_ScoreEingabe.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "ae745adb188cdc609500928a95626dbbab7107c4da60a74f3cc7928f6d668ba9",
+      "matches_main": true,
+      "bytes": 23256
+    },
+    {
+      "path": "Views_ScoreSchnellerfassung.js",
+      "url": "https://app.lochihnein.de/Views_ScoreSchnellerfassung.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "1379fba52bc9d17ce0d12a62c7232b895baec98f4032d4c0379e62a5912e078e",
+      "matches_main": true,
+      "bytes": 11719
+    },
+    {
+      "path": "Views_SpielerEdit.js",
+      "url": "https://app.lochihnein.de/Views_SpielerEdit.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "1ae6afb002a5edaf05ec0e1f0d100f50ebc79ccef5fd315bad0cb9809ffaaf73",
+      "matches_main": true,
+      "bytes": 9263
+    },
+    {
+      "path": "Views_SpieltagNeu.js",
+      "url": "https://app.lochihnein.de/Views_SpieltagNeu.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "c111ab00a02ccf69f51b079f85ffa142ab4abe38df31686438601869e6024c63",
+      "matches_main": true,
+      "bytes": 12287
+    },
+    {
+      "path": "Views_Spieltage.js",
+      "url": "https://app.lochihnein.de/Views_Spieltage.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "d7aa24e17d9b06e3f662ce5ec4323542f0ace4b2c324aef28cd333a9116832cd",
+      "matches_main": true,
+      "bytes": 13688
+    },
+    {
+      "path": "Views_Wetter.js",
+      "url": "https://app.lochihnein.de/Views_Wetter.js?v=5.3.3-flight-preview",
+      "server": "envoy",
+      "sha256": "289e5d719f0736dd6996ef124fe8ac996e10de22197318ac0b685ff74bb1660b",
+      "matches_main": true,
+      "bytes": 14347
+    }
+  ]
+}

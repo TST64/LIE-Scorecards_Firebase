@@ -14,3 +14,4 @@ firebase-debug.*.log
 # Lokale Backups
 ARCHIV/
 20260920_1643/
+__pycache__/
