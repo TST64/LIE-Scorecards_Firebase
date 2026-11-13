@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "mode": "production",
+  "projectId": "liescorecard-70c5e",
+  "origin": "https://app.lochihnein.de",
+  "region": "europe-west1",
+  "runtimeServiceAccount": "163868016379-compute@developer.gserviceaccount.com",
+  "firebase": {
+    "projectId": "liescorecard-70c5e",
+    "authDomain": "liescorecard-70c5e.firebaseapp.com",
+    "storageBucket": "liescorecard-70c5e.firebasestorage.app",
+    "apiKey": "AIzaSyBH6Rb8RLKw6tUrOM-j8Qcfnqlkte3crCM",
+    "appId": "1:163868016379:web:0b7f1aeb29d80f9ca37a5e",
+    "messagingSenderId": "163868016379"
+  }
+}

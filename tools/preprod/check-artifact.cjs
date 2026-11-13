@@ -3,7 +3,9 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
 function check(directory){
     const root=path.resolve(directory),m=JSON.parse(fs.readFileSync(path.join(root,'ARTIFACT.json'),'utf8'));
-    if(m.schemaVersion!==1||m.projectId!=='lie-scorecards-preprod'||m.origin!=='https://lie-scorecards-preprod.web.app'
+    const expected=m.mode==='production'?'liescorecard-70c5e':'lie-scorecards-preprod';
+    const origin=m.mode==='production'?'https://app.lochihnein.de':'https://'+expected+'.web.app';
+    if(m.schemaVersion!==1||m.projectId!==expected||m.origin!==origin
         ||m.cloudExecutionAuthorized!==false||hash(JSON.stringify(m.files))!==m.artifactDigest)throw new Error('Artifact manifest mismatch.');
     for(const [name,digest] of Object.entries(m.files)){
         if(!/^[A-Za-z0-9_ ./-]+$/.test(name)||name.split('/').some(p=>p==='..'||p==='.')||path.isAbsolute(name))throw new Error('Artifact path mismatch.');
