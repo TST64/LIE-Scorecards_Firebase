@@ -1,0 +1,969 @@
+diff --git a/App_Logic_Bridge.js b/App_Logic_Bridge.js
+index 85d16b7..2f15c9d 100644
+--- a/App_Logic_Bridge.js
++++ b/App_Logic_Bridge.js
+@@ -367,20 +367,45 @@ app.logic.apiRequest = async function(action, payload = {})
+         }
+         else if (action === 'saveLiveScores')
+         {
+-            const scoresArray = payload.payload || payload;
+-            if (Array.isArray(scoresArray))
++            const scoresArray = Array.isArray(payload) ? payload : payload && payload.payload;
++            if (!Array.isArray(scoresArray))
+             {
+-                const batch = app.db.batch();
+-                scoresArray.forEach(
+-                    function(sc)
+-                    {
+-                        const docRef = app.db.collection('scorecards').doc(String(sc.id));
+-                        batch.set(docRef, sc, { merge: true });
+-                    }
+-                );
+-                await batch.commit();
++                return { success: false, error: 'Score-Payload muss ein Array sein.' };
+             }
+-            return ({ success: true });
++            if (scoresArray.length === 0)
++            {
++                return { success: false, nothingToSave: true, error: 'Keine Scores zu speichern.' };
++            }
++            const ids = new Set();
++            for (const sc of scoresArray)
++            {
++                if (!sc || typeof sc !== 'object' ||
++                    typeof sc.spieltagId !== 'string' || !sc.spieltagId.trim() ||
++                    typeof sc.spielerId !== 'string' || !sc.spielerId.trim() ||
++                    sc.spieltagId !== sc.spieltagId.trim() || sc.spielerId !== sc.spielerId.trim() ||
++                    /[/_]/.test(sc.spieltagId) || /[/_]/.test(sc.spielerId) ||
++                    !Number.isInteger(sc.hole) || sc.hole < 1 || sc.hole > 18 ||
++                    !Number.isInteger(sc.flightSeq) || sc.flightSeq < 1 ||
++                    sc.id !== 'SC-' + sc.spieltagId + '-' + sc.spielerId + '-' + sc.hole ||
++                    ids.has(sc.id) || !Number.isInteger(sc.strokes) || sc.strokes < 1 ||
++                    !Number.isInteger(sc.hcpStart) || !Number.isInteger(sc.strokesGiven) ||
++                    (Object.prototype.hasOwnProperty.call(sc, 'puts') &&
++                        (!Number.isInteger(sc.puts) || sc.puts < 0)) ||
++                    (Object.prototype.hasOwnProperty.call(sc, 'lady') && typeof sc.lady !== 'boolean') ||
++                    (Object.prototype.hasOwnProperty.call(sc, 'maxscore') && typeof sc.maxscore !== 'boolean'))
++                {
++                    return { success: false, error: 'Ungültiger Score-Datensatz.' };
++                }
++                ids.add(sc.id);
++            }
++            const batch = app.db.batch();
++            scoresArray.forEach(function(sc)
++            {
++                const docRef = app.db.collection('scorecards').doc(sc.id);
++                batch.set(docRef, sc, { merge: true });
++            });
++            await batch.commit();
++            return { success: true };
+         }
+         else if (action === 'createNewSpieltag')
+         {
+diff --git a/App_Logic_Scores.js b/App_Logic_Scores.js
+index 88dd0e2..cea6946 100644
+--- a/App_Logic_Scores.js
++++ b/App_Logic_Scores.js
+@@ -290,117 +290,234 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
+     }
+ };
+ 
+-app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
++app.logic.syncScoresWithServer = async function(spieltagId, flightSeq)
+ {
+-    const keysToSync = Object.keys(app.state.liveScores).filter(function(k) { return k.startsWith(spieltagId + "_"); });
+-    
+-    if (keysToSync.length === 0)
++    const fail = function(message)
++    {
++        console.error('[ScoreSync]', message);
++        app.logic.showToast(message, 'error');
++        return { success: false, error: message };
++    };
++    const roundId = String(spieltagId || '').trim();
++    const seq = Number(flightSeq);
++    const rounds = (app.state.spieltage || []).filter(function(round)
++    {
++        return String(round.id).trim() === roundId;
++    });
++    const roundFlights = (app.state.flights || []).filter(function(flight)
++    {
++        return String(flight.spieltagId).trim() === roundId;
++    });
++    // Production identifies flight sequences by the final segment of the flight ID.
++    const flights = roundFlights.filter(function(flight)
++    {
++        return Number(String(flight.id || '').split('-').pop()) === seq;
++    });
++    if (!roundId || !Number.isInteger(seq) || seq < 1 || rounds.length !== 1 || flights.length !== 1)
+     {
+-        app.logic.showToast("Keine ausstehenden Änderungen.", "info");
+-        return;
++        return fail('Spieltag oder Flight ist nicht eindeutig. Es wurde nichts gespeichert.');
+     }
+ 
+-    const syncBtn = document.getElementById('sync-btn');
+-    if (syncBtn)
++    const members = String(flights[0].spielerIdsCsv || '').split(',').map(function(id)
++    {
++        return id.trim();
++    });
++    if (!members.length || members.some(function(id)
+     {
+-        syncBtn.disabled = true;
+-        syncBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Sende...`;
++        return !id || id.includes('_');
++    }) || new Set(members).size !== members.length || roundId.includes('_'))
++    {
++        return fail('Ungültige Flight-Mitglieder. Es wurde nichts gespeichert.');
+     }
+-
+-    app.logic.stopLivePolling();
+-
+-    const scoresPayload = [];
+-    const verarbeiteteKeys = {};
+-
+-    keysToSync.forEach(function(key)
++    const ambiguousMember = members.some(function(id)
+     {
+-        const parts = key.split('_'); 
+-        const spielerId = parts[1];
+-        const holeNr = parseInt(parts[2]);
+-        
+-        const uniqueHoleKey = `${spielerId}_${holeNr}`;
+-        if (verarbeiteteKeys[uniqueHoleKey]) return;
+-        verarbeiteteKeys[uniqueHoleKey] = true;
+-
+-        const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
+-        const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
+-        const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
+-        const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
+-        
+-        let strokes = app.state.liveScores[scoreKey];
+-        if (strokes === undefined || strokes === null || strokes <= 0) return;
+-
+-        const spieler = app.state.spieler.find(function(s) { return String(s.id).trim() === String(spielerId).trim(); });
+-        const spieltag = app.state.spieltage.find(function(st) { return String(st.id).trim() === String(spieltagId).trim(); });
+-
+-        let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag, holeNr);
+-
+-        scoresPayload.push({
+-            id: `SC-${spieltagId}-${spielerId}-${holeNr}`,
+-            spieltagId: spieltagId,
+-            flightSeq: parseInt(flightSeq) || 1,
+-            spielerId: spielerId,
+-            hole: holeNr,
+-            strokes: parseInt(strokes),
+-            strokesGiven: strokesGiven,
+-            hcpStart: parseInt(spieler.hcpLIE),
+-            lady: !!app.state.liveScores[ladyKey],
+-            puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
+-            maxscore: !!app.state.liveScores[maxScoreKey]
+-        });
++        return roundFlights.filter(function(flight)
++        {
++            return String(flight.spielerIdsCsv || '').split(',').map(function(value)
++            {
++                return value.trim();
++            }).includes(id);
++        }).length !== 1;
+     });
++    if (ambiguousMember)
++    {
++        return fail('Spieler sind mehreren Flights zugeordnet. Es wurde nichts gespeichert.');
++    }
+ 
+-    if (scoresPayload.length === 0)
++    app.state.scoreSaveInFlight = app.state.scoreSaveInFlight || {};
++    const lockKey = JSON.stringify([roundId, seq]);
++    if (app.state.scoreSaveInFlight[lockKey])
+     {
+-        if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
+-        app.logic.startLivePolling(spieltagId, null, flightSeq);
+-        return;
++        app.logic.showToast('Dieser Flight wird bereits gespeichert.', 'info');
++        return { success: false, busy: true };
+     }
+ 
+-    app.logic.apiRequest('saveLiveScores', { payload: scoresPayload })
+-        .then(function(response)
++    let syncBtn = null;
++    let originalButton = '';
++    let pollingPaused = false;
++    app.state.scoreSaveInFlight[lockKey] = true;
++    try
++    {
++        const live = app.state.liveScores || {};
++        const owns = function(key)
+         {
+-            if (response && response.success)
++            return Object.prototype.hasOwnProperty.call(live, key);
++        };
++        const snapshot = {};
++        const scoresPayload = [];
++        const holes = new Set();
++        const keys = Object.keys(live).filter(function(key)
++        {
++            return key.startsWith(roundId + '_');
++        });
++        for (const key of keys)
++        {
++            const parts = key.slice(roundId.length + 1).split('_');
++            const playerId = parts[0];
++            if (!members.includes(playerId))
++            {
++                continue;
++            }
++            const hole = Number(parts[1]);
++            if (parts.length < 2 || parts.length > 3 || !/^[1-9]\d*$/.test(parts[1]) ||
++                !Number.isInteger(hole) || hole > 18 ||
++                (parts.length === 3 && !['lady', 'puts', 'maxscore'].includes(parts[2])))
++            {
++                return fail('Ungültiger lokaler Scoreschlüssel. Es wurde nichts gespeichert.');
++            }
++            const base = roundId + '_' + playerId + '_' + hole;
++            if (holes.has(base))
++            {
++                continue;
++            }
++            holes.add(base);
++            // Preserve incomplete local entries; do not invent strokes for a putts-only edit.
++            if (!owns(base))
++            {
++                continue;
++            }
++            if (!Number.isInteger(live[base]) || live[base] < 1)
+             {
+-                keysToSync.forEach(function(key)
++                return fail('Ungültige Schläge. Es wurde nichts gespeichert.');
++            }
++            const players = (app.state.spieler || []).filter(function(player)
++            {
++                return String(player.id).trim() === playerId;
++            });
++            if (players.length !== 1)
++            {
++                return fail('Spieler ist nicht eindeutig. Es wurde nichts gespeichert.');
++            }
++            const scoreId = 'SC-' + roundId + '-' + playerId + '-' + hole;
++            const existing = (app.state.scoreCards || []).filter(function(score)
++            {
++                return score.id === scoreId;
++            });
++            if (existing.some(function(score)
++            {
++                return String(score.spieltagId) !== roundId || String(score.spielerId) !== playerId ||
++                    Number(score.hole) !== hole ||
++                    (score.flightSeq !== undefined && Number(score.flightSeq) !== seq);
++            }))
++            {
++                return fail('Vorhandene Score-Zuordnung widerspricht dem Flight. Es wurde nichts gespeichert.');
++            }
++            const item = {
++                id: 'SC-' + roundId + '-' + playerId + '-' + hole,
++                spieltagId: roundId,
++                flightSeq: seq,
++                spielerId: playerId,
++                hole: hole,
++                strokes: live[base],
++                strokesGiven: app.logic.calculateHoleVorgabe(players[0], rounds[0], hole),
++                hcpStart: parseInt(players[0].hcpLIE)
++            };
++            if (!Number.isInteger(item.hcpStart) || !Number.isInteger(item.strokesGiven))
++            {
++                return fail('Ungültige Vorgabedaten. Es wurde nichts gespeichert.');
++            }
++            snapshot[base] = live[base];
++            for (const field of ['lady', 'puts', 'maxscore'])
++            {
++                const fieldKey = base + '_' + field;
++                if (!owns(fieldKey))
+                 {
+-                    delete app.state.liveScores[key];
+-                });
+-
+-                scoresPayload.forEach(function(item)
++                    continue;
++                }
++                const value = live[fieldKey];
++                if (field === 'puts' ? !Number.isInteger(value) || value < 0 : typeof value !== 'boolean')
+                 {
+-                    const idx = app.state.scoreCards.findIndex(function(sc) { return String(sc.id).trim() === String(item.id).trim(); });
+-                    if (idx !== -1) 
+-                    {
+-                        app.state.scoreCards[idx] = item;
+-                    }
+-                    else 
+-                    {
+-                        app.state.scoreCards.push(item);
+-                    }
+-                });
+-
+-                app.logic.showToast("Scores erfolgreich gesichert!", "success");
++                    return fail('Ungültiger Scorewert. Es wurde nichts gespeichert.');
++                }
++                item[field] = value;
++                snapshot[fieldKey] = value;
+             }
+-            else
++            scoresPayload.push(Object.freeze(item));
++        }
++        if (!scoresPayload.length)
++        {
++            app.logic.showToast('Keine vollständigen Scores zu speichern. Lokale Eingaben bleiben erhalten.', 'info');
++            return { success: false, nothingToSave: true };
++        }
++        Object.freeze(snapshot);
++        Object.freeze(scoresPayload);
++        syncBtn = document.getElementById('sync-btn');
++        originalButton = syncBtn ? syncBtn.innerHTML : '';
++        if (syncBtn)
++        {
++            syncBtn.disabled = true;
++            syncBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Sende...';
++        }
++        pollingPaused = true;
++        app.logic.stopLivePolling();
++        const response = await app.logic.apiRequest('saveLiveScores', { payload: scoresPayload });
++        if (!response || response.success !== true)
++        {
++            throw new Error(response && response.error || 'Speichern nicht bestätigt.');
++        }
++        Object.keys(snapshot).forEach(function(key)
++        {
++            if (Object.prototype.hasOwnProperty.call(app.state.liveScores, key) &&
++                Object.is(app.state.liveScores[key], snapshot[key]))
+             {
+-                app.logic.showToast("Sync-Fehler: " + (response ? response.error : "Unbekannt"), "error");
++                delete app.state.liveScores[key];
+             }
+-
+-            if (syncBtn)
++        });
++        app.state.scoreCards = app.state.scoreCards || [];
++        scoresPayload.forEach(function(item)
++        {
++            const index = app.state.scoreCards.findIndex(function(score)
++            {
++                return String(score.id).trim() === item.id;
++            });
++            if (index >= 0)
+             {
+-                syncBtn.disabled = false;
+-                syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`;
++                app.state.scoreCards[index] = Object.assign({}, app.state.scoreCards[index], item);
++            }
++            else
++            {
++                app.state.scoreCards.push(Object.assign({}, item));
+             }
+-            app.logic.startLivePolling(spieltagId, null, flightSeq);
+-        })
+-        .catch(function(err)
+-        {
+-            console.error("Netzwerkfehler beim Sichern:", err);
+-            app.logic.showToast("Fehler beim Sichern der Daten", "error");
+-            if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
+-            app.logic.startLivePolling(spieltagId, null, flightSeq);
+         });
++        app.logic.showToast('Scores erfolgreich gesichert!', 'success');
++        return response;
++    }
++    catch (err)
++    {
++        console.error('[ScoreSync] Speichern fehlgeschlagen:', err);
++        return fail('Fehler beim Sichern der Daten: ' + err.message);
++    }
++    finally
++    {
++        delete app.state.scoreSaveInFlight[lockKey];
++        if (syncBtn)
++        {
++            syncBtn.disabled = false;
++            syncBtn.innerHTML = originalButton;
++        }
++        if (pollingPaused)
++        {
++            app.logic.startLivePolling(roundId, null, seq);
++        }
++    }
+ };
+-
+-
+diff --git a/Views_ScoreEingabe.js b/Views_ScoreEingabe.js
+index 0902803..a5d3752 100644
+--- a/Views_ScoreEingabe.js
++++ b/Views_ScoreEingabe.js
+@@ -192,7 +192,7 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
+         
+         const hatDbScore = dbMatch ? parseInt(dbMatch.strokes) : undefined;
+         const hatDbLady = dbMatch ? (dbMatch.lady === true || String(dbMatch.lady).toUpperCase() === "TRUE") : false;
+-        const hatDbPuts = dbMatch ? parseInt(dbMatch.puts) : undefined;
++        const hatDbPuts = dbMatch && Number.isFinite(parseInt(dbMatch.puts)) ? parseInt(dbMatch.puts) : undefined;
+         const hatDbMaxScore = dbMatch ? (dbMatch.maxscore === true || String(dbMatch.maxscore).toUpperCase() === "TRUE") : false;
+         
+         let aktuelleLady = app.state.liveScores[currentLadyKey];
+@@ -206,7 +206,10 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
+         if (aktuellePuts === undefined)
+         {
+             aktuellePuts = hatDbPuts !== undefined ? hatDbPuts : 2;
+-            app.state.liveScores[currentPutsKey] = aktuellePuts;
++            if (hatDbPuts !== undefined)
++            {
++                app.state.liveScores[currentPutsKey] = hatDbPuts;
++            }
+         }
+ 
+         let aktuellerMaxScore = app.state.liveScores[currentMaxScoreKey];
+diff --git a/tests/v1-score-safety.test.cjs b/tests/v1-score-safety.test.cjs
+new file mode 100644
+index 0000000..a8119d4
+--- /dev/null
++++ b/tests/v1-score-safety.test.cjs
+@@ -0,0 +1,546 @@
++'use strict';
++
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const vm = require('node:vm');
++const { test } = require('node:test');
++
++// Run: node --test tests/v1-score-safety.test.cjs
++// No Firebase SDK, network API or real database is loaded.
++const root = path.resolve(__dirname, '..');
++
++function noop()
++{
++}
++
++function fixture()
++{
++    const state = {
++        spieltage: [{ id: 'ST', kursId: 'K', teilnehmerCsv: 'A,B,C,D', status: 'Aktiv' }],
++        flights: [
++            { id: 'FL-ST-1', spieltagId: 'ST', spielerIdsCsv: 'A,B' },
++            { id: 'FL-ST-2', spieltagId: 'ST', spielerIdsCsv: 'C,D' }
++        ],
++        spieler: ['A', 'B', 'C', 'D'].map(function(id)
++        {
++            return { id: id, name: id, nickname: id, hcpLIE: 18 };
++        }),
++        kurse: [{ id: 'K', name: 'Testkurs', bahnAnzahl: 18 }],
++        bahnen: [{ kursId: 'K', nr: 1, par: 4, si: 1 }],
++        handicaps: [],
++        currentUser: { id: 'A', role: 'Admin' },
++        liveScores: {},
++        scoreCards: []
++    };
++    const writes = [];
++    const requests = [];
++    const messages = [];
++    let commitCount = 0;
++    const db = {
++        collection: function(name)
++        {
++            assert.equal(name, 'scorecards');
++            return {
++                doc: function(id)
++                {
++                    return { id: id };
++                }
++            };
++        },
++        batch: function()
++        {
++            return {
++                set: function(ref, data, options)
++                {
++                    writes.push({ id: ref.id, data: structuredClone(data), options: options });
++                },
++                commit: async function()
++                {
++                    commitCount++;
++                }
++            };
++        }
++    };
++    const context = vm.createContext({
++        app: { state: state, logic: {}, views: {}, db: db },
++        document: {
++            getElementById: function()
++            {
++                return null;
++            }
++        },
++        console: { log: noop, warn: noop, error: noop }
++    });
++    for (const file of ['App_Logic_Scores.js', 'App_Logic_Bridge.js',
++        'App_Logic_Spieltage.js', 'Views_ScoreEingabe.js', 'Views_ScoreSchnellerfassung.js'])
++    {
++        vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
++    }
++    const logic = context.app.logic;
++    logic.showToast = function(message, kind)
++    {
++        messages.push({ message: message, kind: kind });
++    };
++    logic.stopLivePolling = noop;
++    logic.startLivePolling = noop;
++    const realApi = logic.apiRequest;
++    logic.apiRequest = async function(action, payload)
++    {
++        requests.push(structuredClone(payload.payload));
++        return realApi(action, payload);
++    };
++    return {
++        state: state, logic: logic, views: context.app.views, document: context.document,
++        writes: writes, requests: requests, messages: messages,
++        commits: function()
++        {
++            return commitCount;
++        },
++        bridge: function(payload)
++        {
++            return realApi('saveLiveScores', payload);
++        }
++    };
++}
++
++function deferredSave(f)
++{
++    let resolve;
++    f.logic.apiRequest = function(action, payload)
++    {
++        f.requests.push(structuredClone(payload.payload));
++        return new Promise(function(done)
++        {
++            resolve = done;
++        });
++    };
++    return function(response)
++    {
++        resolve(response);
++    };
++}
++
++test('1/2/6: only explicit flight is sent and acknowledged; foreign entries remain', async function()
++{
++    const f = fixture();
++    f.state.liveScores = { ST_A_1: 5, ST_B_1: 6, ST_C_1: 4, ST_D_2: 7, ST_X_1: 8 };
++    const result = await f.logic.syncScoresWithServer('ST', 2);
++    assert.equal(result.success, true);
++    assert.deepEqual(f.requests[0].map(function(sc)
++    {
++        return [sc.spielerId, sc.flightSeq, sc.hole];
++    }), [['C', 2, 1], ['D', 2, 2]]);
++    assert.deepEqual(f.state.liveScores, { ST_A_1: 5, ST_B_1: 6, ST_X_1: 8 });
++});
++
++test('3/4: changed value survives ACK; unchanged sent fields are removed', async function()
++{
++    const f = fixture();
++    f.state.liveScores = { ST_A_1: 5, ST_A_1_puts: 2, ST_A_1_lady: false };
++    const finish = deferredSave(f);
++    const saved = f.logic.syncScoresWithServer('ST', 1);
++    f.state.liveScores.ST_A_1 = 6;
++    f.state.liveScores.ST_A_1_lady = true;
++    f.state.liveScores.ST_A_2 = 7;
++    finish({ success: true });
++    await saved;
++    assert.deepEqual(f.state.liveScores, { ST_A_1: 6, ST_A_1_lady: true, ST_A_2: 7 });
++    assert.equal(f.requests[0][0].strokes, 5);
++});
++
++for (const seq of [0, -1, 3, '2junk', 1.5, undefined])
++{
++    test('5: invalid flight ' + seq + ' produces no writes', async function()
++    {
++        const f = fixture();
++        f.state.liveScores.ST_A_1 = 5;
++        assert.equal((await f.logic.syncScoresWithServer('ST', seq)).success, false);
++        assert.equal(f.writes.length, 0);
++        assert.equal(f.state.liveScores.ST_A_1, 5);
++    });
++}
++
++test('ambiguous round, flight and member contexts are rejected', async function()
++{
++    for (const kind of ['round', 'flight', 'member', 'missingPlayer'])
++    {
++        const f = fixture();
++        f.state.liveScores.ST_A_1 = 5;
++        if (kind === 'round')
++        {
++            f.state.spieltage.push({ id: 'ST' });
++        }
++        else if (kind === 'flight')
++        {
++            f.state.flights.push({ id: 'other-1', spieltagId: 'ST', spielerIdsCsv: 'C' });
++        }
++        else if (kind === 'member')
++        {
++            f.state.flights[1].spielerIdsCsv += ',A';
++        }
++        else
++        {
++            f.state.spieler = [];
++        }
++        assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, false, kind);
++        assert.equal(f.writes.length, 0, kind);
++    }
++});
++
++test('7: empty or incomplete buffer never clears keys or writes', async function()
++{
++    const f = fixture();
++    assert.equal((await f.logic.syncScoresWithServer('ST', 1)).nothingToSave, true);
++    f.state.liveScores = { ST_A_1_puts: 3 };
++    assert.equal((await f.logic.syncScoresWithServer('ST', 1)).nothingToSave, true);
++    assert.deepEqual(f.state.liveScores, { ST_A_1_puts: 3 });
++    assert.equal(f.writes.length, 0);
++});
++
++test('8: same flight is guarded and guard is released after success', async function()
++{
++    const f = fixture();
++    f.state.liveScores.ST_A_1 = 5;
++    const finish = deferredSave(f);
++    const first = f.logic.syncScoresWithServer('ST', 1);
++    assert.equal((await f.logic.syncScoresWithServer('ST', 1)).busy, true);
++    assert.equal(f.requests.length, 1);
++    finish({ success: true });
++    await first;
++    assert.equal(Object.keys(f.state.scoreSaveInFlight).length, 0);
++});
++
++test('9: independent flights can have simultaneous requests', async function()
++{
++    const f = fixture();
++    f.state.liveScores = { ST_A_1: 5, ST_C_1: 6 };
++    const resolvers = [];
++    f.logic.apiRequest = function(action, payload)
++    {
++        f.requests.push(structuredClone(payload.payload));
++        return new Promise(function(resolve)
++        {
++            resolvers.push(resolve);
++        });
++    };
++    const one = f.logic.syncScoresWithServer('ST', 1);
++    const two = f.logic.syncScoresWithServer('ST', 2);
++    assert.equal(f.requests.length, 2);
++    resolvers[1]({ success: true });
++    await two;
++    assert.equal(f.state.liveScores.ST_A_1, 5);
++    resolvers[0]({ success: true });
++    await one;
++    assert.deepEqual(f.state.liveScores, {});
++});
++
++test('10/11/12: absent fields omitted; explicit false retained; merge preserves stored fields', async function()
++{
++    const f = fixture();
++    f.state.scoreCards = [{
++        id: 'SC-ST-A-1', spieltagId: 'ST', spielerId: 'A', hole: 1,
++        flightSeq: 1, puts: 4, lady: true, maxscore: true
++    }];
++    f.state.liveScores = { ST_A_1: 5 };
++    await f.logic.syncScoresWithServer('ST', 1);
++    assert.equal(Object.hasOwn(f.requests[0][0], 'puts'), false);
++    assert.equal(Object.hasOwn(f.requests[0][0], 'lady'), false);
++    assert.equal(Object.hasOwn(f.requests[0][0], 'maxscore'), false);
++    assert.equal(f.state.scoreCards[0].puts, 4);
++    assert.equal(f.state.scoreCards[0].lady, true);
++    assert.equal(f.writes[0].options.merge, true);
++    f.state.liveScores = { ST_A_1: 5, ST_A_1_lady: false, ST_A_1_maxscore: false, ST_A_1_puts: 0 };
++    await f.logic.syncScoresWithServer('ST', 1);
++    assert.equal(f.requests[1][0].lady, false);
++    assert.equal(f.requests[1][0].maxscore, false);
++    assert.equal(f.requests[1][0].puts, 0);
++});
++
++test('13: actual rapid view/handler flight switch keeps other flight local', async function()
++{
++    const f = fixture();
++    assert.match(f.views.scoreSchnellerfassung({ id: 'ST', flightSeq: 1 }), /syncScoresWithServer\('ST', 1\)/);
++    f.logic.updateRapidScoreState('ST', 'A', 1, 'strokes', '5');
++    assert.match(f.views.scoreSchnellerfassung({ id: 'ST', flightSeq: 2 }), /syncScoresWithServer\('ST', 2\)/);
++    f.logic.updateRapidScoreState('ST', 'C', 1, 'strokes', '6');
++    f.logic.updateRapidScoreState('ST', 'C', 1, 'putts', '3');
++    await f.logic.syncScoresWithServer('ST', 2);
++    assert.deepEqual(f.requests[0].map(function(sc)
++    {
++        return sc.spielerId;
++    }), ['C']);
++    assert.equal(f.state.liveScores.ST_A_1, 5);
++    await f.logic.syncScoresWithServer('ST', 1);
++    assert.equal(f.requests[1][0].spielerId, 'A');
++});
++
++test('normal view plus production handlers: strokes, lady, putts, maxscore and multiple holes', async function()
++{
++    const f = fixture();
++    assert.match(f.views.scoreEingabe({ id: 'ST', hole: 1, flightSeq: 1 }), /syncScoresWithServer\('ST', 1\)/);
++    f.logic.adjustScore('ST', 'A', 1, 1, 4, 1);
++    f.logic.toggleLiveBoolean('ST', 'A', 1, 'lady');
++    f.logic.adjustLiveValue('ST', 'A', 1, 'puts', 1);
++    f.logic.toggleMaxScore('ST', 'B', 1, 7, 4, 1);
++    f.views.scoreEingabe({ id: 'ST', hole: 2, flightSeq: 1 });
++    await f.logic.syncScoresWithServer('ST', 1);
++    const a = f.requests[0].find(function(sc)
++    {
++        return sc.spielerId === 'A' && sc.hole === 1;
++    });
++    const b = f.requests[0].find(function(sc)
++    {
++        return sc.spielerId === 'B' && sc.hole === 1;
++    });
++    assert.equal(a.strokes, 5);
++    assert.equal(a.lady, true);
++    assert.equal(a.puts, 3);
++    assert.equal(b.maxscore, true);
++    assert.equal(b.strokes, 7);
++    assert.equal(f.requests[0].length, 4);
++});
++
++test('bridge rejects invalid/empty payload before creating any writes', async function()
++{
++    const f = fixture();
++    for (const payload of [{}, null, { payload: {} }, { payload: [] }, { payload: [null] }])
++    {
++        assert.equal((await f.bridge(payload)).success, false);
++    }
++    assert.equal(f.writes.length, 0);
++    assert.equal(f.commits(), 0);
++});
++
++test('bridge validates entire batch before set; invalid identity/numbers/booleans rejected', async function()
++{
++    const f = fixture();
++    const valid = {
++        id: 'SC-ST-A-1', spieltagId: 'ST', spielerId: 'A', hole: 1,
++        flightSeq: 1, strokes: 5, hcpStart: 18, strokesGiven: 1
++    };
++    for (const delta of [
++        { id: 'wrong' }, { spieltagId: '' }, { spielerId: '' }, { hole: 0 },
++        { hole: 19 }, { strokes: NaN }, { flightSeq: 0 }, { hcpStart: undefined },
++        { puts: null }, { lady: 'false' }, { maxscore: 0 }
++    ])
++    {
++        assert.equal((await f.bridge({ payload: [Object.assign({}, valid, delta)] })).success, false);
++    }
++    const invalidSecond = Object.assign({}, valid, { id: 'SC-ST-B-1', spielerId: 'B', puts: -1 });
++    assert.equal((await f.bridge({ payload: [valid, invalidSecond] })).success, false);
++    assert.equal((await f.bridge({ payload: [valid, valid] })).success, false);
++    assert.equal(f.writes.length, 0);
++    assert.equal(f.commits(), 0);
++});
++
++test('failed/rejected save preserves all keys and releases flight guard', async function()
++{
++    for (const throws of [false, true])
++    {
++        const f = fixture();
++        f.state.liveScores.ST_A_1 = 5;
++        f.logic.apiRequest = async function()
++        {
++            if (throws)
++            {
++                throw new Error('mock offline');
++            }
++            return { success: false, error: 'mock denied' };
++        };
++        assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, false);
++        assert.equal(f.state.liveScores.ST_A_1, 5);
++        assert.equal(Object.keys(f.state.scoreSaveInFlight).length, 0);
++    }
++});
++
++test('invalid local optional values abort whole request, preserving data', async function()
++{
++    const f = fixture();
++    f.state.liveScores = { ST_A_1: 5, ST_A_1_lady: null, ST_B_1: 6 };
++    assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, false);
++    assert.equal(f.requests.length, 0);
++    assert.equal(f.state.liveScores.ST_B_1, 6);
++});
++
++test('known conflicting stored identity is rejected rather than relabelled', async function()
++{
++    for (const delta of [{ flightSeq: 2 }, { spieltagId: 'OTHER' }, { spielerId: 'B' }, { hole: 2 }])
++    {
++        const f = fixture();
++        f.state.liveScores.ST_A_1 = 5;
++        f.state.scoreCards = [Object.assign({
++            id: 'SC-ST-A-1', spieltagId: 'ST', spielerId: 'A', hole: 1, flightSeq: 1
++        }, delta)];
++        assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, false);
++        assert.equal(f.writes.length, 0);
++        assert.equal(f.state.liveScores.ST_A_1, 5);
++    }
++});
++
++test('partial entries and newly created fields survive another score ACK', async function()
++{
++    const f = fixture();
++    f.state.liveScores = { ST_A_1: 5, ST_B_1_puts: 3 };
++    const finish = deferredSave(f);
++    const pending = f.logic.syncScoresWithServer('ST', 1);
++    f.state.liveScores.ST_A_1_lady = true;
++    finish({ success: true });
++    await pending;
++    assert.deepEqual(f.state.liveScores, { ST_B_1_puts: 3, ST_A_1_lady: true });
++});
++
++test('missing round, malformed member list and invalid hole are rejected', async function()
++{
++    for (const kind of ['round', 'emptyMember', 'duplicateMember', 'hole'])
++    {
++        const f = fixture();
++        f.state.liveScores.ST_A_1 = 5;
++        if (kind === 'round')
++        {
++            f.state.spieltage = [];
++        }
++        else if (kind === 'emptyMember')
++        {
++            f.state.flights[0].spielerIdsCsv = '';
++        }
++        else if (kind === 'duplicateMember')
++        {
++            f.state.flights[0].spielerIdsCsv = 'A,A';
++        }
++        else
++        {
++            f.state.liveScores.ST_A_19 = 5;
++        }
++        assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, false, kind);
++        assert.equal(f.writes.length, 0, kind);
++    }
++});
++
++test('rapid score without optional fields can be reopened and saved in normal view', async function()
++{
++    const f = fixture();
++    f.logic.updateRapidScoreState('ST', 'A', 1, 'strokes', '5');
++    await f.logic.syncScoresWithServer('ST', 1);
++    assert.equal(Object.hasOwn(f.requests[0][0], 'puts'), false);
++    const html = f.views.scoreEingabe({ id: 'ST', hole: 1, flightSeq: 1 });
++    assert.equal(html.includes('NaN'), false);
++    assert.match(html, /id="puts-val-A"[^>]*>2<\/span>/);
++    assert.equal(Object.hasOwn(f.state.liveScores, 'ST_A_1_puts'), false);
++    assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, true);
++    const saved = f.requests[1].find(function(score)
++    {
++        return score.spielerId === 'A';
++    });
++    assert.equal(Object.hasOwn(saved, 'puts'), false);
++});
++
++test('existing normal-view values survive render and explicit false can be saved', async function()
++{
++    const f = fixture();
++    f.state.scoreCards = [{
++        id: 'SC-ST-A-1', spieltagId: 'ST', spielerId: 'A', hole: 1, flightSeq: 1,
++        strokes: 5, puts: 4, lady: true, maxscore: true
++    }];
++    f.views.scoreEingabe({ id: 'ST', hole: 1, flightSeq: 1 });
++    f.logic.toggleLiveBoolean('ST', 'A', 1, 'lady');
++    f.logic.toggleMaxScore('ST', 'A', 1, 7, 4, 1);
++    await f.logic.syncScoresWithServer('ST', 1);
++    const item = f.requests[0].find(function(sc)
++    {
++        return sc.spielerId === 'A';
++    });
++    assert.equal(item.puts, 4);
++    assert.equal(item.lady, false);
++    assert.equal(item.maxscore, false);
++});
++
++
++for (const delta of [1, -1])
++{
++    test('missing putts display default becomes a local edit only after ' + delta, async function()
++    {
++        const f = fixture();
++        f.state.scoreCards = [{
++            id: 'SC-ST-A-1', spieltagId: 'ST', spielerId: 'A', hole: 1,
++            flightSeq: 1, strokes: 5
++        }];
++        const html = f.views.scoreEingabe({ id: 'ST', hole: 1, flightSeq: 1 });
++        assert.match(html, /id="puts-val-A"[^>]*>2<\/span>/);
++        assert.equal(Object.hasOwn(f.state.liveScores, 'ST_A_1_puts'), false);
++        f.logic.adjustLiveValue('ST', 'A', 1, 'puts', delta);
++        assert.equal(f.state.liveScores.ST_A_1_puts, 2 + delta);
++        await f.logic.syncScoresWithServer('ST', 1);
++        const item = f.requests[0].find(function(score)
++        {
++            return score.spielerId === 'A';
++        });
++        assert.equal(item.puts, 2 + delta);
++    });
++}
++
++for (const source of ['DOM', 'polling', 'payload'])
++{
++    test('synchronous ' + source + ' exception releases guard and permits retry', async function()
++    {
++        const f = fixture();
++        f.state.liveScores.ST_A_1 = 5;
++        let restore;
++        if (source === 'DOM')
++        {
++            const original = f.document.getElementById;
++            f.document.getElementById = function()
++            {
++                throw new Error('mock DOM failure');
++            };
++            restore = function()
++            {
++                f.document.getElementById = original;
++            };
++        }
++        else if (source === 'polling')
++        {
++            const original = f.logic.stopLivePolling;
++            f.logic.stopLivePolling = function()
++            {
++                throw new Error('mock polling failure');
++            };
++            restore = function()
++            {
++                f.logic.stopLivePolling = original;
++            };
++        }
++        else
++        {
++            const original = f.logic.calculateHoleVorgabe;
++            f.logic.calculateHoleVorgabe = function()
++            {
++                throw new Error('mock payload failure');
++            };
++            restore = function()
++            {
++                f.logic.calculateHoleVorgabe = original;
++            };
++        }
++        assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, false);
++        assert.equal(f.requests.length, 0);
++        assert.equal(Object.keys(f.state.scoreSaveInFlight).length, 0);
++        assert.equal(f.state.liveScores.ST_A_1, 5);
++        restore();
++        assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, true);
++        assert.equal(f.requests.length, 1);
++        assert.equal(Object.keys(f.state.scoreSaveInFlight).length, 0);
++    });
++}
++
++test('validation and empty-payload returns release acquired guard', async function()
++{
++    const f = fixture();
++    assert.equal((await f.logic.syncScoresWithServer('ST', 1)).nothingToSave, true);
++    assert.equal(Object.keys(f.state.scoreSaveInFlight).length, 0);
++    f.state.liveScores.ST_A_1 = 0;
++    assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, false);
++    assert.equal(Object.keys(f.state.scoreSaveInFlight).length, 0);
++    f.state.liveScores.ST_A_1 = 5;
++    assert.equal((await f.logic.syncScoresWithServer('ST', 1)).success, true);
++});
