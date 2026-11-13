@@ -40,5 +40,14 @@
   "newDependencies": "npm ci from root and functions lockfiles in this worktree",
   "realPhones": false,
   "emulatorCampaignRepeated": false,
-  "productionReady": false
+  "productionReady": false,
+  "integrity": {
+    "otherWorktrees": 21,
+    "otherHeadsStatusDirtyHashesUnchanged": true,
+    "mainLocalAndRemote": "f4dcbecf9c4c95ca30135f3f2a1458def82ca757",
+    "archivedHotfixByteIdentical": true,
+    "newReachableObjectPathsScanned": 611,
+    "forbiddenHistoricalFilePaths": 0,
+    "trackedPrivateKeyOrJwtMaterialsDetected": 0
+  }
 }

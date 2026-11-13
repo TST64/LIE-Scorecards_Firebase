@@ -1,7 +1,18 @@
 {
   "observedDate": "2026-11-13",
   "source": "GitHub connector read-only, not cached origin refs",
-  "newConsolidationPR": null,
+  "newConsolidationPR": {
+    "number": 28,
+    "url": "https://github.com/TST64/LIE-Scorecards_Firebase/pull/28",
+    "state": "open",
+    "draft": true,
+    "merged": false,
+    "base": "main",
+    "base_sha": "f4dcbecf9c4c95ca30135f3f2a1458def82ca757",
+    "head": "consolidation/lie-scorecards-v2",
+    "head_sha_at_creation": "12ee52ea0a9bdbcbd35cff43fddfdaaabbefb826",
+    "publication": "explicitly authorized by user; subsequent status-only commit follows"
+  },
   "pullRequests": [
     {
       "number": 1,
