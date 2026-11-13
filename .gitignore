@@ -14,3 +14,14 @@ functions/node_modules/
 config/preprod/runtime.local.json
 *-debug.log
 *-debug.*.log
+
+# Local handover inputs: never publish nested worktrees, real screenshots or LAN server settings.
+/.codex-*/
+/design-reference/
+/fiveserver.config.js
+/hosting-public/
+/firebase-export-*/
+/firestore_export/
+/*.zip
+.env
+.env.*

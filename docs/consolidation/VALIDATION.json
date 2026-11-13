@@ -1,0 +1,44 @@
+{
+  "observedDate": "2026-11-13",
+  "basis": "d50c3d9e37d05a8edef2db9684da0a304a981733",
+  "applicationSourceChanges": 0,
+  "cloudAccess": false,
+  "tests": {
+    "node": {
+      "passed": 147,
+      "failed": 0,
+      "skipped": 0
+    },
+    "indexedDbBrowser": {
+      "passed": 27
+    },
+    "scoreScreen": {
+      "viewports": [
+        320,
+        390,
+        1024
+      ],
+      "checksPerViewport": 75,
+      "v1Writes": 0,
+      "v2Writes": 0
+    }
+  },
+  "logs": [
+    {
+      "name": "consolidation-tests.txt",
+      "sha256": "491eb638881288b747d77f3818331560ca098a79f45cb29ae268dca708135711"
+    },
+    {
+      "name": "consolidation-sync-browser.txt",
+      "sha256": "ff73a0a72e0ab230c9acd58c68c4ac71b18b8cdd17bb8203d08c5c429dc78642"
+    },
+    {
+      "name": "consolidation-score-browser.txt",
+      "sha256": "8cabce925e7d68e067c5a7c1db097e3400ed98ea90960b7e95d0aa53ffcbabe7"
+    }
+  ],
+  "newDependencies": "npm ci from root and functions lockfiles in this worktree",
+  "realPhones": false,
+  "emulatorCampaignRepeated": false,
+  "productionReady": false
+}

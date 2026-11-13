@@ -1,0 +1,271 @@
+{
+  "observedDate": "2026-11-13",
+  "phase": "baseline-after-creation-before-document-imports",
+  "localAndTrackingRefs": [
+    "codex/local-emulator-isolation 06dbe619beb8494d7abd194cc76cace448e37a5e",
+    "codex/mission-samstag-audit 3ac98f44b324682422605a62340a062a3fc3218a",
+    "codex/mission-samstag-release-candidate 51740649a4e6e491a8b8c910d29a30d251de2a43",
+    "codex/preprod-cloud-preparation 8668c9e817a3d9dc075d5c363382d5101f6fea9f",
+    "codex/preprod-hosting-plan c2be311e2890423133df5c9a8cbe26264950f4db",
+    "codex/preprod-safety-analysis afadff894755f608bd295ae9fc22d63227d4f73d",
+    "codex/project-status-2026-11-08 5eba4e64cb8f3f579dc8943db5dff828f6bd89f7",
+    "codex/rc1-live-scoreboard d50c3d9e37d05a8edef2db9684da0a304a981733",
+    "codex/rc1-performance-review b3ee957baa60b8b35da4dc57c159914c9d7a90f5",
+    "codex/rc1-round-diagnosis 9a8c71e92c7429ab20ab192ece3d8fa721f8ad17",
+    "codex/rc1-ui-round-start 37afa5cf99280718d743d87f0443920806966b73",
+    "codex/s01-v1-snapshot-safety f862cf0c8f73ef610cdc711218e2a1dd84b8a839",
+    "codex/s02-s03-authoritative-score-sync 437c76d4cadbba2bc6587acac2f60b5aa616b7f6",
+    "codex/s04-pin-auth-safety 3d77af88318679d30896b9d611bbaf812af4d4a7",
+    "codex/s05-authoritative-round-close 2c32064a9850eeac10587d807f1d523d3bcafe8f",
+    "codex/s06-hcp-round-snapshots 295d13b46762b9b42a45dec481f87cce6f960cb1",
+    "codex/s07-revisioned-history-correction 9a29e2ea23d0f3306a96a5e352b11e30f0104352",
+    "codex/s08-1-synthetic-cold-restore 684c470b8c2411da82058b401df0b108fa0d4440",
+    "codex/s08-2-twelve-profile-rehearsal 3d55211fd82689fee761ce27d910a76a2f1a0ebb",
+    "consolidation/lie-scorecards-v2 d50c3d9e37d05a8edef2db9684da0a304a981733",
+    "feature/hcp-recalculation 1f67ef534e31804d049054cfa06abef52b051f24",
+    "feature/score-autosync cb4661f5194147fa0ef0f40fe44838ce3d0aa19e",
+    "hotfix/v1-score-safety 55c0db4344c1da9501609d7525722a7c82e2aeb5",
+    "main f4dcbecf9c4c95ca30135f3f2a1458def82ca757",
+    "origin f4dcbecf9c4c95ca30135f3f2a1458def82ca757",
+    "origin/codex/local-emulator-isolation 06dbe619beb8494d7abd194cc76cace448e37a5e",
+    "origin/codex/mission-samstag-audit 3ac98f44b324682422605a62340a062a3fc3218a",
+    "origin/codex/preprod-cloud-preparation 8668c9e817a3d9dc075d5c363382d5101f6fea9f",
+    "origin/codex/preprod-hosting-plan c2be311e2890423133df5c9a8cbe26264950f4db",
+    "origin/codex/preprod-safety-analysis afadff894755f608bd295ae9fc22d63227d4f73d",
+    "origin/codex/project-status-2026-11-08 5eba4e64cb8f3f579dc8943db5dff828f6bd89f7",
+    "origin/codex/s01-v1-snapshot-safety f862cf0c8f73ef610cdc711218e2a1dd84b8a839",
+    "origin/codex/s02-s03-authoritative-score-sync 437c76d4cadbba2bc6587acac2f60b5aa616b7f6",
+    "origin/codex/s04-pin-auth-safety 3d77af88318679d30896b9d611bbaf812af4d4a7",
+    "origin/codex/s05-authoritative-round-close 2c32064a9850eeac10587d807f1d523d3bcafe8f",
+    "origin/codex/s06-hcp-round-snapshots 295d13b46762b9b42a45dec481f87cce6f960cb1",
+    "origin/codex/s07-revisioned-history-correction 9a29e2ea23d0f3306a96a5e352b11e30f0104352",
+    "origin/codex/s08-1-synthetic-cold-restore 684c470b8c2411da82058b401df0b108fa0d4440",
+    "origin/codex/s08-2-twelve-profile-rehearsal 3d55211fd82689fee761ce27d910a76a2f1a0ebb",
+    "origin/feature/hcp-recalculation 1f67ef534e31804d049054cfa06abef52b051f24",
+    "origin/main f4dcbecf9c4c95ca30135f3f2a1458def82ca757"
+  ],
+  "actualRemoteHeads": [
+    "06dbe619beb8494d7abd194cc76cace448e37a5e\trefs/heads/codex/local-emulator-isolation",
+    "3ac98f44b324682422605a62340a062a3fc3218a\trefs/heads/codex/mission-samstag-audit",
+    "8668c9e817a3d9dc075d5c363382d5101f6fea9f\trefs/heads/codex/preprod-cloud-preparation",
+    "c2be311e2890423133df5c9a8cbe26264950f4db\trefs/heads/codex/preprod-hosting-plan",
+    "afadff894755f608bd295ae9fc22d63227d4f73d\trefs/heads/codex/preprod-safety-analysis",
+    "5eba4e64cb8f3f579dc8943db5dff828f6bd89f7\trefs/heads/codex/project-status-2026-11-08",
+    "f862cf0c8f73ef610cdc711218e2a1dd84b8a839\trefs/heads/codex/s01-v1-snapshot-safety",
+    "437c76d4cadbba2bc6587acac2f60b5aa616b7f6\trefs/heads/codex/s02-s03-authoritative-score-sync",
+    "3d77af88318679d30896b9d611bbaf812af4d4a7\trefs/heads/codex/s04-pin-auth-safety",
+    "2c32064a9850eeac10587d807f1d523d3bcafe8f\trefs/heads/codex/s05-authoritative-round-close",
+    "295d13b46762b9b42a45dec481f87cce6f960cb1\trefs/heads/codex/s06-hcp-round-snapshots",
+    "9a29e2ea23d0f3306a96a5e352b11e30f0104352\trefs/heads/codex/s07-revisioned-history-correction",
+    "684c470b8c2411da82058b401df0b108fa0d4440\trefs/heads/codex/s08-1-synthetic-cold-restore",
+    "3d55211fd82689fee761ce27d910a76a2f1a0ebb\trefs/heads/codex/s08-2-twelve-profile-rehearsal",
+    "1f67ef534e31804d049054cfa06abef52b051f24\trefs/heads/feature/hcp-recalculation",
+    "f4dcbecf9c4c95ca30135f3f2a1458def82ca757\trefs/heads/main"
+  ],
+  "otherWorktrees": [
+    {
+      "hashes": [
+        {
+          "path": "App_Logic_Bridge.js",
+          "sha256": "84A19B68678514C77241F101D9B38EE7F16B9088ED35B593759DE921347E355F"
+        },
+        {
+          "path": "App_Logic_Scores.js",
+          "sha256": "ECCE43BBC7F5E3D0BCEB2F8A462BCC3153458A14B613FD66500922A18C3D4959"
+        },
+        {
+          "path": "App_Logic_Spieltage.js",
+          "sha256": "6693BE07FB84F69B2FA4B919A43855B7350837884DE89F55F1D81603303736E2"
+        },
+        {
+          "path": "Views_ScoreSchnellerfassung.js",
+          "sha256": "E7281341B52BAA3498CD03811A6EF0D44770673A8164AB6DDC68105A3BC64E87"
+        },
+        {
+          "path": "config.js",
+          "sha256": "8E342329B7DBA58D17F9DCCF8DB04AD8D7334979247EFD36F4535DCA7766E468"
+        },
+        {
+          "path": "sw.js",
+          "sha256": "D11DAEC748E44B5F5E4095ABEC436280C37D477AB4554D2D073676C397401179"
+        }
+      ],
+      "status": [
+        " M App_Logic_Bridge.js",
+        " M App_Logic_Scores.js",
+        " M App_Logic_Spieltage.js",
+        " M Views_ScoreSchnellerfassung.js",
+        " M config.js",
+        " M sw.js",
+        "?? .codex-consolidation-worktree/",
+        "?? .codex-mission-worktree/",
+        "?? .codex-phase2a-worktree/",
+        "?? .codex-phase2b-worktree/",
+        "?? .codex-phase2c-worktree/",
+        "?? .codex-rc-diagnosis-worktree/",
+        "?? .codex-rc-live-worktree/",
+        "?? .codex-rc-performance-worktree/",
+        "?? .codex-rc-round-start-worktree/",
+        "?? .codex-rc-worktree/",
+        "?? .codex-s01-worktree/",
+        "?? .codex-s02-s03-worktree/",
+        "?? .codex-s04-worktree/",
+        "?? .codex-s05-worktree/",
+        "?? .codex-s06-worktree/",
+        "?? .codex-s07-worktree/",
+        "?? .codex-s08-1-worktree/",
+        "?? .codex-s08-2-worktree/",
+        "?? .codex-safety-worktree/",
+        "?? .codex-status-worktree/",
+        "?? design-reference/",
+        "?? docs/",
+        "?? fiveserver.config.js"
+      ],
+      "branch": "feature/score-autosync",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd",
+      "head": "cb4661f5194147fa0ef0f40fe44838ce3d0aa19e"
+    },
+    {
+      "hashes": [],
+      "status": [
+        "?? fiveserver.config.js"
+      ],
+      "branch": "hotfix/v1-score-safety",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase Hotfix",
+      "head": "55c0db4344c1da9501609d7525722a7c82e2aeb5"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/mission-samstag-audit",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-mission-worktree",
+      "head": "3ac98f44b324682422605a62340a062a3fc3218a"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/local-emulator-isolation",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-phase2a-worktree",
+      "head": "06dbe619beb8494d7abd194cc76cace448e37a5e"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/preprod-cloud-preparation",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-phase2b-worktree",
+      "head": "8668c9e817a3d9dc075d5c363382d5101f6fea9f"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/preprod-hosting-plan",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-phase2c-worktree",
+      "head": "c2be311e2890423133df5c9a8cbe26264950f4db"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/rc1-round-diagnosis",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-rc-diagnosis-worktree",
+      "head": "9a8c71e92c7429ab20ab192ece3d8fa721f8ad17"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/rc1-live-scoreboard",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-rc-live-worktree",
+      "head": "d50c3d9e37d05a8edef2db9684da0a304a981733"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/rc1-performance-review",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-rc-performance-worktree",
+      "head": "b3ee957baa60b8b35da4dc57c159914c9d7a90f5"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/rc1-ui-round-start",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-rc-round-start-worktree",
+      "head": "37afa5cf99280718d743d87f0443920806966b73"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/mission-samstag-release-candidate",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-rc-worktree",
+      "head": "51740649a4e6e491a8b8c910d29a30d251de2a43"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/s01-v1-snapshot-safety",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-s01-worktree",
+      "head": "f862cf0c8f73ef610cdc711218e2a1dd84b8a839"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/s02-s03-authoritative-score-sync",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-s02-s03-worktree",
+      "head": "437c76d4cadbba2bc6587acac2f60b5aa616b7f6"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/s04-pin-auth-safety",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-s04-worktree",
+      "head": "3d77af88318679d30896b9d611bbaf812af4d4a7"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/s05-authoritative-round-close",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-s05-worktree",
+      "head": "2c32064a9850eeac10587d807f1d523d3bcafe8f"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/s06-hcp-round-snapshots",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-s06-worktree",
+      "head": "295d13b46762b9b42a45dec481f87cce6f960cb1"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/s07-revisioned-history-correction",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-s07-worktree",
+      "head": "9a29e2ea23d0f3306a96a5e352b11e30f0104352"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/s08-1-synthetic-cold-restore",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-s08-1-worktree",
+      "head": "684c470b8c2411da82058b401df0b108fa0d4440"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/s08-2-twelve-profile-rehearsal",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-s08-2-worktree",
+      "head": "3d55211fd82689fee761ce27d910a76a2f1a0ebb"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/preprod-safety-analysis",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-safety-worktree",
+      "head": "afadff894755f608bd295ae9fc22d63227d4f73d"
+    },
+    {
+      "hashes": [],
+      "status": [],
+      "branch": "codex/project-status-2026-11-08",
+      "path": "C:/Users/thoma/source/repos/DEV_Google/LIE Scorecards_Firebase PreProd/.codex-status-worktree",
+      "head": "5eba4e64cb8f3f579dc8943db5dff828f6bd89f7"
+    }
+  ]
+}

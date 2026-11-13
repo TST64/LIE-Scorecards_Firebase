@@ -3,7 +3,7 @@
 Basis: Draft-PR #27, `3d55211fd82689fee761ce27d910a76a2f1a0ebb`. Stand: 11.11.2026.
 Ein Anwendungskern, zwölf synthetische Spieler, bis zu drei Viererflights. **Lokal benutzbar; keine Produktionsfreigabe.**
 
-Im neuen Worktree `.codex-rc-live-worktree`, Node22 und Java21+ auf PATH:
+Im Repository-Root des Konsolidierungsworktrees `.codex-consolidation-worktree` (oder eines frischen Checkouts dieses Branches), Node22 und Java21+ auf PATH. Kein anderer Git-Worktree ist erforderlich:
 
 ```powershell
 npm ci --ignore-scripts --no-audit --no-fund
