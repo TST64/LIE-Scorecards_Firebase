@@ -1,5 +1,4 @@
-// =========================================================================
-// BMAssistent / LIE Scorecard - Score Eingabe (mit 9/18 Loch Filter)
+// BMAssistent / LIE Scorecard - Score Eingabe (mit V2-Status-Logik & 9/18 Loch Filter)
 // Views_ScoreEingabe.js
 // BSD (Allman) Style
 // =========================================================================
@@ -69,22 +68,13 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
     const bahnDaten = anzuzeigendeBahnen[sichererIndex];
     const currentHoleNr = parseInt(bahnDaten.nr);
 
-    // 1. Loch-Navigationsband generieren
-    let holeNavHtml = "";
-    anzuzeigendeBahnen.forEach(function(b)
+    // Aktuelles Loch als besucht vermerken
+    if (typeof app.logic.markHoleVisited === 'function')
     {
-        const bNr = parseInt(b.nr);
-        const isCurrent = bNr === currentHoleNr;
-        const activeClass = isCurrent ? 'bg-emerald-600 text-white font-bold scale-110' : 'bg-stone-100 text-stone-600';
-        const fSeqParam = targetFlightSeq ? `, ${targetFlightSeq}` : '';
-        holeNavHtml += `
-            <button onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${bNr}${fSeqParam ? ', flightSeq: ' + targetFlightSeq : ''} })" class="w-9 h-9 rounded-lg text-xs flex-shrink-0 transition-all ${activeClass}">
-                ${bNr}
-            </button>
-        `;
-    });
+        app.logic.markHoleVisited(spieltagId, currentHoleNr);
+    }
 
-    // === FLIGHT-ERMITTLUNG UND RECHTE-WEICHE ===
+    // === FLIGHT-ERMITTLUNG UND RECHTE-WEICHE (vor Loch-Band, damit Flight-Spieler bekannt sind!) ===
     const meinIdString = app.state.currentUser ? String(app.state.currentUser.id).trim() : "";
     const isLeiter = app.state.currentUser && (app.state.currentUser.role === 'Admin' || app.state.currentUser.role === 'Spielleiter');
     
@@ -138,6 +128,81 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         }
     }
 
+    // Hilfsfunktion zum Rendern des Loch-Navigationsbands mit den 4 V2-Zuständen + blauer Auswahl-Umrandung
+    app.logic.renderHoleNavBandHtml = function(stId, bahnenListe, aktHoleNr, fSeq, spielerIds, tFlightSeq)
+    {
+        return bahnenListe.map(function(b)
+        {
+            const bNr = parseInt(b.nr);
+            const isCurrent = bNr === aktHoleNr;
+            const visited = typeof app.logic.isHoleVisited === 'function' ? app.logic.isHoleVisited(stId, bNr) : false;
+
+            let openCount = 0;
+            let localPendingCount = 0;
+            let syncedCount = 0;
+            const totalPlayers = spielerIds.length;
+
+            spielerIds.forEach(function(spId)
+            {
+                const st = typeof app.logic.getHoleEntryStatus === 'function'
+                    ? app.logic.getHoleEntryStatus(stId, spId, bNr)
+                    : 'open';
+
+                if (st === 'open') openCount++;
+                else if (st === 'local_pending') localPendingCount++;
+                else if (st === 'synced') syncedCount++;
+            });
+
+            // Zustand bestimmen:
+            // 1. Alle Spieler vollständig serverbestätigt -> Grüner Marker
+            // 2. Alle Spieler erfasst (keiner offen), Übertragung noch ausstehend -> Gelb/orange hervorgehoben
+            // 3. Bereits besucht/teilweise erfasst, aber mindestens ein Spieler fehlt -> Orange/beiger Marker mit gestrichelter Umrandung
+            // 4. Noch nicht bearbeitet -> Neutraler, offener Marker
+            let stateClasses = 'bg-stone-100 text-stone-600 border border-stone-200';
+
+            if (totalPlayers > 0 && syncedCount === totalPlayers)
+            {
+                stateClasses = 'bg-emerald-600 text-white font-bold border border-emerald-700';
+            }
+            else if (totalPlayers > 0 && openCount === 0 && localPendingCount > 0)
+            {
+                stateClasses = 'bg-amber-400 text-amber-950 font-bold border border-amber-500';
+            }
+            else if (openCount > 0 && (visited || localPendingCount > 0 || syncedCount > 0) && !isCurrent)
+            {
+                stateClasses = 'bg-orange-100 text-orange-900 font-bold border-2 border-dashed border-orange-400';
+            }
+            else if (openCount > 0 && (localPendingCount > 0 || syncedCount > 0) && isCurrent)
+            {
+                stateClasses = 'bg-orange-100 text-orange-900 font-bold border-2 border-dashed border-orange-400';
+            }
+
+            // Blaue Umrandung kennzeichnet zusätzlich das aktuell ausgewählte Loch (kein Vollständigkeitsnachweis!)
+            const activeRing = isCurrent
+                ? 'ring-2 ring-blue-600 ring-offset-1 scale-105 font-black'
+                : '';
+
+            const fSeqParam = tFlightSeq ? `, flightSeq: ${tFlightSeq}` : '';
+
+            return `
+                <button onclick="app.logic.completeHoleAndNavigate('${stId}', ${fSeq}, ${aktHoleNr}, 'score_eingabe', { id: '${stId}', hole: ${bNr}${fSeqParam} })" class="w-9 h-9 rounded-lg text-xs flex-shrink-0 transition-all flex items-center justify-center ${stateClasses} ${activeRing}">
+                    ${bNr}
+                </button>
+            `;
+        }).join('');
+    };
+
+    app.logic.refreshHoleNavBandUI = function(stId, aktHoleNr, fSeq)
+    {
+        const navContainer = document.getElementById('hole-nav-band');
+        if (navContainer)
+        {
+            navContainer.innerHTML = app.logic.renderHoleNavBandHtml(stId, anzuzeigendeBahnen, aktHoleNr, fSeq, teilnehmerIds, targetFlightSeq);
+        }
+    };
+
+    const holeNavHtml = app.logic.renderHoleNavBandHtml(spieltagId, anzuzeigendeBahnen, currentHoleNr, flightSeq, teilnehmerIds, targetFlightSeq);
+
     // Flight Switcher
     let flightSwitcherHtml = "";
     if (isLeiter && tagesFlights.length > 1)
@@ -149,16 +214,16 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
             const isCurrentFlight = fNr === flightSeq;
             
             return `
-                <button onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${currentHoleNr}, flightSeq: ${fNr} })" class="px-3 py-1 text-xs font-bold rounded-lg transition-all ${isCurrentFlight ? 'bg-emerald-700 text-white shadow-3xs' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}">
+                <button onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${currentHoleNr}, flightSeq: ${fNr} })" class="px-3 py-1 text-xs font-bold rounded-lg transition-all whitespace-nowrap ${isCurrentFlight ? 'bg-emerald-700 text-white shadow-3xs' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}">
                     Flight ${fNr}
                 </button>
             `;
         }).join('');
 
         flightSwitcherHtml = `
-            <div class="flex items-center space-x-2 bg-stone-100 p-1.5 rounded-xl border border-stone-200 mt-1">
-                <span class="text-[10px] uppercase font-bold text-stone-500 pl-1"><i class="fas fa-exchange-alt"></i> Flight:</span>
-                <div class="flex space-x-1">${switcherButtons}</div>
+            <div class="flex items-center flex-wrap gap-1.5 bg-stone-100 p-1.5 rounded-xl border border-stone-200">
+                <span class="text-[10px] uppercase font-bold text-stone-500 pl-1 shrink-0"><i class="fas fa-exchange-alt"></i> Flight:</span>
+                <div class="flex flex-wrap gap-1">${switcherButtons}</div>
             </div>
         `;
     }
@@ -229,6 +294,31 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
             }
             app.state.liveScores[currentScoreKey] = aktuellerScore;
         }
+
+        // V2 Erfassungsstatus des Spielers für dieses Loch bestimmen
+        const entryStatus = typeof app.logic.getHoleEntryStatus === 'function'
+            ? app.logic.getHoleEntryStatus(spieltagId, spielerId, currentHoleNr)
+            : 'open';
+
+        const cardBgClass = entryStatus === 'open'
+            ? 'bg-amber-50/90 border-amber-300'
+            : 'bg-stone-50 border-stone-200';
+
+        let statusBadgeHtml = '';
+        if (entryStatus === 'open')
+        {
+            statusBadgeHtml = `<span id="entry-status-badge-${spielerId}" class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300"><i class="fas fa-clock text-[9px]"></i> Noch offen (Vorschlag übernehmen)</span>`;
+        }
+        else if (entryStatus === 'local_pending')
+        {
+            statusBadgeHtml = `<span id="entry-status-badge-${spielerId}" class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200"><i class="fas fa-mobile-alt text-[9px]"></i> Lokal gespeichert · ausstehend</span>`;
+        }
+        else
+        {
+            statusBadgeHtml = `<span id="entry-status-badge-${spielerId}" class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200"><i class="fas fa-check-circle text-[9px]"></i> Serverbestätigt</span>`;
+        }
+
+        const initials = String(spieler.nickname || spieler.name || '?').trim().substring(0, 2).toUpperCase();
         
         const nettoPunkte = app.logic.calculateNettoStableford(aktuellerScore, bahnDaten.par, spielvorgabe);
 
@@ -241,14 +331,19 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
             : 'bg-white border-stone-300 text-stone-600 hover:bg-stone-50';
 
         return `
-            <div class="p-3 bg-stone-50 border border-stone-200 rounded-2xl flex flex-col space-y-2 shadow-2xs">
-                <!-- Header: Spieler-Info -->
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h4 class="font-bold text-stone-800 text-sm">${spieler.nickname}</h4>
-                        <p class="text-[10px] text-stone-400 uppercase tracking-wider">HCP: ${spieler.hcpLIE} | Vorgabe: +${spielvorgabe}</p>
+            <div id="player-card-${spielerId}" class="p-3 ${cardBgClass} border rounded-2xl flex flex-col space-y-2 shadow-2xs transition-colors">
+                <!-- Header: Spieler-Avatar (Tap = Vorschlag übernehmen) & Info -->
+                <div class="flex justify-between items-center gap-2">
+                    <div onclick="app.logic.confirmPlayerHole('${spieltagId}', '${spielerId}', ${currentHoleNr}, ${flightSeq})" class="flex items-center space-x-2.5 cursor-pointer select-none min-w-0" title="Tippen, um Vorgabewerte (Par / 2 Putts) als bestätigt zu übernehmen">
+                        <div class="w-9 h-9 rounded-full bg-emerald-800 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs border border-emerald-900">
+                            ${initials}
+                        </div>
+                        <div class="min-w-0">
+                            <h4 class="font-bold text-stone-800 text-sm truncate">${spieler.nickname}</h4>
+                            <p class="text-[10px] text-stone-500 uppercase tracking-wider">HCP: ${spieler.hcpLIE} | Vorgabe: +${spielvorgabe}</p>
+                        </div>
                     </div>
-                    <div class="flex items-center space-x-2 text-right">
+                    <div class="flex items-center space-x-1.5 text-right shrink-0">
                         <div class="flex space-x-1">
                             <button onclick="app.logic.movePlayerInFlight('${spieltagId}', ${flightSeq}, '${spielerId}', -1, ${currentHoleNr})" class="w-7 h-7 bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-700 rounded-lg flex items-center justify-center transition disabled:opacity-30 touch-target" ${isFirst ? 'disabled' : ''}><i class="fas fa-arrow-up text-[10px]"></i></button>
                             <button onclick="app.logic.movePlayerInFlight('${spieltagId}', ${flightSeq}, '${spielerId}', 1, ${currentHoleNr})" class="w-7 h-7 bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-700 rounded-lg flex items-center justify-center transition disabled:opacity-30 touch-target" ${isLast ? 'disabled' : ''}><i class="fas fa-arrow-down text-[10px]"></i></button>
@@ -257,6 +352,14 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                             ${nettoPunkte} Netto-Pkt
                         </span>
                     </div>
+                </div>
+
+                <!-- Statuszeile: Noch offen vs. Lokal gespeichert vs. Serverbestätigt -->
+                <div class="flex items-center justify-between">
+                    <div onclick="app.logic.confirmPlayerHole('${spieltagId}', '${spielerId}', ${currentHoleNr}, ${flightSeq})" class="cursor-pointer">
+                        ${statusBadgeHtml}
+                    </div>
+                    <span class="text-[10px] text-stone-400 font-semibold">Par ${bahnDaten.par} · SI ${bahnDaten.si}</span>
                 </div>
 
                 <!-- BEREICH 1: Gesamtschläge -->
@@ -343,29 +446,30 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
 
     return `
         <div class="space-y-4 pb-28">
-            <div class="space-y-1">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                        <button onclick="app.router.navigate('dashboard')" class="text-stone-500 touch-target"><i class="fas fa-arrow-left"></i></button>
-                        <div>
-                            <h2 class="text-base font-bold text-stone-800 flex items-center">
-                                ${kurs ? kurs.name : 'Scorekarte'}
+            <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center space-x-2 min-w-0">
+                        <button onclick="app.router.navigate('dashboard')" class="text-stone-500 touch-target shrink-0"><i class="fas fa-arrow-left"></i></button>
+                        <div class="min-w-0">
+                            <h2 class="text-sm sm:text-base font-bold text-stone-800 flex items-center truncate">
+                                <span class="truncate">${kurs ? kurs.name : 'Scorekarte'}</span>
                                 ${isLeiter ? `
-                                    <button onclick="app.router.navigate('score_schnellerfassung', { id: '${spieltagId}', flightSeq: ${flightSeq} })" class="ml-3 text-stone-400 hover:text-blue-600 transition touch-target flex items-center justify-center" title="Tabellarische Schnelleingabe">
+                                    <button onclick="app.router.navigate('score_schnellerfassung', { id: '${spieltagId}', flightSeq: ${flightSeq} })" class="ml-2 text-stone-400 hover:text-blue-600 transition touch-target flex items-center justify-center shrink-0" title="Tabellarische Schnelleingabe">
                                         <i class="fas fa-table text-sm"></i>
                                     </button>
-                                    <button onclick="app.logic.openEditSpieltagModal('${spieltagId}', ${currentHoleNr}, ${flightSeq})" class="ml-2 text-stone-400 hover:text-emerald-600 transition touch-target flex items-center justify-center" title="Spieltag bearbeiten">
+                                    <button onclick="app.logic.openEditSpieltagModal('${spieltagId}', ${currentHoleNr}, ${flightSeq})" class="ml-1.5 text-stone-400 hover:text-emerald-600 transition touch-target flex items-center justify-center shrink-0" title="Spieltag bearbeiten">
                                         <i class="fas fa-cog text-sm"></i>
                                     </button>
                                 ` : ''}
                             </h2>
                         </div>
-                    <div class="flex items-center space-x-1.5">
-                        <button onclick="app.logic.openLeaderboardOverlay('${spieltagId}')" class="text-xs bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold px-3 py-2 rounded-xl transition shadow-3xs flex items-center">
+                    </div>
+                    <div class="flex items-center space-x-1.5 shrink-0">
+                        <span id="score-sync-status" class="text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 transition-colors whitespace-nowrap">
+                            <i class="fas fa-check-circle mr-1"></i>Gespeichert
+                        </span>
+                        <button onclick="app.logic.openLeaderboardOverlay('${spieltagId}')" class="text-xs bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold px-2.5 py-2 rounded-xl transition shadow-3xs flex items-center whitespace-nowrap">
                             <i class="fas fa-trophy mr-1 text-amber-900"></i> Spicken
-                        </button>
-                        <button onclick="app.logic.syncScoresWithServer('${spieltagId}', ${flightSeq})" id="sync-btn" class="text-xs bg-stone-900 hover:bg-stone-800 text-white font-bold px-3 py-2 rounded-xl transition shadow-3xs">
-                            <i class="fas fa-cloud-upload-alt mr-1"></i> Sichern
                         </button>
                     </div>
                 </div>
@@ -373,7 +477,7 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
                 ${flightSwitcherHtml}
             </div>
 
-            <div class="flex space-x-1.5 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none">
+            <div id="hole-nav-band" class="flex space-x-1.5 overflow-x-auto py-1 px-1 -mx-1 scrollbar-none">
                 ${holeNavHtml}
             </div>
 
@@ -382,10 +486,10 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
             </div>
             
             <div class="grid grid-cols-2 gap-3 pt-2">
-                <button ${hatVorherigesLoch ? `onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${vorherigeLochNr}${fSeqParamStr} })"` : 'disabled'} class="bg-stone-100 text-stone-700 font-bold py-3 rounded-xl text-sm disabled:opacity-40">
+                <button ${hatVorherigesLoch ? `onclick="app.logic.completeHoleAndNavigate('${spieltagId}', ${flightSeq}, ${currentHoleNr}, 'score_eingabe', { id: '${spieltagId}', hole: ${vorherigeLochNr}${fSeqParamStr} })"` : 'disabled'} class="bg-stone-100 text-stone-700 font-bold py-3 rounded-xl text-sm disabled:opacity-40">
                     <i class="fas fa-chevron-left mr-1"></i> Loch zurück
                 </button>
-                <button ${hatNaechstesLoch ? `onclick="app.router.navigate('score_eingabe', { id: '${spieltagId}', hole: ${naechsteLochNr}${fSeqParamStr} })"` : `onclick="app.router.navigate('dashboard')"`} class="bg-emerald-600 text-white font-bold py-3 rounded-xl text-sm">
+                <button ${hatNaechstesLoch ? `onclick="app.logic.completeHoleAndNavigate('${spieltagId}', ${flightSeq}, ${currentHoleNr}, 'score_eingabe', { id: '${spieltagId}', hole: ${naechsteLochNr}${fSeqParamStr} })"` : `onclick="app.logic.completeHoleAndNavigate('${spieltagId}', ${flightSeq}, ${currentHoleNr}, 'dashboard')"`} class="bg-emerald-600 text-white font-bold py-3 rounded-xl text-sm">
                     ${hatNaechstesLoch ? 'Nächstes Loch <i class="fas fa-chevron-right ml-1"></i>' : 'Runde beenden <i class="fas fa-check ml-1"></i>'}
                 </button>
             </div>
@@ -406,5 +510,3 @@ app.views.scoreEingabe = app.views.score_eingabe = function(spieltagIdParam, hol
         </div>
     `;
 };
-
-

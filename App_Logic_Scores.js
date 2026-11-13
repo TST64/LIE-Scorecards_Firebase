@@ -1,5 +1,4 @@
-// =========================================================================
-// BMAssistent / LIE Scorecard - Live-Scoring & Calculations (mit Auto-Save & Debounce)
+// BMAssistent / LIE Scorecard - Live-Scoring & Calculations (mit V2-Status & Offline-Queue)
 // App_Logic_Scores.js
 // BSD (Allman) Style
 // =========================================================================
@@ -88,6 +87,143 @@ app.logic.calculateNettoStableford = function(strokes, par, holeVorgabe)
     return punkte < 0 ? 0 : punkte;
 };
 
+// =========================================================================
+// V2 Erfassungs- & Synchronisations-Status pro Spieler/Loch
+// =========================================================================
+
+app.logic.getOfflineQueueMap = function(spieltagId)
+{
+    try
+    {
+        const raw = localStorage.getItem(`lie_offline_scores_${spieltagId}`);
+        return raw ? JSON.parse(raw) : {};
+    }
+    catch (e)
+    {
+        return {};
+    }
+};
+
+app.logic.getHoleEntryStatus = function(spieltagId, spielerId, holeNr)
+{
+    app.state.liveScores = app.state.liveScores || {};
+    const docId = `SC-${spieltagId}-${spielerId}-${holeNr}`;
+    const offlineQueue = app.logic.getOfflineQueueMap(spieltagId);
+
+    const dbMatch = (app.state.scoreCards || []).find(function(sc)
+    {
+        return String(sc.spieltagId).trim() === String(spieltagId).trim() &&
+               String(sc.spielerId).trim() === String(spielerId).trim() &&
+               sc.hole !== undefined && parseInt(sc.hole) === parseInt(holeNr);
+    });
+
+    const isConfirmedInSession = !!app.state.liveScores[`${spieltagId}_${spielerId}_${holeNr}_confirmed`];
+    const isInOfflineQueue = !!offlineQueue[docId];
+    const hasDbData = !!(dbMatch && dbMatch.strokes !== undefined && dbMatch.strokes !== null && dbMatch.strokes !== "");
+
+    if (!isConfirmedInSession && !isInOfflineQueue && !hasDbData)
+    {
+        return 'open'; // Noch offen (nur Vorschlagswert Par / 2 Putts)
+    }
+
+    if (isInOfflineQueue)
+    {
+        return 'local_pending'; // Lokal erfasst/gespeichert, Server-Bestätigung steht noch aus
+    }
+
+    return 'synced'; // Serverbestätigt in Firestore
+};
+
+app.logic.markHoleVisited = function(spieltagId, holeNr)
+{
+    app.state.visitedHoles = app.state.visitedHoles || {};
+    app.state.visitedHoles[`${spieltagId}_${holeNr}`] = true;
+};
+
+app.logic.isHoleVisited = function(spieltagId, holeNr)
+{
+    return !!(app.state.visitedHoles && app.state.visitedHoles[`${spieltagId}_${holeNr}`]);
+};
+
+app.logic.confirmPlayerHole = function(spieltagId, spielerId, holeNr, flightSeq)
+{
+    app.state.liveScores = app.state.liveScores || {};
+    const confirmKey = `${spieltagId}_${spielerId}_${holeNr}_confirmed`;
+    const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
+    const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
+
+    // Aktuelle Vorschlagswerte (z. B. Par & 2 Putts) explizit als bestätigt übernehmen
+    const spieltag = (app.state.spieltage || []).find(st => String(st.id).trim() === String(spieltagId).trim());
+    const bahn = (app.state.bahnen || []).find(b => spieltag && String(b.kursId).trim() === String(spieltag.kursId).trim() && parseInt(b.nr) === parseInt(holeNr));
+    const defaultPar = bahn ? parseInt(bahn.par) : 4;
+
+    if (app.state.liveScores[scoreKey] === undefined)
+    {
+        app.state.liveScores[scoreKey] = defaultPar;
+    }
+    if (app.state.liveScores[putsKey] === undefined)
+    {
+        app.state.liveScores[putsKey] = 2;
+    }
+
+    app.state.liveScores[confirmKey] = true;
+
+    // Direkt lokal in die Offline-Queue schreiben
+    const fSeq = flightSeq || (app.router && app.router.currentParams && app.router.currentParams.flightSeq) || 1;
+    app.logic.saveOfflineQueue(spieltagId, fSeq, holeNr);
+
+    // Visuelles Feedback auf der Karte und im Lochband sofort aktualisieren
+    app.logic.updatePlayerCardStatusUI(spieltagId, spielerId, holeNr, 'local_pending');
+    app.logic.refreshHoleNavBandUI(spieltagId, holeNr, fSeq);
+};
+
+app.logic.updatePlayerCardStatusUI = function(spieltagId, spielerId, holeNr, status)
+{
+    const cardEl = document.getElementById(`player-card-${spielerId}`);
+    const badgeEl = document.getElementById(`entry-status-badge-${spielerId}`);
+
+    if (cardEl)
+    {
+        cardEl.classList.remove(
+            'bg-amber-50/90', 'border-amber-300',
+            'bg-stone-50', 'border-stone-200',
+            'bg-emerald-50/40', 'border-emerald-200'
+        );
+
+        if (status === 'open')
+        {
+            cardEl.classList.add('bg-amber-50/90', 'border-amber-300');
+        }
+        else if (status === 'local_pending')
+        {
+            cardEl.classList.add('bg-stone-50', 'border-stone-200');
+        }
+        else
+        {
+            cardEl.classList.add('bg-stone-50', 'border-stone-200');
+        }
+    }
+
+    if (badgeEl)
+    {
+        if (status === 'open')
+        {
+            badgeEl.className = "inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300";
+            badgeEl.innerHTML = `<i class="fas fa-clock text-[9px]"></i> Noch offen (Vorschlag übernehmen)`;
+        }
+        else if (status === 'local_pending')
+        {
+            badgeEl.className = "inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200";
+            badgeEl.innerHTML = `<i class="fas fa-mobile-alt text-[9px]"></i> Lokal gespeichert · ausstehend`;
+        }
+        else
+        {
+            badgeEl.className = "inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200";
+            badgeEl.innerHTML = `<i class="fas fa-check-circle text-[9px]"></i> Serverbestätigt`;
+        }
+    }
+};
+
 // Debounce Timer Map für Auto-Save
 let autoSaveTimeouts = {};
 
@@ -96,25 +232,36 @@ app.logic.autoSaveScoreFieldAtomic = function(spieltagId, spielerId, holeNr, fie
     const scoreId = `SC-${spieltagId}-${spielerId}-${holeNr}`;
     const timeoutKey = `${spieltagId}_${spielerId}_${holeNr}_${field}`;
 
+    // Jede aktive Änderung bestätigt den Spieler automatisch
+    app.state.liveScores = app.state.liveScores || {};
+    app.state.liveScores[`${spieltagId}_${spielerId}_${holeNr}_confirmed`] = true;
+
+    const fSeq = flightSeq || (app.router && app.router.currentParams && app.router.currentParams.flightSeq) || 1;
+    app.logic.saveOfflineQueue(spieltagId, fSeq, holeNr);
+    app.logic.updatePlayerCardStatusUI(spieltagId, spielerId, holeNr, 'local_pending');
+    app.logic.refreshHoleNavBandUI(spieltagId, holeNr, fSeq);
+
     if (autoSaveTimeouts[timeoutKey])
     {
         clearTimeout(autoSaveTimeouts[timeoutKey]);
     }
 
     const statusEl = document.getElementById('connection-status');
+    const syncBadge = document.getElementById('score-sync-status');
     if (statusEl)
     {
         statusEl.className = "w-3 h-3 rounded-full bg-amber-400";
+    }
+    if (syncBadge)
+    {
+        syncBadge.className = "text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-800 transition-colors whitespace-nowrap";
+        syncBadge.innerHTML = `<i class="fas fa-clock mr-1"></i>Ausstehend`;
     }
 
     autoSaveTimeouts[timeoutKey] = setTimeout(async () =>
     {
         try
         {
-            const spieler = app.state.spieler.find(s => String(s.id).trim() === String(spielerId).trim());
-            const spieltag = app.state.spieltage.find(st => String(st.id).trim() === String(spieltagId).trim());
-            let strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag, holeNr);
-
             const payloadData = {
                 scoreId: scoreId,
                 spieltagId: spieltagId,
@@ -124,22 +271,80 @@ app.logic.autoSaveScoreFieldAtomic = function(spieltagId, spielerId, holeNr, fie
                 value: value
             };
 
-            await app.logic.apiRequest('updateSingleScoreField', payloadData);
+            const res = await app.logic.apiRequest('updateSingleScoreField', payloadData);
+            if (!res || !res.success)
+            {
+                throw new Error(res ? res.error : 'Sync fehlgeschlagen');
+            }
+
+            // Aus Offline-Queue entfernen, sobald Server bestätigt hat, und scoreCards im State aktualisieren
+            app.logic.markSinglePlayerHoleSynced(spieltagId, spielerId, holeNr, fSeq);
 
             if (statusEl)
             {
                 statusEl.className = "w-3 h-3 rounded-full bg-teal-400";
             }
+            if (syncBadge)
+            {
+                syncBadge.className = "text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 transition-colors whitespace-nowrap";
+                syncBadge.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Gespeichert`;
+            }
+
+            app.logic.updatePlayerCardStatusUI(spieltagId, spielerId, holeNr, 'synced');
+            app.logic.refreshHoleNavBandUI(spieltagId, holeNr, fSeq);
         }
         catch (err)
         {
-            console.error("Auto-save error:", err);
+            console.error("Auto-save error (bleibt lokal in Queue):", err);
             if (statusEl)
             {
-                statusEl.className = "w-3 h-3 rounded-full bg-red-400";
+                statusEl.className = "w-3 h-3 rounded-full bg-amber-400";
+            }
+            if (syncBadge)
+            {
+                syncBadge.className = "text-[10px] font-bold px-2 py-1 rounded-lg bg-blue-100 text-blue-800 transition-colors whitespace-nowrap";
+                syncBadge.innerHTML = `<i class="fas fa-hdd mr-1"></i>Lokal · offen`;
             }
         }
     }, 500);
+};
+
+app.logic.markSinglePlayerHoleSynced = function(spieltagId, spielerId, holeNr, flightSeq)
+{
+    try
+    {
+        const storageKey = `lie_offline_scores_${spieltagId}`;
+        const docId = `SC-${spieltagId}-${spielerId}-${holeNr}`;
+        const queueMap = app.logic.getOfflineQueueMap(spieltagId);
+        const syncedItem = queueMap[docId];
+
+        if (syncedItem)
+        {
+            delete queueMap[docId];
+            if (Object.keys(queueMap).length === 0)
+            {
+                localStorage.removeItem(storageKey);
+            }
+            else
+            {
+                localStorage.setItem(storageKey, JSON.stringify(queueMap));
+            }
+
+            const idx = (app.state.scoreCards || []).findIndex(sc => String(sc.id).trim() === String(docId).trim());
+            if (idx !== -1)
+            {
+                app.state.scoreCards[idx] = Object.assign({}, app.state.scoreCards[idx], syncedItem);
+            }
+            else
+            {
+                app.state.scoreCards.push(syncedItem);
+            }
+        }
+    }
+    catch (e)
+    {
+        console.warn('[SyncState] Konnte lokalen Queue-Eintrag nicht bereinigen:', e);
+    }
 };
 
 app.logic.adjustScore = function(spieltagId, spielerId, holeNr, delta, par, spielvorgabe)
@@ -320,7 +525,6 @@ app.logic.toggleMaxScore = function(spieltagId, spielerId, holeNr, maxScoreValue
 
 app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
 {
-    // Behält die bisherige syncScoresWithServer Funktion für manuelle Syncs / Fallbacks bei
     const keysToSync = Object.keys(app.state.liveScores).filter(k => k.startsWith(spieltagId + "_"));
     
     if (keysToSync.length === 0)
@@ -391,8 +595,6 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
         {
             if (response && response.success)
             {
-                keysToSync.forEach(key => delete app.state.liveScores[key]);
-
                 scoresPayload.forEach(item =>
                 {
                     const idx = app.state.scoreCards.findIndex(sc => String(sc.id).trim() === String(item.id).trim());
@@ -427,4 +629,169 @@ app.logic.syncScoresWithServer = function(spieltagId, flightSeq)
             if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-1"></i> Sichern`; }
             app.logic.startLivePolling(spieltagId, null, flightSeq);
         });
+};
+
+// =========================================================================
+// Lokale Offline-Queue & Lochwechsel-Speicherung (kein manueller Sichern-Button)
+// =========================================================================
+
+app.logic.saveOfflineQueue = function(spieltagId, flightSeq, holeNr)
+{
+    try
+    {
+        const storageKey = `lie_offline_scores_${spieltagId}`;
+        const queueMap = app.logic.getOfflineQueueMap(spieltagId);
+
+        const keysForHole = Object.keys(app.state.liveScores || {}).filter(function(k)
+        {
+            return k.startsWith(`${spieltagId}_`) && k.split('_')[2] === String(holeNr);
+        });
+
+        const processedPlayers = {};
+        keysForHole.forEach(function(k)
+        {
+            const parts = k.split('_');
+            const spielerId = parts[1];
+            if (processedPlayers[spielerId]) return;
+            processedPlayers[spielerId] = true;
+
+            // Nur explizit bestätigte / geänderte Spieler in die Offline-Queue aufnehmen!
+            const isConfirmed = !!app.state.liveScores[`${spieltagId}_${spielerId}_${holeNr}_confirmed`];
+            if (!isConfirmed) return;
+
+            const scoreKey = `${spieltagId}_${spielerId}_${holeNr}`;
+            const ladyKey = `${spieltagId}_${spielerId}_${holeNr}_lady`;
+            const putsKey = `${spieltagId}_${spielerId}_${holeNr}_puts`;
+            const maxScoreKey = `${spieltagId}_${spielerId}_${holeNr}_maxscore`;
+
+            const strokes = app.state.liveScores[scoreKey];
+            if (strokes === undefined || strokes === null || strokes <= 0) return;
+
+            const spieler = (app.state.spieler || []).find(s => String(s.id).trim() === String(spielerId).trim());
+            const spieltag = (app.state.spieltage || []).find(st => String(st.id).trim() === String(spieltagId).trim());
+            const strokesGiven = app.logic.calculateHoleVorgabe(spieler, spieltag, holeNr);
+
+            const docId = `SC-${spieltagId}-${spielerId}-${holeNr}`;
+            queueMap[docId] = {
+                id: docId,
+                spieltagId: String(spieltagId),
+                flightSeq: parseInt(flightSeq) || 1,
+                spielerId: String(spielerId),
+                hole: parseInt(holeNr),
+                strokes: parseInt(strokes),
+                strokesGiven: strokesGiven,
+                hcpStart: spieler ? parseInt(spieler.hcpLIE) : 0,
+                lady: !!app.state.liveScores[ladyKey],
+                puts: app.state.liveScores[putsKey] !== undefined ? parseInt(app.state.liveScores[putsKey]) : 2,
+                maxscore: !!app.state.liveScores[maxScoreKey]
+            };
+        });
+
+        if (Object.keys(queueMap).length > 0)
+        {
+            localStorage.setItem(storageKey, JSON.stringify(queueMap));
+        }
+        return Object.values(queueMap);
+    }
+    catch (err)
+    {
+        console.error('[OfflineQueue] Fehler beim lokalen Speichern:', err);
+        return [];
+    }
+};
+
+app.logic.flushOfflineQueueToServer = async function(spieltagId)
+{
+    const storageKey = `lie_offline_scores_${spieltagId}`;
+    const queueMap = app.logic.getOfflineQueueMap(spieltagId);
+
+    const payloadItems = Object.values(queueMap);
+    if (payloadItems.length === 0)
+    {
+        return true;
+    }
+
+    const statusBadge = document.getElementById('score-sync-status');
+    const connectionDot = document.getElementById('connection-status');
+
+    if (statusBadge)
+    {
+        statusBadge.className = "text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-800 transition-colors whitespace-nowrap";
+        statusBadge.innerHTML = `<i class="fas fa-sync fa-spin mr-1"></i>Sync...`;
+    }
+    if (connectionDot)
+    {
+        connectionDot.className = "w-3 h-3 rounded-full bg-amber-400";
+    }
+
+    try
+    {
+        const response = await app.logic.apiRequest('saveLiveScores', { payload: payloadItems });
+        if (response && response.success)
+        {
+            localStorage.removeItem(storageKey);
+
+            payloadItems.forEach(function(item)
+            {
+                const idx = (app.state.scoreCards || []).findIndex(sc => String(sc.id).trim() === String(item.id).trim());
+                if (idx !== -1)
+                {
+                    app.state.scoreCards[idx] = item;
+                }
+                else
+                {
+                    app.state.scoreCards.push(item);
+                }
+            });
+
+            if (statusBadge)
+            {
+                statusBadge.className = "text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 transition-colors whitespace-nowrap";
+                statusBadge.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Gespeichert`;
+            }
+            if (connectionDot)
+            {
+                connectionDot.className = "w-3 h-3 rounded-full bg-emerald-400";
+            }
+
+            if (app.router && app.router.currentView === 'score_eingabe' && app.router.currentParams)
+            {
+                const curHole = app.router.currentParams.hole || 1;
+                const curFSeq = app.router.currentParams.flightSeq || 1;
+                app.logic.refreshHoleNavBandUI(spieltagId, curHole, curFSeq);
+            }
+            return true;
+        }
+        else
+        {
+            throw new Error(response ? response.error : 'Unbekannter Sync-Fehler');
+        }
+    }
+    catch (err)
+    {
+        console.warn('[OfflineQueue] Kein Netz / Sync verschoben, lokal gesichert:', err);
+        if (statusBadge)
+        {
+            statusBadge.className = "text-[10px] font-bold px-2 py-1 rounded-lg bg-blue-100 text-blue-800 transition-colors whitespace-nowrap";
+            statusBadge.innerHTML = `<i class="fas fa-hdd mr-1"></i>Lokal gesichert`;
+        }
+        if (connectionDot)
+        {
+            connectionDot.className = "w-3 h-3 rounded-full bg-amber-400";
+        }
+        return false;
+    }
+};
+
+app.logic.completeHoleAndNavigate = function(spieltagId, flightSeq, currentHoleNr, targetView, targetParams)
+{
+    app.logic.markHoleVisited(spieltagId, currentHoleNr);
+    app.logic.saveOfflineQueue(spieltagId, flightSeq, currentHoleNr);
+
+    if (app.router && typeof app.router.navigate === 'function')
+    {
+        app.router.navigate(targetView, targetParams);
+    }
+
+    app.logic.flushOfflineQueueToServer(spieltagId);
 };
